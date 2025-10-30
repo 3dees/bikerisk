@@ -246,9 +246,88 @@ def extract_all_paragraphs(blocks: List[Dict]) -> List[Dict]:
     return paragraphs
 
 
+def split_lettered_items(section_content: str, parent_clause: str, heading: str) -> List[Dict]:
+    """
+    Split section content into individual lettered sub-items (a), b), c), etc.).
+
+    Args:
+        section_content: Full section text
+        parent_clause: Parent clause number (e.g., "6")
+        heading: Section heading
+
+    Returns:
+        List of sub-items, each with text and sub-clause number
+    """
+    # Pattern to match lettered items: a), b), aa), bb), etc.
+    letter_pattern = r'^([a-z]+)\)\s+'
+
+    items = []
+    lines = section_content.split('\n')
+
+    current_item = []
+    current_letter = None
+    intro_text = []  # Text before first lettered item
+
+    for line in lines:
+        line_stripped = line.strip()
+
+        # Check if this line starts with a letter pattern
+        match = re.match(letter_pattern, line_stripped)
+
+        if match:
+            # Save previous item if exists
+            if current_item and current_letter:
+                item_text = '\n'.join(current_item).strip()
+                items.append({
+                    'text': item_text,
+                    'letter': current_letter,
+                    'clause_number': f"{parent_clause}.{current_letter}" if parent_clause else current_letter
+                })
+
+            # Start new item
+            current_letter = match.group(1)
+            # Remove the letter prefix from the line
+            item_text = re.sub(letter_pattern, '', line_stripped)
+            current_item = [item_text]
+
+        else:
+            # Continue current item or intro text
+            if current_letter:
+                current_item.append(line_stripped)
+            else:
+                intro_text.append(line_stripped)
+
+    # Save final item
+    if current_item and current_letter:
+        item_text = '\n'.join(current_item).strip()
+        items.append({
+            'text': item_text,
+            'letter': current_letter,
+            'clause_number': f"{parent_clause}.{current_letter}" if parent_clause else current_letter
+        })
+
+    # If we found lettered items, also include intro text as item 0
+    if items and intro_text:
+        intro_clean = '\n'.join(intro_text).strip()
+        # Remove the heading from intro
+        if intro_clean.startswith(heading):
+            intro_clean = intro_clean[len(heading):].strip()
+
+        if intro_clean and len(intro_clean) > 50:  # Only include if substantial
+            items.insert(0, {
+                'text': intro_clean,
+                'letter': 'intro',
+                'clause_number': parent_clause
+            })
+
+    return items
+
+
 def combine_detections(manual_sections: List[Dict], manual_clauses: List[Dict]) -> List[Dict]:
     """
     Combine Pass A (sections) and Pass B (clauses) results, deduplicating.
+
+    For sections with lettered sub-items, split them into individual requirements.
 
     Args:
         manual_sections: Detected manual sections
@@ -266,17 +345,38 @@ def combine_detections(manual_sections: List[Dict], manual_clauses: List[Dict]) 
     """
     combined = []
 
-    # Add all manual sections
+    # Add all manual sections (with sub-item splitting)
     for section in manual_sections:
-        combined.append({
-            'text': section['content'],
-            'source': 'section',
-            'line_number': f"{section['start_line']}-{section['end_line']}",
-            'clause_number': section['clause_number'],
-            'heading': section['heading'],
-            'matched_patterns': [],
-            'context': section['content']
-        })
+        # Try to split into lettered sub-items
+        sub_items = split_lettered_items(
+            section['content'],
+            section['clause_number'],
+            section['heading']
+        )
+
+        if sub_items:
+            # Add each sub-item as a separate detection
+            for sub_item in sub_items:
+                combined.append({
+                    'text': sub_item['text'],
+                    'source': 'section',
+                    'line_number': f"{section['start_line']}-{section['end_line']}",
+                    'clause_number': sub_item['clause_number'],
+                    'heading': section['heading'],
+                    'matched_patterns': [],
+                    'context': section['content']
+                })
+        else:
+            # No sub-items found, add entire section
+            combined.append({
+                'text': section['content'],
+                'source': 'section',
+                'line_number': f"{section['start_line']}-{section['end_line']}",
+                'clause_number': section['clause_number'],
+                'heading': section['heading'],
+                'matched_patterns': [],
+                'context': section['content']
+            })
 
     # Add all manual clauses
     for clause in manual_clauses:
