@@ -449,9 +449,11 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
     for line_stripped in clean_lines:
         # Try strict pattern first
         match = re.match(strict_pattern, line_stripped)
+        used_pattern = strict_pattern
         if not match:
             # Fallback to loose pattern
             match = re.match(loose_pattern, line_stripped)
+            used_pattern = loose_pattern
 
         if match:
             # Save previous item if exists
@@ -466,7 +468,7 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
             # Start new item
             current_number = match.group(1)
             # Remove the number prefix from the line
-            item_text = re.sub(subsection_pattern, '', line_stripped)
+            item_text = re.sub(used_pattern, '', line_stripped)
             current_item = [item_text]
 
         else:
