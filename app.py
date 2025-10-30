@@ -46,11 +46,17 @@ def main():
             help="Name of the standard/regulation being analyzed"
         )
 
+        custom_section_name = st.text_input(
+            "Custom Section Name (optional)",
+            placeholder="e.g., Instruction for use",
+            help="Specific section name to look for in the document. Leave blank to use default patterns."
+        )
+
         process_button = st.button("🔍 Process Document", type="primary", use_container_width=True)
 
     # Main content area
     if process_button and uploaded_file:
-        process_document(uploaded_file, standard_name)
+        process_document(uploaded_file, standard_name, custom_section_name)
 
     # Show existing results if available
     if 'job_id' in st.session_state:
@@ -66,7 +72,7 @@ def check_api_health():
         return False
 
 
-def process_document(uploaded_file, standard_name):
+def process_document(uploaded_file, standard_name, custom_section_name):
     """Process uploaded document through the API."""
     with st.spinner("🔄 Extracting and analyzing document..."):
         try:
@@ -78,6 +84,8 @@ def process_document(uploaded_file, standard_name):
             params = {}
             if standard_name:
                 params['standard_name'] = standard_name
+            if custom_section_name:
+                params['custom_section_name'] = custom_section_name
 
             # Call upload API
             response = requests.post(
@@ -161,7 +169,7 @@ def display_results(job_id):
         # Convert to DataFrame
         df = pd.DataFrame(rows)
 
-        # Keep only the 8 schema columns + internal fields for filtering
+        # Keep only the 8 schema columns
         display_columns = [
             'Description',
             'Standard/Reg',
@@ -173,60 +181,28 @@ def display_results(job_id):
             'Comments'
         ]
 
-        # Filters
-        with st.expander("🔍 Filters", expanded=False):
-            col1, col2, col3 = st.columns(3)
+        # Initialize edited data in session state if not exists
+        if 'edited_data' not in st.session_state or st.session_state.get('current_job_id') != st.session_state.job_id:
+            st.session_state.edited_data = df[display_columns].copy()
+            st.session_state.current_job_id = st.session_state.job_id
 
-            with col1:
-                filter_must_include = st.multiselect(
-                    "Must be included?",
-                    options=['Y', 'N', 'Ambiguous'],
-                    default=['Y', 'N', 'Ambiguous']
-                )
+        # Instructions
+        st.info("💡 **Tip**: Click any cell to edit. Select rows to delete using checkboxes on the left.")
 
-            with col2:
-                filter_print = st.multiselect(
-                    "Required in Print?",
-                    options=['y', 'n'],
-                    default=['y', 'n']
-                )
-
-            with col3:
-                all_scopes = set()
-                for scope_str in df['Requirement scope'].dropna():
-                    if scope_str:
-                        scopes = [s.strip() for s in scope_str.split(',')]
-                        all_scopes.update(scopes)
-
-                filter_scope = st.multiselect(
-                    "Requirement Scope",
-                    options=sorted(all_scopes),
-                    default=sorted(all_scopes)
-                )
-
-        # Apply filters
-        filtered_df = df.copy()
-        if filter_must_include:
-            filtered_df = filtered_df[filtered_df['Must Be Included with product?'].isin(filter_must_include)]
-        if filter_print:
-            filtered_df = filtered_df[filtered_df['Required in Print?'].isin(filter_print)]
-        if filter_scope:
-            # Scope filtering is more complex because it's comma-separated
-            filtered_df = filtered_df[
-                filtered_df['Requirement scope'].apply(
-                    lambda x: any(scope.strip() in filter_scope for scope in (x or '').split(','))
-                )
-            ]
-
-        # Display DataFrame
-        st.dataframe(
-            filtered_df[display_columns],
+        # Editable DataFrame
+        edited_df = st.data_editor(
+            st.session_state.edited_data,
             use_container_width=True,
-            hide_index=True,
-            height=400
+            hide_index=False,
+            height=500,
+            num_rows="dynamic",  # Allow adding/deleting rows
+            key="data_editor"
         )
 
-        st.caption(f"Showing {len(filtered_df)} of {len(df)} total requirements")
+        # Update session state with edited data
+        st.session_state.edited_data = edited_df
+
+        st.caption(f"Total requirements: {len(edited_df)}")
 
         # Consolidation suggestions (Phase 3 - placeholder)
         st.divider()
@@ -243,32 +219,22 @@ def display_results(job_id):
         else:
             st.info("Consolidation feature coming in Phase 3")
 
-        # Export button
+        # Export button - one-click download using edited data
         st.divider()
-        if st.button("📥 Download CSV", type="primary"):
-            download_csv(job_id, result['filename'])
+
+        # Convert edited DataFrame to CSV
+        csv_data = edited_df.to_csv(index=False)
+
+        st.download_button(
+            label="📥 Download CSV",
+            data=csv_data,
+            file_name=f"{result['filename']}_requirements.csv",
+            mime="text/csv",
+            type="primary"
+        )
 
     except Exception as e:
         st.error(f"Error displaying results: {str(e)}")
-
-
-def download_csv(job_id, filename):
-    """Download results as CSV."""
-    try:
-        response = requests.get(f"{API_BASE_URL}/export/{job_id}")
-        if response.status_code == 200:
-            csv_data = response.json()['csv']
-
-            st.download_button(
-                label="💾 Save CSV",
-                data=csv_data,
-                file_name=f"{filename}_requirements.csv",
-                mime="text/csv"
-            )
-        else:
-            st.error(f"Failed to export CSV: {response.status_code}")
-    except Exception as e:
-        st.error(f"Error downloading CSV: {str(e)}")
 
 
 if __name__ == "__main__":

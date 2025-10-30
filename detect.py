@@ -50,12 +50,13 @@ CLAUSE_NUMBER_PATTERNS = [
 ]
 
 
-def detect_manual_sections(blocks: List[Dict]) -> List[Dict]:
+def detect_manual_sections(blocks: List[Dict], custom_section_names: List[str] = None) -> List[Dict]:
     """
     Pass A: Detect sections dedicated to instructions/manuals.
 
     Args:
         blocks: List of text blocks from extract_text_blocks()
+        custom_section_names: Optional list of custom section names to search for (e.g., ["Instruction for use"])
 
     Returns:
         List of detected sections with keys:
@@ -67,6 +68,14 @@ def detect_manual_sections(blocks: List[Dict]) -> List[Dict]:
     """
     sections = []
 
+    # Combine default patterns with custom names
+    search_patterns = MANUAL_SECTION_PATTERNS.copy()
+    if custom_section_names:
+        for name in custom_section_names:
+            # Escape special regex chars and add to patterns
+            escaped_name = re.escape(name.lower())
+            search_patterns.append(escaped_name)
+
     for i, block in enumerate(blocks):
         if not block['maybe_heading']:
             continue
@@ -74,9 +83,13 @@ def detect_manual_sections(blocks: List[Dict]) -> List[Dict]:
         heading_text = block['raw'].strip()
         heading_lower = heading_text.lower()
 
+        # Skip if this looks like a TOC entry (has dots followed by page numbers)
+        if re.search(r'\.{3,}\s*\d+\s*$', heading_text):
+            continue
+
         # Check if this heading matches any manual section pattern
         is_manual_section = False
-        for pattern in MANUAL_SECTION_PATTERNS:
+        for pattern in search_patterns:
             if re.search(pattern, heading_lower, re.IGNORECASE):
                 is_manual_section = True
                 break
@@ -88,17 +101,36 @@ def detect_manual_sections(blocks: List[Dict]) -> List[Dict]:
         clause_number = extract_clause_number(heading_text)
 
         # Find the end of this section (next heading of same or higher level)
-        section_content = [heading_text]
+        section_content = []
+        section_content.append(heading_text)
         end_line = None
 
         for j in range(i + 1, len(blocks)):
+            line_text = blocks[j]['raw'].strip()
+
+            # Skip TOC entries, page numbers, and other noise
+            if not line_text:
+                continue
+            if re.search(r'\.{3,}\s*\d+\s*$', line_text):  # TOC dots and page numbers
+                continue
+            if re.match(r'^\d+\s*$', line_text):  # Standalone page numbers
+                continue
+            if re.match(r'^EN\s+\d+:', line_text):  # Standard references like "EN 15194:2017"
+                continue
+
+            # Check if we hit the next major heading (indicates section end)
             if blocks[j]['maybe_heading']:
-                # Check if this is a heading at same or higher level
-                # For simplicity, we'll treat any heading as a section boundary
-                end_line = blocks[j]['lineno'] - 1
-                break
-            else:
-                section_content.append(blocks[j]['raw'])
+                next_clause = extract_clause_number(line_text)
+                # Only end section if we hit a heading with a different top-level clause number
+                if next_clause and clause_number:
+                    # Extract top-level numbers
+                    current_top = clause_number.split('.')[0] if '.' in clause_number else clause_number
+                    next_top = next_clause.split('.')[0] if '.' in next_clause else next_clause
+                    if current_top != next_top and not next_clause.startswith(clause_number):
+                        end_line = blocks[j]['lineno'] - 1
+                        break
+
+            section_content.append(line_text)
 
         if end_line is None:
             end_line = blocks[-1]['lineno']

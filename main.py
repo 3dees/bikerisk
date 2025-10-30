@@ -50,7 +50,8 @@ def read_root():
 @app.post("/upload")
 async def upload_file(
     file: UploadFile = File(...),
-    standard_name: Optional[str] = None
+    standard_name: Optional[str] = None,
+    custom_section_name: Optional[str] = None
 ):
     """
     Upload a PDF and extract manual/instruction requirements.
@@ -58,6 +59,7 @@ async def upload_file(
     Args:
         file: PDF file
         standard_name: Optional name of the standard (e.g., "EN 15194")
+        custom_section_name: Optional custom section name to search for (e.g., "Instruction for use")
 
     Returns:
         Job ID and initial results
@@ -102,7 +104,8 @@ async def upload_file(
 
     # Step 2: Detect manual sections (Pass A)
     blocks = extraction_result['blocks']
-    manual_sections = detect_manual_sections(blocks)
+    custom_names = [custom_section_name] if custom_section_name else None
+    manual_sections = detect_manual_sections(blocks, custom_names)
 
     # Step 3: Detect manual clauses (Pass B)
     manual_clauses = detect_manual_clauses(blocks, manual_sections)
