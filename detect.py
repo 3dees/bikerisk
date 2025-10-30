@@ -423,9 +423,14 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
     if not parent_clause:
         return []
 
+    # Try strict pattern first (must match parent clause)
     # Match patterns like "7.1 Addition:" or "7.12 " or "7.12.1"
     # Be flexible with spacing and optional keywords
-    subsection_pattern = rf'^({re.escape(parent_clause)}\.\d+(?:\.\d+)*)\s*(?:Addition:|Replacement:|Amendment:|Modification:)?:?\s*'
+    strict_pattern = rf'^({re.escape(parent_clause)}\.\d+(?:\.\d+)*)\s*(?:Addition:|Replacement:|Amendment:|Modification:)?:?\s*'
+
+    # Fallback: if strict doesn't work, try any numbered subsection
+    # This matches patterns like "7.1 ", "19.2.3 ", etc.
+    loose_pattern = rf'^(\d+\.\d+(?:\.\d+)*)\s*(?:Addition:|Replacement:|Amendment:|Modification:)?:?\s*'
 
     items = []
     lines = section_content.split('\n')
@@ -442,8 +447,11 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
     intro_text = []  # Text before first numbered subsection
 
     for line_stripped in clean_lines:
-        # Check if this line starts with a numbered subsection pattern
-        match = re.match(subsection_pattern, line_stripped)
+        # Try strict pattern first
+        match = re.match(strict_pattern, line_stripped)
+        if not match:
+            # Fallback to loose pattern
+            match = re.match(loose_pattern, line_stripped)
 
         if match:
             # Save previous item if exists
