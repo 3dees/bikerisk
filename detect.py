@@ -549,16 +549,24 @@ def _is_garbage_line(line: str) -> bool:
         return True
 
     # Pattern 2: Common reversed words (even without dots) - comprehensive list
-    reversed_words = [
+    # Check for individual reversed words first (these appear on separate lines)
+    individual_reversed = [
         r'\bredrO\b', r'\bsresu\b', r'\bthgirypoc\b', r'\btcejbus\b',
         r'\bsdradnatS\b', r'\bnoitasidradnatS\b', r'\bertneC\b',
         r'\bnainotsE\b', r'\bsgnoleb\b', r'\betubirtsid\b', r'\becudorper\b',
         r'\bkerT\b', r'\bcinortcele\b', r'\btnemucod\b', r'\besiU\b', r'\besU\b',
-        r'\brof\b.*\becnecil\b', r'\bitluM\b.*\bresu\b'  # Common phrases
+        # Individual short reversed words (common in garbage)
+        r'\brof\b', r'\becnecil\b', r'\bresu\b', r'\bitluM\b',
+        r'\bot\b', r'\bera\b', r'\bdna\b', r'\beht\b',
+        r'\bthgir\b', r'\bsiht\b', r'\bfo\b'
     ]
-    for word in reversed_words:
+    for word in individual_reversed:
         if re.search(word, line):
             return True
+
+    # Check for multi-word reversed phrases
+    if re.search(r'\brof\b.*\becnecil\b', line) or re.search(r'\bitluM\b.*\bresu\b', line):
+        return True
 
     # Pattern 3: Specific garbage patterns from this document
     if re.search(r'(rof ecnecil|resu itluM|ot tcejbus|era sdradnatS|thgir eht)', line):
@@ -580,6 +588,18 @@ def _is_garbage_line(line: str) -> bool:
 
     # Pattern 7: Lines that are mostly punctuation/numbers (like ".2202.50.81,779474.oN")
     if re.match(r'^[\d.,\s]+[a-zA-Z]{2,}$', line):
+        return True
+
+    # Pattern 8: Lines that start with period followed by numbers (reversed dates like ".2202.50.81")
+    if re.match(r'^\.\d{4}\.\d{2}\.\d{2}', line):
+        return True
+
+    # Pattern 9: Lines that start with comma followed by numbers (reversed order numbers like ",779474")
+    if re.match(r'^,\d+', line):
+        return True
+
+    # Pattern 10: Very short lines with just reversed abbreviations (like ".oN" or ",SVE")
+    if re.match(r'^[.,]\w{2,5}$', line):
         return True
 
     return False
