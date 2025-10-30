@@ -340,6 +340,9 @@ def split_lettered_items(section_content: str, parent_clause: str, heading: str)
     items = []
     lines = section_content.split('\n')
 
+    # Pre-filter garbage lines
+    lines = [line for line in lines if not _is_garbage_line(line.strip())]
+
     current_item = []
     current_letter = None
     intro_text = []  # Text before first lettered item
@@ -347,8 +350,7 @@ def split_lettered_items(section_content: str, parent_clause: str, heading: str)
     for line in lines:
         line_stripped = line.strip()
 
-        # Skip garbage header/footer lines
-        if _is_garbage_line(line_stripped):
+        if not line_stripped:
             continue
 
         # Check if this line starts with a letter pattern
@@ -417,13 +419,18 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
     """
     # Pattern to match numbered subsections: 7.1, 7.12, 7.12.1, etc.
     # Must start at beginning of line and match parent clause
+    # May be followed by optional text like "Addition:" or "Replacement:"
     if not parent_clause:
         return []
 
-    subsection_pattern = rf'^({re.escape(parent_clause)}\.\d+(?:\.\d+)*)\s+'
+    # Match patterns like "7.1 Addition:" or "7.12 " or "7.12.1"
+    subsection_pattern = rf'^({re.escape(parent_clause)}\.\d+(?:\.\d+)*)\s*(?:Addition:|Replacement:|Amendment:)?:?\s*'
 
     items = []
     lines = section_content.split('\n')
+
+    # Pre-filter garbage lines
+    lines = [line for line in lines if not _is_garbage_line(line.strip())]
 
     current_item = []
     current_number = None
@@ -432,8 +439,7 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
     for line in lines:
         line_stripped = line.strip()
 
-        # Skip garbage header/footer lines
-        if _is_garbage_line(line_stripped):
+        if not line_stripped:
             continue
 
         # Check if this line starts with a numbered subsection pattern
@@ -493,7 +499,7 @@ def _is_garbage_line(line: str) -> bool:
     Detect garbage header/footer lines (watermarks, page headers, etc.).
 
     Common patterns:
-    - Reversed text like ".oN redrO"
+    - Reversed text like ".oN redrO" or "redrO rof"
     - Copyright notices with weird spacing
     - Repeating headers/footers
     """
@@ -504,14 +510,29 @@ def _is_garbage_line(line: str) -> bool:
     if re.search(r'\.(oN|redrO|sresu|thgirypoc|ot|tcejbus|era|sdradnatS)', line):
         return True
 
-    # Pattern 2: Lines with excessive punctuation relative to words
+    # Pattern 2: Common reversed words (even without dots)
+    reversed_words = [
+        r'\bredrO\b', r'\bsresu\b', r'\bthgirypoc\b', r'\btcejbus\b',
+        r'\bsdradnatS\b', r'\bnoitasidradnatS\b', r'\bertneC\b',
+        r'\bnainotsE\b', r'\bsgnoleb\b', r'\betubirtsid\b', r'\becudorper\b',
+        r'\bkerT\b', r'\bcinortcele\b', r'\btnemucod\b'
+    ]
+    for word in reversed_words:
+        if re.search(word, line):
+            return True
+
+    # Pattern 3: Lines with excessive punctuation relative to words
     punct_count = len(re.findall(r'[.,;:]', line))
     word_count = len(re.findall(r'\w+', line))
     if word_count > 0 and punct_count / word_count > 0.5:
         return True
 
-    # Pattern 3: Very long lines with no spaces (garbled text)
+    # Pattern 4: Very long lines with no spaces (garbled text)
     if len(line) > 100 and ' ' not in line:
+        return True
+
+    # Pattern 5: Page number patterns like "– 13 – EVS-EN IEC" or "– 14 –"
+    if re.search(r'–\s+\d+\s+–\s+(EVS-EN|IEC|EN\s+IEC)', line):
         return True
 
     return False
