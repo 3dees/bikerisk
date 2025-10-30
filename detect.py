@@ -423,6 +423,12 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
     if not parent_clause:
         return []
 
+    # DEBUG: Print what we're looking for
+    print(f"[DEBUG] split_numbered_subsections called:")
+    print(f"  parent_clause: '{parent_clause}'")
+    print(f"  heading: '{heading[:50]}...' (truncated)")
+    print(f"  content length: {len(section_content)} chars")
+
     # Try strict pattern first (must match parent clause)
     # Match patterns like "7.1 Addition:" or "7.12 " or "7.12.1"
     # Be flexible with spacing and optional keywords
@@ -431,6 +437,9 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
     # Fallback: if strict doesn't work, try any numbered subsection
     # This matches patterns like "7.1 ", "19.2.3 ", etc.
     loose_pattern = rf'^(\d+\.\d+(?:\.\d+)*)\s*(?:Addition:|Replacement:|Amendment:|Modification:)?:?\s*'
+
+    print(f"  strict_pattern: {strict_pattern}")
+    print(f"  loose_pattern: {loose_pattern}")
 
     items = []
     lines = section_content.split('\n')
@@ -442,20 +451,33 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
         if stripped and not _is_garbage_line(stripped):
             clean_lines.append(stripped)
 
+    print(f"  clean_lines count: {len(clean_lines)} (after filtering {len(lines) - len(clean_lines)} garbage lines)")
+
+    # Show first few clean lines
+    print(f"  First 5 clean lines:")
+    for i, line in enumerate(clean_lines[:5]):
+        print(f"    [{i}]: {line[:80]}...")
+
     current_item = []
     current_number = None
     intro_text = []  # Text before first numbered subsection
+    matches_found = 0
 
     for line_stripped in clean_lines:
         # Try strict pattern first
         match = re.match(strict_pattern, line_stripped)
         used_pattern = strict_pattern
+        pattern_type = "strict"
         if not match:
             # Fallback to loose pattern
             match = re.match(loose_pattern, line_stripped)
             used_pattern = loose_pattern
+            pattern_type = "loose"
 
         if match:
+            matches_found += 1
+            print(f"  [MATCH {matches_found}] {pattern_type} pattern matched: {match.group(1)} in line: {line_stripped[:60]}...")
+
             # Save previous item if exists
             if current_item and current_number:
                 item_text = '\n'.join(current_item).strip()
@@ -500,6 +522,12 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
                 'number': 'intro',
                 'clause_number': parent_clause  # Parent clause gets the main number
             })
+
+    print(f"  [RESULT] Found {len(items)} subsections")
+    if items:
+        for i, item in enumerate(items[:3]):
+            print(f"    Item {i}: clause={item['clause_number']}, text={item['text'][:50]}...")
+    print()
 
     return items
 
