@@ -31,6 +31,27 @@ WARNING_PATTERNS = [
     r'\bNOTE\b',
 ]
 
+# Exclusion patterns for warnings (when it's NOT a safety warning)
+WARNING_EXCLUSION_PATTERNS = [
+    r'warning\s+device',
+    r'warning\s+signal',
+    r'warning\s+light',
+    r'warning\s+bell',
+    r'audible\s+warning',
+    r'visual\s+warning',
+    r'warning\s+system',
+]
+
+# Exclusion patterns for manual (when it's NOT about instruction manual)
+MANUAL_EXCLUSION_PATTERNS = [
+    r'manual\s+(or|and|vs)\s+automatic',
+    r'manual\s+operation',
+    r'manual\s+control',
+    r'manual\s+transmission',
+    r'manual\s+adjustment',
+    r'manually\s+operated',
+]
+
 # Scope detection patterns
 SCOPE_PATTERNS = {
     'battery': [
@@ -180,11 +201,10 @@ def _classify_single_item(item: Dict, standard_name: str) -> Dict:
         'Description': text.strip(),
         'Standard/Reg': standard_name,
         'Clause/Requirement': clause,
-        'Must Be Included with product?': must_be_included,
         'Requirement scope': scope,
         'Formatting required?': formatting,
         'Required in Print?': required_in_print,
-        'Comments': '; '.join(comments) if comments else 'none',
+        'Comments': '; '.join(comments) if comments else '',
         '_confidence': confidence,  # Internal field
         '_line_number': item['line_number'],  # Internal field for debugging
     }
@@ -207,11 +227,29 @@ def _has_soft_requirement(text_lower: str) -> bool:
 
 
 def _has_warning_token(text: str) -> bool:
-    """Check if text contains warning/caution/danger tokens."""
+    """
+    Check if text contains warning/caution/danger tokens.
+
+    Excludes cases where it's referring to warning devices, not safety warnings.
+    """
+    text_lower = text.lower()
+
+    # First check if any warning pattern matches
+    has_warning = False
     for pattern in WARNING_PATTERNS:
-        if re.search(pattern, text):
-            return True
-    return False
+        if re.search(pattern, text, re.IGNORECASE):
+            has_warning = True
+            break
+
+    if not has_warning:
+        return False
+
+    # Now check if it's an exclusion case (warning device, not safety warning)
+    for exclusion in WARNING_EXCLUSION_PATTERNS:
+        if re.search(exclusion, text_lower):
+            return False  # It's a warning device, not a safety warning
+
+    return True  # It's a real safety warning
 
 
 def _detect_scope(text_lower: str) -> str:
@@ -276,7 +314,7 @@ def rows_to_csv_dicts(rows: List[Dict]) -> List[Dict]:
         rows: Classified rows with internal fields
 
     Returns:
-        List of dicts with only the 8 schema columns
+        List of dicts with only the 7 schema columns
     """
     csv_rows = []
 
@@ -285,7 +323,6 @@ def rows_to_csv_dicts(rows: List[Dict]) -> List[Dict]:
             'Description': row['Description'],
             'Standard/Reg': row['Standard/Reg'],
             'Clause/Requirement': row['Clause/Requirement'],
-            'Must Be Included with product?': row['Must Be Included with product?'],
             'Requirement scope': row['Requirement scope'],
             'Formatting required?': row['Formatting required?'],
             'Required in Print?': row['Required in Print?'],

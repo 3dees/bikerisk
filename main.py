@@ -202,7 +202,6 @@ def export_csv(job_id: str):
         'Description',
         'Standard/Reg',
         'Clause/Requirement',
-        'Must Be Included with product?',
         'Requirement scope',
         'Formatting required?',
         'Required in Print?',

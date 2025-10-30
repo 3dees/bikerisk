@@ -41,6 +41,27 @@ CLAUSE_KEYWORD_PATTERNS = [
     r'included\s+with\s+the\s+packaged\s+unit',
 ]
 
+# Exclusion patterns for warnings (when it's NOT a safety warning)
+WARNING_EXCLUSION_PATTERNS = [
+    r'warning\s+device',
+    r'warning\s+signal',
+    r'warning\s+light',
+    r'warning\s+bell',
+    r'audible\s+warning',
+    r'visual\s+warning',
+    r'warning\s+system',
+]
+
+# Exclusion patterns for manual (when it's NOT about instruction manual)
+MANUAL_EXCLUSION_PATTERNS = [
+    r'manual\s+(or|and|vs)\s+automatic',
+    r'manual\s+operation',
+    r'manual\s+control',
+    r'manual\s+transmission',
+    r'manual\s+adjustment',
+    r'manually\s+operated',
+]
+
 # Patterns for extracting clause numbers
 CLAUSE_NUMBER_PATTERNS = [
     r'^\d+(\.\d+)*',           # 1.7.4.1
@@ -189,6 +210,29 @@ def detect_manual_clauses(blocks: List[Dict], manual_sections: List[Dict]) -> Li
                 matched_patterns.append(pattern)
 
         if not matched_patterns:
+            continue
+
+        # Check for exclusions
+        text_lower = text.lower()
+
+        # Skip if it's a warning device reference (not a safety warning)
+        is_warning_device = False
+        if any(re.search(r'\b(WARNING|CAUTION|DANGER)\b', text, re.IGNORECASE) for _ in [1]):
+            for exclusion in WARNING_EXCLUSION_PATTERNS:
+                if re.search(exclusion, text_lower):
+                    is_warning_device = True
+                    break
+
+        # Skip if it's about manual operation (not instruction manual)
+        is_manual_operation = False
+        if 'manual' in text_lower:
+            for exclusion in MANUAL_EXCLUSION_PATTERNS:
+                if re.search(exclusion, text_lower):
+                    is_manual_operation = True
+                    break
+
+        # Skip this clause if it matches an exclusion
+        if is_warning_device or is_manual_operation:
             continue
 
         # Extract clause number if present

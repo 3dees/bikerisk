@@ -169,12 +169,11 @@ def display_results(job_id):
         # Convert to DataFrame
         df = pd.DataFrame(rows)
 
-        # Keep only the 8 schema columns
+        # Keep only the 7 schema columns
         display_columns = [
             'Description',
             'Standard/Reg',
             'Clause/Requirement',
-            'Must Be Included with product?',
             'Requirement scope',
             'Formatting required?',
             'Required in Print?',
