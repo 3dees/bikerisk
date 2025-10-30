@@ -177,12 +177,12 @@ def _classify_single_item(item: Dict, standard_name: str) -> Dict:
     clause = item['clause_number'] if item['clause_number'] else item.get('heading', '')
 
     return {
-        'Requirement (Clause)': text.strip(),
-        'Standard/ Regulation': standard_name,
-        'Clause': clause,
-        'Must be included with product?': must_be_included,
-        'Requirement Scope': scope,
-        'Formatting Requirement(s)?': formatting,
+        'Description': text.strip(),
+        'Standard/Reg': standard_name,
+        'Clause/Requirement': clause,
+        'Must Be Included with product?': must_be_included,
+        'Requirement scope': scope,
+        'Formatting required?': formatting,
         'Required in Print?': required_in_print,
         'Comments': '; '.join(comments) if comments else 'none',
         '_confidence': confidence,  # Internal field
@@ -282,12 +282,12 @@ def rows_to_csv_dicts(rows: List[Dict]) -> List[Dict]:
 
     for row in rows:
         csv_rows.append({
-            'Requirement (Clause)': row['Requirement (Clause)'],
-            'Standard/ Regulation': row['Standard/ Regulation'],
-            'Clause': row['Clause'],
-            'Must be included with product?': row['Must be included with product?'],
-            'Requirement Scope': row['Requirement Scope'],
-            'Formatting Requirement(s)?': row['Formatting Requirement(s)?'],
+            'Description': row['Description'],
+            'Standard/Reg': row['Standard/Reg'],
+            'Clause/Requirement': row['Clause/Requirement'],
+            'Must Be Included with product?': row['Must Be Included with product?'],
+            'Requirement scope': row['Requirement scope'],
+            'Formatting required?': row['Formatting required?'],
             'Required in Print?': row['Required in Print?'],
             'Comments': row['Comments'],
         })

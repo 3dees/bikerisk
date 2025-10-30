@@ -163,12 +163,12 @@ def display_results(job_id):
 
         # Keep only the 8 schema columns + internal fields for filtering
         display_columns = [
-            'Requirement (Clause)',
-            'Standard/ Regulation',
-            'Clause',
-            'Must be included with product?',
-            'Requirement Scope',
-            'Formatting Requirement(s)?',
+            'Description',
+            'Standard/Reg',
+            'Clause/Requirement',
+            'Must Be Included with product?',
+            'Requirement scope',
+            'Formatting required?',
             'Required in Print?',
             'Comments'
         ]
@@ -193,7 +193,7 @@ def display_results(job_id):
 
             with col3:
                 all_scopes = set()
-                for scope_str in df['Requirement Scope'].dropna():
+                for scope_str in df['Requirement scope'].dropna():
                     if scope_str:
                         scopes = [s.strip() for s in scope_str.split(',')]
                         all_scopes.update(scopes)
@@ -207,13 +207,13 @@ def display_results(job_id):
         # Apply filters
         filtered_df = df.copy()
         if filter_must_include:
-            filtered_df = filtered_df[filtered_df['Must be included with product?'].isin(filter_must_include)]
+            filtered_df = filtered_df[filtered_df['Must Be Included with product?'].isin(filter_must_include)]
         if filter_print:
             filtered_df = filtered_df[filtered_df['Required in Print?'].isin(filter_print)]
         if filter_scope:
             # Scope filtering is more complex because it's comma-separated
             filtered_df = filtered_df[
-                filtered_df['Requirement Scope'].apply(
+                filtered_df['Requirement scope'].apply(
                     lambda x: any(scope.strip() in filter_scope for scope in (x or '').split(','))
                 )
             ]

@@ -196,12 +196,12 @@ def export_csv(job_id: str):
 
     output = io.StringIO()
     fieldnames = [
-        'Requirement (Clause)',
-        'Standard/ Regulation',
-        'Clause',
-        'Must be included with product?',
-        'Requirement Scope',
-        'Formatting Requirement(s)?',
+        'Description',
+        'Standard/Reg',
+        'Clause/Requirement',
+        'Must Be Included with product?',
+        'Requirement scope',
+        'Formatting required?',
         'Required in Print?',
         'Comments'
     ]

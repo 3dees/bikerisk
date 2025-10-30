@@ -281,7 +281,7 @@ def split_lettered_items(section_content: str, parent_clause: str, heading: str)
                 items.append({
                     'text': item_text,
                     'letter': current_letter,
-                    'clause_number': f"{parent_clause}.{current_letter}" if parent_clause else current_letter
+                    'clause_number': f"{current_letter})"  # Just the letter with parenthesis
                 })
 
             # Start new item
@@ -303,7 +303,7 @@ def split_lettered_items(section_content: str, parent_clause: str, heading: str)
         items.append({
             'text': item_text,
             'letter': current_letter,
-            'clause_number': f"{parent_clause}.{current_letter}" if parent_clause else current_letter
+            'clause_number': f"{current_letter})"  # Just the letter with parenthesis
         })
 
     # If we found lettered items, also include intro text as item 0
@@ -317,7 +317,7 @@ def split_lettered_items(section_content: str, parent_clause: str, heading: str)
             items.insert(0, {
                 'text': intro_clean,
                 'letter': 'intro',
-                'clause_number': parent_clause
+                'clause_number': parent_clause  # Parent clause gets the main number
             })
 
     return items
