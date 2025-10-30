@@ -424,24 +424,24 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
         return []
 
     # Match patterns like "7.1 Addition:" or "7.12 " or "7.12.1"
-    subsection_pattern = rf'^({re.escape(parent_clause)}\.\d+(?:\.\d+)*)\s*(?:Addition:|Replacement:|Amendment:)?:?\s*'
+    # Be flexible with spacing and optional keywords
+    subsection_pattern = rf'^({re.escape(parent_clause)}\.\d+(?:\.\d+)*)\s*(?:Addition:|Replacement:|Amendment:|Modification:)?:?\s*'
 
     items = []
     lines = section_content.split('\n')
 
-    # Pre-filter garbage lines
-    lines = [line for line in lines if not _is_garbage_line(line.strip())]
+    # Pre-filter garbage lines and clean up
+    clean_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not _is_garbage_line(stripped):
+            clean_lines.append(stripped)
 
     current_item = []
     current_number = None
     intro_text = []  # Text before first numbered subsection
 
-    for line in lines:
-        line_stripped = line.strip()
-
-        if not line_stripped:
-            continue
-
+    for line_stripped in clean_lines:
         # Check if this line starts with a numbered subsection pattern
         match = re.match(subsection_pattern, line_stripped)
 
@@ -510,29 +510,38 @@ def _is_garbage_line(line: str) -> bool:
     if re.search(r'\.(oN|redrO|sresu|thgirypoc|ot|tcejbus|era|sdradnatS)', line):
         return True
 
-    # Pattern 2: Common reversed words (even without dots)
+    # Pattern 2: Common reversed words (even without dots) - comprehensive list
     reversed_words = [
         r'\bredrO\b', r'\bsresu\b', r'\bthgirypoc\b', r'\btcejbus\b',
         r'\bsdradnatS\b', r'\bnoitasidradnatS\b', r'\bertneC\b',
         r'\bnainotsE\b', r'\bsgnoleb\b', r'\betubirtsid\b', r'\becudorper\b',
-        r'\bkerT\b', r'\bcinortcele\b', r'\btnemucod\b'
+        r'\bkerT\b', r'\bcinortcele\b', r'\btnemucod\b', r'\besiU\b', r'\besU\b',
+        r'\brof\b.*\becnecil\b', r'\bitluM\b.*\bresu\b'  # Common phrases
     ]
     for word in reversed_words:
         if re.search(word, line):
             return True
 
-    # Pattern 3: Lines with excessive punctuation relative to words
+    # Pattern 3: Specific garbage patterns from this document
+    if re.search(r'(rof ecnecil|resu itluM|ot tcejbus|era sdradnatS|thgir eht)', line):
+        return True
+
+    # Pattern 4: Lines with excessive punctuation relative to words
     punct_count = len(re.findall(r'[.,;:]', line))
     word_count = len(re.findall(r'\w+', line))
     if word_count > 0 and punct_count / word_count > 0.5:
         return True
 
-    # Pattern 4: Very long lines with no spaces (garbled text)
+    # Pattern 5: Very long lines with no spaces (garbled text)
     if len(line) > 100 and ' ' not in line:
         return True
 
-    # Pattern 5: Page number patterns like "– 13 – EVS-EN IEC" or "– 14 –"
-    if re.search(r'–\s+\d+\s+–\s+(EVS-EN|IEC|EN\s+IEC)', line):
+    # Pattern 6: Page number patterns like "– 13 – EVS-EN IEC" or "– 14 –" or "– 23 –"
+    if re.search(r'–\s+\d+\s+–\s*(EVS-EN|IEC|EN\s+IEC)?', line):
+        return True
+
+    # Pattern 7: Lines that are mostly punctuation/numbers (like ".2202.50.81,779474.oN")
+    if re.match(r'^[\d.,\s]+[a-zA-Z]{2,}$', line):
         return True
 
     return False
