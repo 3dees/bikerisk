@@ -605,6 +605,25 @@ def _is_garbage_line(line: str) -> bool:
     return False
 
 
+def _filter_garbage_from_text(text: str) -> str:
+    """
+    Remove garbage lines from text content.
+
+    Args:
+        text: Multi-line text content
+
+    Returns:
+        Filtered text with garbage lines removed
+    """
+    lines = text.split('\n')
+    clean_lines = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped and not _is_garbage_line(stripped):
+            clean_lines.append(line)
+    return '\n'.join(clean_lines)
+
+
 def combine_detections(manual_sections: List[Dict], manual_clauses: List[Dict]) -> List[Dict]:
     """
     Combine Pass A (sections) and Pass B (clauses) results, deduplicating.
@@ -657,15 +676,16 @@ def combine_detections(manual_sections: List[Dict], manual_clauses: List[Dict]) 
                     'context': section['content']
                 })
         else:
-            # No sub-items found, add entire section
+            # No sub-items found, filter garbage and add entire section
+            filtered_content = _filter_garbage_from_text(section['content'])
             combined.append({
-                'text': section['content'],
+                'text': filtered_content,
                 'source': 'section',
                 'line_number': f"{section['start_line']}-{section['end_line']}",
                 'clause_number': section['clause_number'],
                 'heading': section['heading'],
                 'matched_patterns': [],
-                'context': section['content']
+                'context': filtered_content
             })
 
     # Add all manual clauses
