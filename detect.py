@@ -347,6 +347,10 @@ def split_lettered_items(section_content: str, parent_clause: str, heading: str)
     for line in lines:
         line_stripped = line.strip()
 
+        # Skip garbage header/footer lines
+        if _is_garbage_line(line_stripped):
+            continue
+
         # Check if this line starts with a letter pattern
         match = re.match(letter_pattern, line_stripped)
 
@@ -399,6 +403,120 @@ def split_lettered_items(section_content: str, parent_clause: str, heading: str)
     return items
 
 
+def split_numbered_subsections(section_content: str, parent_clause: str, heading: str) -> List[Dict]:
+    """
+    Split section content into individual numbered sub-sections (7.1, 7.6, 7.12, etc.).
+
+    Args:
+        section_content: Full section text
+        parent_clause: Parent clause number (e.g., "7")
+        heading: Section heading
+
+    Returns:
+        List of sub-items, each with text and sub-clause number
+    """
+    # Pattern to match numbered subsections: 7.1, 7.12, 7.12.1, etc.
+    # Must start at beginning of line and match parent clause
+    if not parent_clause:
+        return []
+
+    subsection_pattern = rf'^({re.escape(parent_clause)}\.\d+(?:\.\d+)*)\s+'
+
+    items = []
+    lines = section_content.split('\n')
+
+    current_item = []
+    current_number = None
+    intro_text = []  # Text before first numbered subsection
+
+    for line in lines:
+        line_stripped = line.strip()
+
+        # Skip garbage header/footer lines
+        if _is_garbage_line(line_stripped):
+            continue
+
+        # Check if this line starts with a numbered subsection pattern
+        match = re.match(subsection_pattern, line_stripped)
+
+        if match:
+            # Save previous item if exists
+            if current_item and current_number:
+                item_text = '\n'.join(current_item).strip()
+                items.append({
+                    'text': item_text,
+                    'number': current_number,
+                    'clause_number': current_number
+                })
+
+            # Start new item
+            current_number = match.group(1)
+            # Remove the number prefix from the line
+            item_text = re.sub(subsection_pattern, '', line_stripped)
+            current_item = [item_text]
+
+        else:
+            # Continue current item or intro text
+            if current_number:
+                current_item.append(line_stripped)
+            else:
+                intro_text.append(line_stripped)
+
+    # Save final item
+    if current_item and current_number:
+        item_text = '\n'.join(current_item).strip()
+        items.append({
+            'text': item_text,
+            'number': current_number,
+            'clause_number': current_number
+        })
+
+    # If we found numbered subsections, also include intro text as item 0
+    if items and intro_text:
+        intro_clean = '\n'.join(intro_text).strip()
+        # Remove the heading from intro
+        if intro_clean.startswith(heading):
+            intro_clean = intro_clean[len(heading):].strip()
+
+        if intro_clean and len(intro_clean) > 50:  # Only include if substantial
+            items.insert(0, {
+                'text': intro_clean,
+                'number': 'intro',
+                'clause_number': parent_clause  # Parent clause gets the main number
+            })
+
+    return items
+
+
+def _is_garbage_line(line: str) -> bool:
+    """
+    Detect garbage header/footer lines (watermarks, page headers, etc.).
+
+    Common patterns:
+    - Reversed text like ".oN redrO"
+    - Copyright notices with weird spacing
+    - Repeating headers/footers
+    """
+    if not line:
+        return False
+
+    # Pattern 1: Reversed/scrambled text (has dots and backwards words)
+    if re.search(r'\.(oN|redrO|sresu|thgirypoc|ot|tcejbus|era|sdradnatS)', line):
+        return True
+
+    # Pattern 2: Lines with excessive punctuation relative to words
+    punct_count = len(re.findall(r'[.,;:]', line))
+    word_count = len(re.findall(r'\w+', line))
+    if word_count > 0 and punct_count / word_count > 0.5:
+        return True
+
+    # Pattern 3: Very long lines with no spaces (garbled text)
+    if len(line) > 100 and ' ' not in line:
+        return True
+
+    return False
+
+
 def combine_detections(manual_sections: List[Dict], manual_clauses: List[Dict]) -> List[Dict]:
     """
     Combine Pass A (sections) and Pass B (clauses) results, deduplicating.
@@ -423,12 +541,20 @@ def combine_detections(manual_sections: List[Dict], manual_clauses: List[Dict]) 
 
     # Add all manual sections (with sub-item splitting)
     for section in manual_sections:
-        # Try to split into lettered sub-items
-        sub_items = split_lettered_items(
+        # Try numbered subsections first (7.1, 7.6, 7.12, etc.)
+        sub_items = split_numbered_subsections(
             section['content'],
             section['clause_number'],
             section['heading']
         )
+
+        # If no numbered subsections, try lettered items (a), b), c), etc.)
+        if not sub_items:
+            sub_items = split_lettered_items(
+                section['content'],
+                section['clause_number'],
+                section['heading']
+            )
 
         if sub_items:
             # Add each sub-item as a separate detection
