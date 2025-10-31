@@ -58,13 +58,14 @@ def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, api_k
 
     standard_context = f"Standard: {standard_name}\n" if standard_name else ""
 
-    prompt = f"""You are an expert at analyzing e-bike safety standards and regulations.
+    # Build prompt template (pdf_text will be inserted later after truncation)
+    prompt_template = """You are an expert at analyzing e-bike safety standards and regulations.
 
 {standard_context}
 Your task: Extract ALL requirements related to user manuals, instruction manuals, warnings, documentation, and information that must be provided to users.
 
 PDF Text:
-{pdf_text[:100000]}
+{{PDF_TEXT}}
 
 IMPORTANT GUIDELINES:
 1. Look for requirements about what must be INCLUDED in user manuals/instructions
@@ -115,17 +116,31 @@ Extract ALL relevant requirements. Be thorough but precise."""
     try:
         print(f"[AI EXTRACTION] Sending {len(pdf_text)} chars to Claude Opus...")
 
-        message = client.messages.create(
+        # For large documents, we need to limit the input text to avoid timeouts
+        # Claude Opus can handle ~200k tokens input, but let's be conservative
+        max_chars = 80000  # About 60k tokens, leaves room for response
+        if len(pdf_text) > max_chars:
+            print(f"[AI EXTRACTION] PDF is large ({len(pdf_text)} chars), truncating to {max_chars} chars")
+            pdf_text = pdf_text[:max_chars] + "\n\n[Document truncated due to length]"
+
+        # Insert pdf_text into prompt template
+        final_prompt = prompt_template.replace('{standard_context}', standard_context).replace('{PDF_TEXT}', pdf_text)
+
+        # Use streaming with longer timeout for large documents
+        with client.messages.stream(
             model="claude-opus-4-20250514",
             max_tokens=16000,
             temperature=0,  # Deterministic for extraction
+            timeout=600.0,  # 10 minute timeout
             messages=[{
                 "role": "user",
-                "content": prompt
+                "content": final_prompt
             }]
-        )
+        ) as stream:
+            response_text = ""
+            for text in stream.text_stream:
+                response_text += text
 
-        response_text = message.content[0].text
         print(f"[AI EXTRACTION] Received response: {len(response_text)} chars")
 
         # Parse JSON response
