@@ -35,18 +35,32 @@ def main():
             env_key = os.getenv('ANTHROPIC_API_KEY', '')
             st.session_state.anthropic_api_key = env_key
 
-        api_key = st.text_input(
-            "Anthropic API Key",
-            value=st.session_state.anthropic_api_key,
-            type="password",
-            help="Enter your Anthropic API key for AI-powered consolidation. Loaded from .env if available."
-        )
+        # Only show input if no API key is loaded from env
+        env_key = os.getenv('ANTHROPIC_API_KEY')
+        if env_key:
+            st.success("✅ API key loaded from .env file")
+            st.session_state.anthropic_api_key = env_key
+            # Show option to override
+            if st.checkbox("Use different API key"):
+                api_key = st.text_input(
+                    "Anthropic API Key",
+                    value="",
+                    type="password",
+                    help="Enter a different Anthropic API key"
+                )
+                if api_key:
+                    st.session_state.anthropic_api_key = api_key
+                    st.success("✅ Using custom API key for this session")
+        else:
+            api_key = st.text_input(
+                "Anthropic API Key",
+                value=st.session_state.anthropic_api_key,
+                type="password",
+                help="Enter your Anthropic API key for AI-powered features"
+            )
 
-        if api_key:
-            st.session_state.anthropic_api_key = api_key
-            if os.getenv('ANTHROPIC_API_KEY'):
-                st.success("✅ API key loaded from .env")
-            else:
+            if api_key:
+                st.session_state.anthropic_api_key = api_key
                 st.success("✅ API key saved for session")
 
     # Create tabs
@@ -214,7 +228,24 @@ def render_consolidation_tab():
 
         # Run consolidation button
         if st.button("🤖 Analyze with AI", type="primary"):
-            with st.spinner("🔄 Analyzing requirements with Claude AI..."):
+            # Fun facts for consolidation
+            consolidation_facts = [
+                "🤖 Claude is comparing requirements like a master chef perfecting a recipe...",
+                "🔍 AI can spot similarities that would take humans hours to find!",
+                "🧠 Claude's neural networks are processing millions of comparisons per second!",
+                "📊 Smart consolidation can reduce manual length by 30-50% without losing info!",
+                "⚡ Claude is finding patterns across standards faster than you can blink...",
+                "🎯 AI consolidation preserves critical details while removing redundancy!",
+                "🌟 Claude is trained to understand regulatory language across multiple domains!",
+                "🔬 The AI is analyzing semantic similarity, not just keyword matching!",
+                "📚 Claude can hold entire standard documents in memory at once!",
+                "💡 Good consolidation is an art - Claude's been studying the masters!",
+            ]
+
+            import random
+            spinner_text = random.choice(consolidation_facts)
+
+            with st.spinner(spinner_text):
                 try:
                     # Convert DataFrame to list of dicts
                     requirements = df.to_dict('records')
@@ -322,7 +353,28 @@ def check_api_health():
 
 def process_document(uploaded_file, standard_name, custom_section_name, extraction_mode="ai"):
     """Process uploaded document through the API."""
-    spinner_text = "🤖 Using Claude AI to extract requirements..." if extraction_mode == "ai" else "⚙️ Using rule-based extraction..."
+
+    # Fun facts to show during AI processing
+    fun_facts = [
+        "🤖 Did you know? Claude can read and understand over 200,000 tokens - that's about 150,000 words!",
+        "🚴 Fun fact: E-bikes can go up to 28 mph in the US, but regulations vary by country!",
+        "📚 Claude is analyzing your document like a safety engineer with a photographic memory...",
+        "⚡ E-bike batteries typically last 3-5 years or 500-1000 charge cycles!",
+        "🧠 AI models like Claude use neural networks inspired by how the human brain processes information!",
+        "🔋 Most e-bikes use lithium-ion batteries - the same tech that powers your phone!",
+        "🌍 The e-bike market is expected to reach $70 billion by 2027!",
+        "📖 Claude is reading your PDF faster than you can say 'EN 15194:2017'...",
+        "🚲 The first electric bicycle patent was filed in 1895!",
+        "🤓 Claude was trained on data up to early 2025 - that's a lot of e-bike standards!",
+        "⚙️ E-bike motors are typically 250W-750W depending on local regulations!",
+        "🎯 AI extraction is more accurate because it understands context, not just patterns!",
+        "🌟 The most expensive e-bike ever made cost over $80,000!",
+        "🔍 Claude is looking for requirements like a detective with perfect recall...",
+        "💡 Regenerative braking on e-bikes can recover up to 5% of battery charge!",
+    ]
+
+    import random
+    spinner_text = random.choice(fun_facts) if extraction_mode == "ai" else "⚙️ Using rule-based extraction..."
 
     with st.spinner(spinner_text):
         try:
