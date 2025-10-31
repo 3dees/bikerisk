@@ -45,22 +45,34 @@ def analyze_similarity_with_ai(
         print(f"[AI] Client init error: {e}, trying without custom http_client")
         client = anthropic.Anthropic(api_key=api_key)
 
-    # First pass: extract keywords and topics for each requirement
-    print(f"[AI] Analyzing {len(requirements)} requirements...")
+    # First pass: filter out empty requirements
+    valid_requirements = []
+    valid_indices = []
+    for i, req in enumerate(requirements):
+        text = req.get('Description', '') or req.get('Requirement (Clause)', '')
+        if pd.notna(text) and str(text).strip() and len(str(text).strip()) > 10:
+            valid_requirements.append(req)
+            valid_indices.append(i)
 
-    # If threshold is very low (< 0.1), send everything to AI in small groups
+    print(f"[AI] Analyzing {len(requirements)} requirements ({len(valid_requirements)} non-empty)...")
+
+    if len(valid_requirements) < 2:
+        print("[AI] Not enough non-empty requirements to analyze")
+        return []
+
+    # If threshold is very low (< 0.1), use a low fuzzy threshold instead of sequential grouping
     if similarity_threshold < 0.1:
-        print(f"[AI] Low threshold ({similarity_threshold}), creating groups of 3-4 for AI analysis...")
-        potential_groups = []
-        # Create groups of 3-4 items for AI to analyze
-        for i in range(0, len(requirements), 3):
-            group_indices = list(range(i, min(i+4, len(requirements))))
-            if len(group_indices) >= 2:
-                potential_groups.append(group_indices)
+        print(f"[AI] Low threshold ({similarity_threshold:.2f}), using fuzzy threshold 0.20 for pre-filtering...")
+        # Use fuzzy matching with a very permissive threshold
+        fuzzy_groups = _find_potential_groups_fuzzy(valid_requirements, 0.20)
+        # Map back to original indices
+        potential_groups = [[valid_indices[idx] for idx in group] for group in fuzzy_groups]
     else:
         # Group requirements by topic using rapid fuzzy matching first
         # This reduces the number of AI calls needed
-        potential_groups = _find_potential_groups_fuzzy(requirements, similarity_threshold)
+        fuzzy_groups = _find_potential_groups_fuzzy(valid_requirements, similarity_threshold)
+        # Map back to original indices
+        potential_groups = [[valid_indices[idx] for idx in group] for group in fuzzy_groups]
 
     print(f"[AI] Found {len(potential_groups)} potential groups to analyze with AI...")
 
