@@ -90,17 +90,31 @@ def render_extraction_tab():
             help="Name of the standard/regulation being analyzed"
         )
 
-        custom_section_name = st.text_input(
-            "Custom Section Name (optional)",
-            placeholder="e.g., Instruction for use",
-            help="Specific section name to look for in the document. Leave blank to use default patterns."
+        # Extraction mode toggle
+        extraction_mode = st.radio(
+            "Extraction Mode",
+            options=["🤖 AI (Recommended)", "⚙️ Rule-Based (Legacy)"],
+            index=0,
+            help="AI mode uses Claude for intelligent extraction. Rule-based uses pattern matching."
         )
+
+        # Convert UI label to API value
+        mode_value = "ai" if "AI" in extraction_mode else "rules"
+
+        # Only show custom section name for rule-based mode
+        custom_section_name = None
+        if mode_value == "rules":
+            custom_section_name = st.text_input(
+                "Custom Section Name (optional)",
+                placeholder="e.g., Instruction for use",
+                help="Specific section name to look for in the document. Leave blank to use default patterns."
+            )
 
         process_button = st.button("🔍 Process Document", type="primary", use_container_width=True)
 
     # Main content area
     if process_button and uploaded_file:
-        process_document(uploaded_file, standard_name, custom_section_name)
+        process_document(uploaded_file, standard_name, custom_section_name, mode_value)
 
     # Show existing results if available
     if 'job_id' in st.session_state:
@@ -306,27 +320,36 @@ def check_api_health():
         return False
 
 
-def process_document(uploaded_file, standard_name, custom_section_name):
+def process_document(uploaded_file, standard_name, custom_section_name, extraction_mode="ai"):
     """Process uploaded document through the API."""
-    with st.spinner("🔄 Extracting and analyzing document..."):
+    spinner_text = "🤖 Using Claude AI to extract requirements..." if extraction_mode == "ai" else "⚙️ Using rule-based extraction..."
+
+    with st.spinner(spinner_text):
         try:
             # Prepare file and form data
             files = {
                 'file': (uploaded_file.name, uploaded_file.getvalue(), 'application/pdf')
             }
 
-            params = {}
+            params = {
+                'extraction_mode': extraction_mode
+            }
+
             if standard_name:
                 params['standard_name'] = standard_name
             if custom_section_name:
                 params['custom_section_name'] = custom_section_name
+
+            # Add API key for AI mode
+            if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
+                params['api_key'] = st.session_state.anthropic_api_key
 
             # Call upload API
             response = requests.post(
                 f"{API_BASE_URL}/upload",
                 files=files,
                 params=params,
-                timeout=60
+                timeout=120  # Increased timeout for AI processing
             )
 
             if response.status_code == 200:
@@ -334,7 +357,8 @@ def process_document(uploaded_file, standard_name, custom_section_name):
                 st.session_state.job_id = result['job_id']
 
                 # Show success message
-                st.success("✅ Document processed successfully!")
+                mode_emoji = "🤖" if result.get('extraction_mode') == 'ai' else "⚙️"
+                st.success(f"✅ Document processed successfully using {mode_emoji} {result.get('extraction_mode', 'unknown').upper()} mode!")
 
                 # Show extraction stats
                 col1, col2, col3, col4 = st.columns(4)
@@ -343,9 +367,9 @@ def process_document(uploaded_file, standard_name, custom_section_name):
                 with col2:
                     st.metric("Confidence", result.get('extraction_confidence', 'unknown').upper())
                 with col3:
-                    st.metric("Total Detected", result['stats']['total_detected'])
+                    st.metric("Total Detected", result['stats'].get('total_detected', 0))
                 with col4:
-                    st.metric("Classified Rows", result['stats']['classified_rows'])
+                    st.metric("Classified Rows", result['stats'].get('classified_rows', 0))
 
             elif response.status_code == 422:
                 error_detail = response.json()['detail']

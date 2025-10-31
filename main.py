@@ -7,8 +7,11 @@ from typing import Dict, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+import os
+from dotenv import load_dotenv
 
 from extract import extract_from_file
+from extract_ai import extract_requirements_with_ai
 from detect import (
     detect_manual_sections,
     detect_manual_clauses,
@@ -16,6 +19,8 @@ from detect import (
 )
 from classify import classify_detected_items, rows_to_csv_dicts
 from consolidate import consolidate_requirements
+
+load_dotenv()
 
 
 # In-memory storage for results
@@ -51,7 +56,9 @@ def read_root():
 async def upload_file(
     file: UploadFile = File(...),
     standard_name: Optional[str] = None,
-    custom_section_name: Optional[str] = None
+    custom_section_name: Optional[str] = None,
+    extraction_mode: Optional[str] = "ai",  # "ai" or "rules"
+    api_key: Optional[str] = None
 ):
     """
     Upload a PDF and extract manual/instruction requirements.
@@ -60,6 +67,8 @@ async def upload_file(
         file: PDF file
         standard_name: Optional name of the standard (e.g., "EN 15194")
         custom_section_name: Optional custom section name to search for (e.g., "Instruction for use")
+        extraction_mode: "ai" (default) or "rules" for extraction method
+        api_key: Anthropic API key (uses env var if not provided)
 
     Returns:
         Job ID and initial results
@@ -77,7 +86,11 @@ async def upload_file(
     if not standard_name:
         standard_name = file.filename or "Unknown Standard"
 
-    # Step 1: Extract text
+    # Get API key from env if not provided
+    if not api_key:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+
+    # Step 1: Extract text (always needed for both modes)
     extraction_result = extract_from_file(file_bytes, file.filename)
 
     if not extraction_result['success']:
@@ -102,25 +115,77 @@ async def upload_file(
             }
         )
 
-    # Step 2: Detect manual sections (Pass A)
-    blocks = extraction_result['blocks']
-    custom_names = [custom_section_name] if custom_section_name else None
-    manual_sections = detect_manual_sections(blocks, custom_names)
+    # Branch based on extraction mode
+    if extraction_mode == "ai":
+        # AI MODE: Use Claude for intelligent extraction
+        print(f"[EXTRACTION] Using AI mode with Claude Opus")
 
-    # Step 3: Detect manual clauses (Pass B)
-    manual_clauses = detect_manual_clauses(blocks, manual_sections)
+        if not api_key:
+            raise HTTPException(
+                status_code=400,
+                detail="API key required for AI extraction mode. Please provide it or set ANTHROPIC_API_KEY env var."
+            )
 
-    # Step 4: Combine detections
-    detected_items = combine_detections(manual_sections, manual_clauses)
+        try:
+            # Get raw text from extraction
+            pdf_text = extraction_result.get('text', '')
+            if not pdf_text:
+                # Fall back to concatenating blocks
+                blocks = extraction_result['blocks']
+                pdf_text = '\n'.join([block['raw'] for block in blocks])
 
-    # Step 5: Classify into schema
-    classified_rows = classify_detected_items(detected_items, standard_name)
+            # Use AI to extract requirements
+            ai_result = extract_requirements_with_ai(pdf_text, standard_name, api_key)
 
-    # Step 6: Consolidate (Phase 3 - placeholder for now)
-    consolidations = consolidate_requirements(classified_rows)
+            classified_rows = ai_result['rows']
+            stats = ai_result['stats']
+            confidence = ai_result['confidence']
+            consolidations = []  # TODO: Add AI consolidation later
 
-    # Convert to CSV-friendly format
-    csv_rows = rows_to_csv_dicts(classified_rows)
+            # Convert to CSV-friendly format
+            csv_rows = rows_to_csv_dicts(classified_rows)
+
+            extraction_method = "ai_claude_opus"
+
+        except Exception as e:
+            print(f"[AI EXTRACTION FAILED] {e}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"AI extraction failed: {str(e)}. Try rule-based mode instead."
+            )
+
+    else:
+        # RULE-BASED MODE: Original logic
+        print(f"[EXTRACTION] Using rule-based mode")
+
+        # Step 2: Detect manual sections (Pass A)
+        blocks = extraction_result['blocks']
+        custom_names = [custom_section_name] if custom_section_name else None
+        manual_sections = detect_manual_sections(blocks, custom_names)
+
+        # Step 3: Detect manual clauses (Pass B)
+        manual_clauses = detect_manual_clauses(blocks, manual_sections)
+
+        # Step 4: Combine detections
+        detected_items = combine_detections(manual_sections, manual_clauses)
+
+        # Step 5: Classify into schema
+        classified_rows = classify_detected_items(detected_items, standard_name)
+
+        # Step 6: Consolidate (Phase 3 - placeholder for now)
+        consolidations = consolidate_requirements(classified_rows)
+
+        # Convert to CSV-friendly format
+        csv_rows = rows_to_csv_dicts(classified_rows)
+
+        stats = {
+            'total_detected': len(detected_items),
+            'manual_sections': len(manual_sections),
+            'manual_clauses': len(manual_clauses),
+            'classified_rows': len(classified_rows),
+        }
+        confidence = extraction_result['confidence']
+        extraction_method = extraction_result['method']
 
     # Store results
     RESULTS_STORE[job_id] = {
@@ -128,17 +193,13 @@ async def upload_file(
         'filename': file.filename,
         'standard_name': standard_name,
         'status': 'completed',
-        'extraction_method': extraction_result['method'],
-        'extraction_confidence': extraction_result['confidence'],
+        'extraction_method': extraction_method,
+        'extraction_confidence': confidence,
+        'extraction_mode': extraction_mode,  # NEW: track which mode was used
         'rows': classified_rows,  # Keep internal fields for UI
         'csv_rows': csv_rows,     # Clean version for export
         'consolidations': consolidations,
-        'stats': {
-            'total_detected': len(detected_items),
-            'manual_sections': len(manual_sections),
-            'manual_clauses': len(manual_clauses),
-            'classified_rows': len(classified_rows),
-        },
+        'stats': stats,
         'created_at': datetime.now().isoformat()
     }
 
@@ -147,9 +208,10 @@ async def upload_file(
         'status': 'completed',
         'filename': file.filename,
         'standard_name': standard_name,
-        'extraction_method': extraction_result['method'],
-        'extraction_confidence': extraction_result['confidence'],
-        'stats': RESULTS_STORE[job_id]['stats']
+        'extraction_method': extraction_method,
+        'extraction_confidence': confidence,
+        'extraction_mode': extraction_mode,
+        'stats': stats
     }
 
 
