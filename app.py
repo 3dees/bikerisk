@@ -297,9 +297,17 @@ def render_consolidation_tab():
                         standard = req.get('Standard/ Regulation', req.get('Standard/Reg', ''))
                         clause = req.get('Clause', req.get('Clause/Requirement', ''))
 
+                        # Convert to string and handle NaN/empty values
+                        text_str = str(text) if pd.notna(text) else '[Empty]'
+                        standard_str = str(standard) if pd.notna(standard) else '[Unknown]'
+                        clause_str = str(clause) if pd.notna(clause) else '[Unknown]'
+
+                        # Truncate text safely
+                        text_display = text_str[:200] + '...' if len(text_str) > 200 else text_str
+
                         st.markdown(f"""
-                        {idx}. **{standard}** - Clause {clause}
-                        _{text[:200]}..._
+                        {idx}. **{standard_str}** - Clause {clause_str}
+                        _{text_display}_
                         """)
 
                     # Show suggested consolidation

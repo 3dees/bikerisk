@@ -112,8 +112,14 @@ def _find_potential_groups_fuzzy(
         group = [i]
         text1 = req1.get('Description', '') or req1.get('Requirement (Clause)', '')
 
-        if not text1:
+        # Handle NaN/None values
+        if pd.isna(text1) or not text1:
             continue
+        text1 = str(text1)
+
+        standard1 = req1.get('Standard/Reg', '') or req1.get('Standard/ Regulation', '')
+        if pd.isna(standard1):
+            standard1 = '[Unknown]'
 
         for j, req2 in enumerate(requirements[i+1:], start=i+1):
             if j in used_indices:
@@ -121,8 +127,14 @@ def _find_potential_groups_fuzzy(
 
             text2 = req2.get('Description', '') or req2.get('Requirement (Clause)', '')
 
-            if not text2:
+            # Handle NaN/None values
+            if pd.isna(text2) or not text2:
                 continue
+            text2 = str(text2)
+
+            standard2 = req2.get('Standard/Reg', '') or req2.get('Standard/ Regulation', '')
+            if pd.isna(standard2):
+                standard2 = '[Unknown]'
 
             # Check fuzzy similarity
             ratio = fuzz.token_sort_ratio(text1, text2) / 100.0
@@ -131,11 +143,23 @@ def _find_potential_groups_fuzzy(
                 group.append(j)
                 used_indices.add(j)
 
+                # Log if this is a cross-standard match
+                if standard1 != standard2:
+                    print(f"[FUZZY] Cross-standard match! {standard1[:30]} vs {standard2[:30]} (ratio: {ratio:.2f})")
+
         if len(group) >= 2:
             groups.append(group)
             for idx in group:
                 used_indices.add(idx)
-            print(f"[FUZZY] Found group of {len(group)} items starting at index {i}")
+
+            # Show standards in this group
+            standards_in_group = set()
+            for idx in group:
+                std = requirements[idx].get('Standard/Reg', '') or requirements[idx].get('Standard/ Regulation', '')
+                if not pd.isna(std):
+                    standards_in_group.add(str(std)[:30])  # Truncate for readability
+
+            print(f"[FUZZY] Found group of {len(group)} items with {len(standards_in_group)} unique standards: {list(standards_in_group)}")
 
     print(f"[FUZZY] Total groups found: {len(groups)}")
     return groups
