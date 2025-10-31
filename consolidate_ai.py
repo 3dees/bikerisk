@@ -35,9 +35,19 @@ def analyze_similarity_with_ai(
     # First pass: extract keywords and topics for each requirement
     print(f"[AI] Analyzing {len(requirements)} requirements...")
 
-    # Group requirements by topic using rapid fuzzy matching first
-    # This reduces the number of AI calls needed
-    potential_groups = _find_potential_groups_fuzzy(requirements, similarity_threshold)
+    # If threshold is very low (< 0.1), send everything to AI in small groups
+    if similarity_threshold < 0.1:
+        print(f"[AI] Low threshold ({similarity_threshold}), creating groups of 3-4 for AI analysis...")
+        potential_groups = []
+        # Create groups of 3-4 items for AI to analyze
+        for i in range(0, len(requirements), 3):
+            group_indices = list(range(i, min(i+4, len(requirements))))
+            if len(group_indices) >= 2:
+                potential_groups.append(group_indices)
+    else:
+        # Group requirements by topic using rapid fuzzy matching first
+        # This reduces the number of AI calls needed
+        potential_groups = _find_potential_groups_fuzzy(requirements, similarity_threshold)
 
     print(f"[AI] Found {len(potential_groups)} potential groups to analyze with AI...")
 
@@ -76,6 +86,12 @@ def _find_potential_groups_fuzzy(
     groups = []
     used_indices = set()
 
+    # Use a very low fuzzy threshold - we want AI to do the real analysis
+    # If user sets threshold to 0, we want to check everything
+    fuzzy_threshold = max(0.3, threshold * 0.5)  # Minimum 30% similarity for pre-filter
+
+    print(f"[FUZZY] Using fuzzy threshold: {fuzzy_threshold:.2f} (user threshold: {threshold:.2f})")
+
     for i, req1 in enumerate(requirements):
         if i in used_indices:
             continue
@@ -83,16 +99,22 @@ def _find_potential_groups_fuzzy(
         group = [i]
         text1 = req1.get('Description', '') or req1.get('Requirement (Clause)', '')
 
+        if not text1:
+            continue
+
         for j, req2 in enumerate(requirements[i+1:], start=i+1):
             if j in used_indices:
                 continue
 
             text2 = req2.get('Description', '') or req2.get('Requirement (Clause)', '')
 
+            if not text2:
+                continue
+
             # Check fuzzy similarity
             ratio = fuzz.token_sort_ratio(text1, text2) / 100.0
 
-            if ratio >= threshold * 0.6:  # Lower threshold for pre-filtering
+            if ratio >= fuzzy_threshold:
                 group.append(j)
                 used_indices.add(j)
 
@@ -100,7 +122,9 @@ def _find_potential_groups_fuzzy(
             groups.append(group)
             for idx in group:
                 used_indices.add(idx)
+            print(f"[FUZZY] Found group of {len(group)} items starting at index {i}")
 
+    print(f"[FUZZY] Total groups found: {len(groups)}")
     return groups
 
 
@@ -185,8 +209,12 @@ IMPORTANT: Only suggest consolidation if the regulatory intent is IDENTICAL and 
                 'topic_keywords': result.get('topic_keywords', []),
                 'critical_differences': result.get('critical_differences', [])
             }
+        else:
+            print(f"[AI] Group {group_id} cannot be consolidated: {result.get('reasoning', 'No reason given')}")
 
     except Exception as e:
         print(f"[AI ERROR] Failed to analyze group {group_id}: {e}")
+        import traceback
+        traceback.print_exc()
 
     return None

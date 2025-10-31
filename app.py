@@ -186,9 +186,10 @@ def render_consolidation_tab():
 
             st.success(f"✅ Loaded {len(df)} rows")
 
-            # Show preview
-            with st.expander("📋 Data Preview"):
+            # Show preview with more details
+            with st.expander(f"📋 Data Preview (showing first 10 of {len(df)} rows)"):
                 st.dataframe(df.head(10))
+                st.caption(f"**Total rows loaded:** {len(df)}")
 
             # Store in session state
             st.session_state.consolidation_df = df
