@@ -7,6 +7,7 @@ from typing import Dict, List
 import json
 import os
 from dotenv import load_dotenv
+import httpx
 
 load_dotenv()
 
@@ -34,7 +35,26 @@ def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, api_k
     if not api_key:
         raise ValueError("No Anthropic API key provided or found in environment")
 
-    client = anthropic.Anthropic(api_key=api_key)
+    # Create httpx client that respects proxy settings
+    # Anthropic API should not go through proxy, so we add it to NO_PROXY
+    no_proxy = os.getenv('NO_PROXY', '')
+    if 'anthropic.com' not in no_proxy:
+        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
+
+    try:
+        # Initialize client with explicit http_client to avoid proxy issues
+        http_client = httpx.Client(
+            proxies=None,  # Explicitly disable proxies for Anthropic API
+            timeout=120.0
+        )
+        client = anthropic.Anthropic(
+            api_key=api_key,
+            http_client=http_client
+        )
+    except Exception as e:
+        print(f"[AI EXTRACTION] Client init error: {e}, trying without custom http_client")
+        # Fallback: try simple initialization
+        client = anthropic.Anthropic(api_key=api_key)
 
     standard_context = f"Standard: {standard_name}\n" if standard_name else ""
 
@@ -137,6 +157,8 @@ Extract ALL relevant requirements. Be thorough but precise."""
 
     except anthropic.APIError as e:
         print(f"[AI EXTRACTION ERROR] API error: {e}")
+        import traceback
+        traceback.print_exc()
         raise ValueError(f"Claude API error: {str(e)}")
 
     except json.JSONDecodeError as e:
@@ -146,6 +168,8 @@ Extract ALL relevant requirements. Be thorough but precise."""
 
     except Exception as e:
         print(f"[AI EXTRACTION ERROR] Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
         raise ValueError(f"AI extraction failed: {str(e)}")
 
 
