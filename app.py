@@ -5,8 +5,12 @@ import streamlit as st
 import requests
 import pandas as pd
 import time
+import os
+from dotenv import load_dotenv
 from consolidate_ai import analyze_similarity_with_ai
 
+# Load environment variables
+load_dotenv()
 
 # Configuration
 API_BASE_URL = "http://localhost:8000"
@@ -26,19 +30,24 @@ def main():
         st.header("⚙️ Configuration")
 
         # Initialize API key in session state if not exists
+        # Try to load from environment variable first
         if 'anthropic_api_key' not in st.session_state:
-            st.session_state.anthropic_api_key = ''
+            env_key = os.getenv('ANTHROPIC_API_KEY', '')
+            st.session_state.anthropic_api_key = env_key
 
         api_key = st.text_input(
             "Anthropic API Key",
             value=st.session_state.anthropic_api_key,
             type="password",
-            help="Enter your Anthropic API key for AI-powered consolidation. It will be saved for this session."
+            help="Enter your Anthropic API key for AI-powered consolidation. Loaded from .env if available."
         )
 
         if api_key:
             st.session_state.anthropic_api_key = api_key
-            st.success("✅ API key saved for session")
+            if os.getenv('ANTHROPIC_API_KEY'):
+                st.success("✅ API key loaded from .env")
+            else:
+                st.success("✅ API key saved for session")
 
     # Create tabs
     tab1, tab2 = st.tabs(["📄 Extract from PDFs", "🔗 Consolidate Requirements"])
