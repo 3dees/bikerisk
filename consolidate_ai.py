@@ -3,6 +3,8 @@ AI-powered consolidation logic for requirements.
 Uses Claude (Anthropic) to analyze semantic similarity and suggest consolidations.
 """
 import anthropic
+import httpx
+import os
 from typing import List, Dict, Tuple
 import pandas as pd
 from rapidfuzz import fuzz
@@ -30,7 +32,18 @@ def analyze_similarity_with_ai(
         - 'suggested_consolidation': AI-generated merged text
         - 'topic_keywords': extracted topic keywords
     """
-    client = anthropic.Anthropic(api_key=api_key)
+    # Setup client with proxy bypass (similar to extract_ai.py)
+    no_proxy = os.getenv('NO_PROXY', '')
+    if 'anthropic.com' not in no_proxy:
+        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com'
+
+    try:
+        http_client = httpx.Client(proxies=None, timeout=120.0)
+        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
+        print("[AI] Client initialized with proxy bypass")
+    except Exception as e:
+        print(f"[AI] Client init error: {e}, trying without custom http_client")
+        client = anthropic.Anthropic(api_key=api_key)
 
     # First pass: extract keywords and topics for each requirement
     print(f"[AI] Analyzing {len(requirements)} requirements...")
@@ -176,9 +189,11 @@ Respond in JSON format:
 IMPORTANT: Only suggest consolidation if the regulatory intent is IDENTICAL and no vital information would be lost."""
 
     try:
+        print(f"[AI] Analyzing group {group_id} ({len(requirements)} requirements)...")
         message = client.messages.create(
             model="claude-opus-4-20250514",
             max_tokens=2000,
+            timeout=60.0,  # 60 second timeout
             messages=[{
                 "role": "user",
                 "content": prompt
@@ -186,6 +201,7 @@ IMPORTANT: Only suggest consolidation if the regulatory intent is IDENTICAL and 
         )
 
         response_text = message.content[0].text
+        print(f"[AI] Group {group_id} analysis complete")
 
         # Parse JSON response
         import json
