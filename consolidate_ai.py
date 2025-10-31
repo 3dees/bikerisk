@@ -196,33 +196,46 @@ def _analyze_group_with_claude(
 
         req_texts.append(f"[{i+1}] Standard: {standard}, Clause: {clause}\nScope: {scope}\nText: {text}")
 
-    prompt = f"""You are analyzing requirements from e-bike safety standards to suggest consolidations.
+    prompt = f"""You are analyzing requirements from multiple e-bike and machinery safety standards to suggest consolidations.
+
+IMPORTANT CONTEXT: The GOAL is to consolidate requirements that have the SAME INTENT across DIFFERENT standards. It is EXPECTED and DESIRED that requirements come from different regulatory bodies (EN, UL, CFR, MD, MR, ISO, etc.). Different standards often have overlapping requirements, and we want to identify and consolidate these.
 
 Here are {len(requirements)} potentially similar requirements:
 
 {chr(10).join(req_texts)}
 
 Task:
-1. Analyze if these requirements have the SAME REGULATORY INTENT and TOPIC
-2. Determine if they can be safely consolidated without losing vital information
-3. Generate a consolidated version that preserves ALL critical details:
-   - Specific measurements, voltages, temperatures, etc.
-   - Legal keywords (shall, must, required)
-   - Safety warnings and cautions
-   - Clause references
-   - Any unique requirements from each source
+1. Analyze if these requirements share the SAME CORE INTENT and TOPIC (e.g., "provide maintenance instructions", "label which brake controls which wheel", "specify charging safety warnings")
+2. If they share the same core intent, consolidate them EVEN IF they come from different standards
+3. Generate a consolidated version that captures the COMMON requirement, then LIST any standard-specific differences as annotations
+
+Guidelines:
+- BE AGGRESSIVE about consolidation - if 70%+ of the intent is the same, consolidate it
+- Different standards having similar requirements is EXPECTED - don't reject just because they're from different sources
+- Focus on the INTENT, not exact wording (e.g., "instruction manual" = "user information" = "accompanying documents")
+- It's OK if requirements have slightly different details - capture those in critical_differences
+- Only reject if the requirements are about FUNDAMENTALLY different topics (e.g., "battery charging" vs "brake labeling")
 
 Respond in JSON format:
 {{
   "can_consolidate": true/false,
-  "similarity_score": 0.0-1.0,
+  "similarity_score": 0.0-1.0 (how similar the INTENT is, not the wording),
   "topic_keywords": ["keyword1", "keyword2"],
-  "reasoning": "Why these should/shouldn't be consolidated",
-  "suggested_consolidation": "The merged requirement text (or null if can't consolidate)",
-  "critical_differences": ["any vital differences that must be preserved"]
+  "reasoning": "Why these should/shouldn't be consolidated based on INTENT similarity",
+  "suggested_consolidation": "The merged requirement text capturing the COMMON intent (or null if can't consolidate)",
+  "critical_differences": ["Standard X requires Y while Standard Z requires W", "EN specifies voltage X while UL specifies voltage Y"]
 }}
 
-IMPORTANT: Only suggest consolidation if the regulatory intent is IDENTICAL and no vital information would be lost."""
+REJECT only if:
+- Requirements are about fundamentally different topics
+- Consolidating would create confusion or safety issues
+- The intents are truly unrelated
+
+DO NOT REJECT just because:
+- Requirements come from different standards (this is expected!)
+- There are minor wording differences
+- One requirement is more specific than another (capture specifics in critical_differences)
+- Different regulatory bodies are involved"""
 
     try:
         print(f"[AI] Analyzing group {group_id} ({len(requirements)} requirements)...")
