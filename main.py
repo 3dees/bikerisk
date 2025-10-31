@@ -11,7 +11,7 @@ import os
 from dotenv import load_dotenv
 
 from extract import extract_from_file
-from extract_ai import extract_requirements_with_ai
+from extract_ai import extract_requirements_with_ai, extract_from_detected_sections
 from detect import (
     detect_manual_sections,
     detect_manual_clauses,
@@ -117,8 +117,8 @@ async def upload_file(
 
     # Branch based on extraction mode
     if extraction_mode == "ai":
-        # AI MODE: Use Claude for intelligent extraction
-        print(f"[EXTRACTION] Using AI mode with Claude Opus")
+        # HYBRID AI MODE: Rules find sections, AI extracts requirements
+        print(f"[EXTRACTION] Using HYBRID AI mode (rules + Claude Opus)")
 
         if not api_key:
             raise HTTPException(
@@ -127,15 +127,25 @@ async def upload_file(
             )
 
         try:
-            # Get raw text from extraction
-            pdf_text = extraction_result.get('text', '')
-            if not pdf_text:
-                # Fall back to concatenating blocks
-                blocks = extraction_result['blocks']
-                pdf_text = '\n'.join([block['raw'] for block in blocks])
+            # Step 1: Use rule-based detection to find ALL relevant sections (scans entire document)
+            blocks = extraction_result['blocks']
+            custom_names = [custom_section_name] if custom_section_name else None
+            manual_sections = detect_manual_sections(blocks, custom_names)
 
-            # Use AI to extract requirements
-            ai_result = extract_requirements_with_ai(pdf_text, standard_name, api_key)
+            print(f"[HYBRID AI] Rules found {len(manual_sections)} manual sections")
+
+            if not manual_sections:
+                # No sections found by rules - fallback to full AI extraction
+                print(f"[HYBRID AI] No sections found by rules, trying full AI extraction as fallback")
+                pdf_text = extraction_result.get('text', '')
+                if not pdf_text:
+                    blocks = extraction_result['blocks']
+                    pdf_text = '\n'.join([block['raw'] for block in blocks])
+
+                ai_result = extract_requirements_with_ai(pdf_text, standard_name, api_key)
+            else:
+                # Step 2: Pass detected sections to AI for intelligent extraction
+                ai_result = extract_from_detected_sections(manual_sections, standard_name, api_key)
 
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
@@ -145,10 +155,12 @@ async def upload_file(
             # Convert to CSV-friendly format
             csv_rows = rows_to_csv_dicts(classified_rows)
 
-            extraction_method = "ai_claude_opus"
+            extraction_method = "hybrid_ai_rules"
 
         except Exception as e:
-            print(f"[AI EXTRACTION FAILED] {e}")
+            print(f"[HYBRID AI EXTRACTION FAILED] {e}")
+            import traceback
+            traceback.print_exc()
             raise HTTPException(
                 status_code=500,
                 detail=f"AI extraction failed: {str(e)}. Try rule-based mode instead."

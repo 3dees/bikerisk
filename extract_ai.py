@@ -12,6 +12,139 @@ import httpx
 load_dotenv()
 
 
+def extract_from_detected_sections(sections: List[Dict], standard_name: str = None, api_key: str = None) -> Dict:
+    """
+    HYBRID APPROACH: Use AI to intelligently extract from sections already detected by rules.
+
+    This is the best approach:
+    - Rules scan entire document and find relevant sections (fast, no API cost)
+    - AI processes only those sections (smart, no truncation, no timeout)
+
+    Args:
+        sections: List of sections detected by rule-based detect_manual_sections()
+        standard_name: Optional standard name for context
+        api_key: Anthropic API key (uses env var if not provided)
+
+    Returns:
+        Dict with:
+        - rows: List of requirement dicts with all 7 columns
+        - stats: Extraction statistics
+        - confidence: AI confidence level (high/medium/low)
+    """
+
+    # Get API key from env if not provided
+    if not api_key:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+
+    if not api_key:
+        raise ValueError("No Anthropic API key provided or found in environment")
+
+    # Setup client
+    no_proxy = os.getenv('NO_PROXY', '')
+    if 'anthropic.com' not in no_proxy:
+        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
+
+    try:
+        http_client = httpx.Client(proxies=None, timeout=120.0)
+        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
+    except Exception as e:
+        print(f"[AI EXTRACTION] Client init error: {e}, trying without custom http_client")
+        client = anthropic.Anthropic(api_key=api_key)
+
+    all_requirements = []
+
+    print(f"[HYBRID AI] Processing {len(sections)} sections with Claude...")
+
+    for i, section in enumerate(sections, 1):
+        section_text = section.get('content', '')
+        heading = section.get('heading', '')
+        clause = section.get('clause_number', '')
+
+        print(f"[HYBRID AI] Section {i}/{len(sections)}: {heading} (Clause {clause})")
+
+        # Build prompt for this specific section
+        prompt = f"""You are an expert at analyzing e-bike safety standards and regulations.
+
+Standard: {standard_name or 'Unknown'}
+Section: {heading}
+Clause: {clause}
+
+Section Content:
+{section_text}
+
+Extract ALL requirements from this section related to user manuals, instructions, warnings, and documentation.
+
+For EACH requirement found:
+- Split numbered subsections (7.1, 7.6, 7.12) into SEPARATE requirements
+- Split lettered items (a), b), c)) into SEPARATE requirements
+- Preserve ALL specific details: measurements, voltages, symbols, legal keywords (shall, must)
+
+Respond with JSON:
+{{
+  "requirements": [
+    {{
+      "Description": "Full requirement text",
+      "Clause/Requirement": "7.1",
+      "Requirement scope": "battery, charger",
+      "Formatting required?": "Y",
+      "Required in Print?": "y",
+      "Comments": "any special notes"
+    }}
+  ]
+}}
+
+Be thorough but precise."""
+
+        try:
+            # Use streaming for each section
+            with client.messages.stream(
+                model="claude-opus-4-20250514",
+                max_tokens=8000,
+                temperature=0,
+                timeout=300.0,
+                messages=[{"role": "user", "content": prompt}]
+            ) as stream:
+                response_text = ""
+                for text in stream.text_stream:
+                    response_text += text
+
+            # Parse JSON
+            if "```json" in response_text:
+                json_str = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                json_str = response_text.split("```")[1].split("```")[0].strip()
+            else:
+                json_str = response_text.strip()
+
+            result = json.loads(json_str)
+            section_requirements = result.get('requirements', [])
+
+            # Add standard name to each requirement
+            for req in section_requirements:
+                req['Standard/Reg'] = standard_name or 'Unknown'
+
+            all_requirements.extend(section_requirements)
+            print(f"[HYBRID AI] Extracted {len(section_requirements)} requirements from this section")
+
+        except Exception as e:
+            print(f"[HYBRID AI] Error processing section {i}: {e}")
+            # Continue with other sections even if one fails
+            continue
+
+    print(f"[HYBRID AI] Total extracted: {len(all_requirements)} requirements")
+
+    return {
+        'rows': all_requirements,
+        'stats': {
+            'total_detected': len(all_requirements),
+            'classified_rows': len(all_requirements),
+            'sections_processed': len(sections),
+            'extraction_notes': f'Hybrid extraction: {len(sections)} sections processed'
+        },
+        'confidence': 'high'
+    }
+
+
 def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, api_key: str = None) -> Dict:
     """
     Use Claude to intelligently extract instruction/manual requirements from PDF text.
