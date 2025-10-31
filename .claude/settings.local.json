@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git pull:*)",
+      "Bash(.start.bat)",
+      "Bash(cmd /c start.bat)",
+      "Bash(start.bat)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
