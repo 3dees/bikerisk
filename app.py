@@ -5,6 +5,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import time
+from consolidate_ai import analyze_similarity_with_ai
 
 
 # Configuration
@@ -19,6 +20,38 @@ def main():
     )
 
     st.title("🚴 E-Bike Standards Requirement Extractor")
+
+    # API Key configuration in sidebar (persistent across tabs)
+    with st.sidebar:
+        st.header("⚙️ Configuration")
+
+        # Initialize API key in session state if not exists
+        if 'anthropic_api_key' not in st.session_state:
+            st.session_state.anthropic_api_key = ''
+
+        api_key = st.text_input(
+            "Anthropic API Key",
+            value=st.session_state.anthropic_api_key,
+            type="password",
+            help="Enter your Anthropic API key for AI-powered consolidation. It will be saved for this session."
+        )
+
+        if api_key:
+            st.session_state.anthropic_api_key = api_key
+            st.success("✅ API key saved for session")
+
+    # Create tabs
+    tab1, tab2 = st.tabs(["📄 Extract from PDFs", "🔗 Consolidate Requirements"])
+
+    with tab1:
+        render_extraction_tab()
+
+    with tab2:
+        render_consolidation_tab()
+
+
+def render_extraction_tab():
+    """Tab 1: PDF extraction (original functionality)"""
     st.markdown("""
     Extract instruction/manual requirements from e-bike standards and regulations.
     Upload a PDF to analyze its manual/instruction requirements.
@@ -32,12 +65,14 @@ def main():
 
     # Sidebar for file upload
     with st.sidebar:
+        st.divider()
         st.header("📁 Upload Document")
 
         uploaded_file = st.file_uploader(
             "Choose a PDF file",
             type=['pdf'],
-            help="Upload a PDF containing e-bike standards or regulations"
+            help="Upload a PDF containing e-bike standards or regulations",
+            key="pdf_uploader"
         )
 
         standard_name = st.text_input(
@@ -61,6 +96,196 @@ def main():
     # Show existing results if available
     if 'job_id' in st.session_state:
         display_results(st.session_state.job_id)
+
+
+def render_consolidation_tab():
+    """Tab 2: Requirements consolidation (Track 1)"""
+    st.markdown("""
+    Upload a spreadsheet with requirements from multiple standards.
+    AI will analyze and suggest consolidations based on topic similarity and regulatory intent.
+    """)
+
+    # Check if API key is configured
+    if not st.session_state.get('anthropic_api_key'):
+        st.warning("⚠️ Please enter your Anthropic API key in the sidebar to use AI consolidation.")
+        return
+
+    st.divider()
+
+    # File upload
+    uploaded_file = st.file_uploader(
+        "Upload Requirements Spreadsheet",
+        type=['csv', 'xlsx', 'xls'],
+        help="Upload a CSV or Excel file containing requirements",
+        key="consolidation_uploader"
+    )
+
+    if uploaded_file:
+        # Read the file
+        try:
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                # For Excel, let user select sheet if multiple exist
+                excel_file = pd.ExcelFile(uploaded_file)
+                if len(excel_file.sheet_names) > 1:
+                    sheet_name = st.selectbox("Select Sheet", excel_file.sheet_names)
+                else:
+                    sheet_name = excel_file.sheet_names[0]
+
+                # Read with header detection
+                df = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=None)
+
+                # Find the header row (look for "Requirement" or "Description" in first 5 rows)
+                header_row = 0
+                for i in range(min(5, len(df))):
+                    row_str = ' '.join([str(x).lower() for x in df.iloc[i] if pd.notna(x)])
+                    if 'requirement' in row_str or 'description' in row_str:
+                        header_row = i
+                        break
+
+                # Re-read with correct header
+                df = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=header_row)
+
+            st.success(f"✅ Loaded {len(df)} rows")
+
+            # Show preview
+            with st.expander("📋 Data Preview"):
+                st.dataframe(df.head(10))
+
+            # Store in session state
+            st.session_state.consolidation_df = df
+
+        except Exception as e:
+            st.error(f"❌ Error reading file: {e}")
+            return
+
+    # If data is loaded, show consolidation controls
+    if 'consolidation_df' in st.session_state:
+        df = st.session_state.consolidation_df
+
+        st.divider()
+        st.subheader("⚙️ Consolidation Settings")
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            similarity_threshold = st.slider(
+                "Similarity Threshold",
+                min_value=0.0,
+                max_value=1.0,
+                value=0.7,
+                step=0.05,
+                help="Higher values = stricter matching. Lower values = more consolidations."
+            )
+
+        with col2:
+            # Let user select which column contains the requirement text
+            text_columns = [col for col in df.columns if pd.notna(col)]
+            requirement_column = st.selectbox(
+                "Requirement Text Column",
+                options=text_columns,
+                index=0 if 'Requirement (Clause)' not in text_columns else text_columns.index('Requirement (Clause)'),
+                help="Select the column containing the requirement descriptions"
+            )
+
+        # Run consolidation button
+        if st.button("🤖 Analyze with AI", type="primary"):
+            with st.spinner("🔄 Analyzing requirements with Claude AI..."):
+                try:
+                    # Convert DataFrame to list of dicts
+                    requirements = df.to_dict('records')
+
+                    # Run AI analysis
+                    consolidations = analyze_similarity_with_ai(
+                        requirements,
+                        st.session_state.anthropic_api_key,
+                        similarity_threshold
+                    )
+
+                    # Store results
+                    st.session_state.consolidations = consolidations
+
+                    st.success(f"✅ Found {len(consolidations)} consolidation opportunities!")
+
+                except Exception as e:
+                    st.error(f"❌ Error during AI analysis: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
+
+        # Display consolidation results
+        if 'consolidations' in st.session_state and st.session_state.consolidations:
+            st.divider()
+            st.subheader("📊 Consolidation Suggestions")
+
+            consolidations = st.session_state.consolidations
+
+            for i, consolidation in enumerate(consolidations, 1):
+                with st.expander(
+                    f"**Group {i}** - Similarity: {consolidation['similarity_score']:.0%} - "
+                    f"{', '.join(consolidation['topic_keywords'][:3])}"
+                ):
+                    # Show reasoning
+                    st.markdown(f"**💡 Reasoning:** {consolidation['reasoning']}")
+
+                    # Show original requirements
+                    st.markdown("**📄 Original Requirements:**")
+                    orig_indices = consolidation['original_requirements']
+                    for idx, req_idx in enumerate(orig_indices, 1):
+                        req = df.iloc[req_idx]
+                        text = req.get(requirement_column, req.get('Description', ''))
+                        standard = req.get('Standard/ Regulation', req.get('Standard/Reg', ''))
+                        clause = req.get('Clause', req.get('Clause/Requirement', ''))
+
+                        st.markdown(f"""
+                        {idx}. **{standard}** - Clause {clause}
+                        _{text[:200]}..._
+                        """)
+
+                    # Show suggested consolidation
+                    st.markdown("**✨ Suggested Consolidation:**")
+                    st.info(consolidation['suggested_consolidation'])
+
+                    # Show critical differences if any
+                    if consolidation.get('critical_differences'):
+                        st.markdown("**⚠️ Critical Differences to Preserve:**")
+                        for diff in consolidation['critical_differences']:
+                            st.markdown(f"- {diff}")
+
+                    # Action buttons
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        if st.button(f"✅ Accept", key=f"accept_{i}"):
+                            st.success("Consolidation accepted! (Implementation pending)")
+                    with col2:
+                        if st.button(f"❌ Reject", key=f"reject_{i}"):
+                            st.info("Consolidation rejected")
+
+            # Export consolidated results
+            st.divider()
+            if st.button("📥 Export Results"):
+                # Create export DataFrame with consolidations
+                export_data = []
+                for cons in consolidations:
+                    export_data.append({
+                        'Group ID': cons['group_id'],
+                        'Similarity Score': cons['similarity_score'],
+                        'Topic Keywords': ', '.join(cons['topic_keywords']),
+                        'Reasoning': cons['reasoning'],
+                        'Suggested Consolidation': cons['suggested_consolidation'],
+                        'Original Requirement Indices': ', '.join(map(str, cons['original_requirements']))
+                    })
+
+                export_df = pd.DataFrame(export_data)
+                csv = export_df.to_csv(index=False)
+
+                st.download_button(
+                    label="📥 Download Consolidation Report",
+                    data=csv,
+                    file_name="consolidation_report.csv",
+                    mime="text/csv",
+                    type="primary"
+                )
 
 
 def check_api_health():
@@ -202,21 +427,6 @@ def display_results(job_id):
         st.session_state.edited_data = edited_df
 
         st.caption(f"Total requirements: {len(edited_df)}")
-
-        # Consolidation suggestions (Phase 3 - placeholder)
-        st.divider()
-        st.subheader("🔗 Consolidation Suggestions")
-        consolidations = result.get('consolidations', [])
-
-        if consolidations:
-            for i, group in enumerate(consolidations, 1):
-                with st.expander(f"Group {i}: {group.get('representative_text', '')[:100]}..."):
-                    st.write(f"**Reason:** {group.get('reason', 'N/A')}")
-                    st.write(f"**Scope:** {group.get('scope', 'N/A')}")
-                    st.write(f"**Members:** {len(group.get('members', []))}")
-                    st.json(group.get('members', []))
-        else:
-            st.info("Consolidation feature coming in Phase 3")
 
         # Export button - one-click download using edited data
         st.divider()
