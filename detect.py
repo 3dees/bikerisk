@@ -446,17 +446,26 @@ def split_numbered_subsections(section_content: str, parent_clause: str, heading
 
     # Pre-filter garbage lines and clean up
     clean_lines = []
-    for line in lines:
+    garbage_count = 0
+    print(f"  Total lines before filtering: {len(lines)}")
+    for i, line in enumerate(lines):
         stripped = line.strip()
-        if stripped and not _is_garbage_line(stripped):
+        if not stripped:
+            continue
+        is_garbage = _is_garbage_line(stripped)
+        if is_garbage:
+            garbage_count += 1
+            if garbage_count <= 10:  # Show first 10 garbage lines
+                print(f"    [GARBAGE {garbage_count}]: {stripped[:100]}")
+        else:
             clean_lines.append(stripped)
 
-    print(f"  clean_lines count: {len(clean_lines)} (after filtering {len(lines) - len(clean_lines)} garbage lines)")
+    print(f"  clean_lines count: {len(clean_lines)} (filtered {garbage_count} garbage lines)")
 
     # Show first few clean lines
-    print(f"  First 5 clean lines:")
-    for i, line in enumerate(clean_lines[:5]):
-        print(f"    [{i}]: {line[:80]}...")
+    print(f"  First 10 clean lines (showing first 100 chars):")
+    for i, line in enumerate(clean_lines[:10]):
+        print(f"    [{i}]: {line[:100]}")
 
     current_item = []
     current_number = None
