@@ -230,16 +230,21 @@ def render_consolidation_tab():
         if st.button("🤖 Analyze with AI", type="primary"):
             # Fun facts for consolidation
             consolidation_facts = [
-                "🤖 Claude is comparing requirements like a master chef perfecting a recipe...",
-                "🔍 AI can spot similarities that would take humans hours to find!",
-                "🧠 Claude's neural networks are processing millions of comparisons per second!",
-                "📊 Smart consolidation can reduce manual length by 30-50% without losing info!",
-                "⚡ Claude is finding patterns across standards faster than you can blink...",
-                "🎯 AI consolidation preserves critical details while removing redundancy!",
-                "🌟 Claude is trained to understand regulatory language across multiple domains!",
-                "🔬 The AI is analyzing semantic similarity, not just keyword matching!",
-                "📚 Claude can hold entire standard documents in memory at once!",
-                "💡 Good consolidation is an art - Claude's been studying the masters!",
+                "🐘 Elephants can't jump - they're the only mammals that can't!",
+                "🍫 It takes about 400 cocoa beans to make one pound of chocolate!",
+                "🌟 There are more stars in the universe than grains of sand on all Earth's beaches!",
+                "🦘 Kangaroos can't walk backwards - that's why they're on Australia's coat of arms!",
+                "🎲 The probability of shuffling a deck of cards into a unique order is virtually guaranteed!",
+                "🐱 Cats spend 70% of their lives sleeping!",
+                "🌈 Light takes 8 minutes and 20 seconds to travel from the sun to Earth!",
+                "🦎 A crocodile can't stick its tongue out!",
+                "💧 A cloud can weigh more than a million pounds!",
+                "🎭 The shortest war in history lasted 38 minutes (UK vs Zanzibar, 1896)!",
+                "🦉 Owls can't move their eyeballs - that's why they turn their heads so much!",
+                "🍎 Apples float because they're 25% air!",
+                "🐜 Ants never sleep and don't have lungs!",
+                "🌋 There are more volcanoes on Venus than any other planet!",
+                "🎸 The inventor of the Pringles can is buried in one!",
             ]
 
             import random
@@ -356,21 +361,26 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
 
     # Fun facts to show during AI processing
     fun_facts = [
-        "🤖 Did you know? Claude can read and understand over 200,000 tokens - that's about 150,000 words!",
-        "🚴 Fun fact: E-bikes can go up to 28 mph in the US, but regulations vary by country!",
-        "📚 Claude is analyzing your document like a safety engineer with a photographic memory...",
-        "⚡ E-bike batteries typically last 3-5 years or 500-1000 charge cycles!",
-        "🧠 AI models like Claude use neural networks inspired by how the human brain processes information!",
-        "🔋 Most e-bikes use lithium-ion batteries - the same tech that powers your phone!",
-        "🌍 The e-bike market is expected to reach $70 billion by 2027!",
-        "📖 Claude is reading your PDF faster than you can say 'EN 15194:2017'...",
-        "🚲 The first electric bicycle patent was filed in 1895!",
-        "🤓 Claude was trained on data up to early 2025 - that's a lot of e-bike standards!",
-        "⚙️ E-bike motors are typically 250W-750W depending on local regulations!",
-        "🎯 AI extraction is more accurate because it understands context, not just patterns!",
-        "🌟 The most expensive e-bike ever made cost over $80,000!",
-        "🔍 Claude is looking for requirements like a detective with perfect recall...",
-        "💡 Regenerative braking on e-bikes can recover up to 5% of battery charge!",
+        "🐙 Octopuses have three hearts and blue blood!",
+        "🍯 Honey never spoils - archaeologists found 3,000-year-old honey in Egyptian tombs that was still edible!",
+        "🦒 Giraffes and humans have the same number of neck vertebrae: seven!",
+        "🌊 There's more computing power in your phone than NASA used to put humans on the moon!",
+        "🧠 Your brain uses 20% of your body's energy but only weighs 2% of your body mass!",
+        "⚡ Bananas are slightly radioactive due to their potassium content!",
+        "🌍 The Earth's core is as hot as the surface of the sun - about 10,800°F!",
+        "🦈 Sharks have been around longer than trees - by about 50 million years!",
+        "👁️ Mantis shrimp can see colors we can't even imagine - they have 16 color receptors vs our 3!",
+        "🚀 In space, astronauts can grow up to 2 inches taller due to lack of gravity!",
+        "🐌 A snail can sleep for 3 years straight!",
+        "💎 It rains diamonds on Jupiter and Saturn!",
+        "🦋 Butterflies can taste with their feet!",
+        "🌙 The footprints on the moon will last for millions of years - there's no wind to erase them!",
+        "🧬 Humans share 60% of their DNA with bananas!",
+        "🐝 Bees can recognize human faces!",
+        "⏰ A day on Venus is longer than a year on Venus!",
+        "🌊 The Pacific Ocean is wider than the moon!",
+        "🦠 There are more bacterial cells in your body than human cells!",
+        "🎵 The loudest sound ever recorded was the Krakatoa volcano - heard 3,000 miles away!",
     ]
 
     import random
@@ -496,7 +506,68 @@ def display_results(job_id):
             st.session_state.current_job_id = st.session_state.job_id
 
         # Instructions
-        st.info("💡 **Tip**: Click any cell to edit. Select rows to delete using checkboxes on the left.")
+        st.info("💡 **Tips**: \n- Click any cell to edit\n- Add new rows using the **+** button at the bottom\n- Delete rows by clearing all cells in a row")
+
+        # Merge functionality
+        with st.expander("🔗 Merge Rows"):
+            st.markdown("**Select rows to merge** (by row number)")
+
+            # Let user select which rows to merge
+            available_rows = list(range(len(st.session_state.edited_data)))
+            selected_rows = st.multiselect(
+                "Choose 2 or more rows to merge:",
+                options=available_rows,
+                format_func=lambda x: f"Row {x}: {st.session_state.edited_data.iloc[x]['Description'][:50]}..."
+            )
+
+            if len(selected_rows) >= 2:
+                st.write(f"**Selected {len(selected_rows)} rows for merging**")
+
+                # Show preview of merge
+                merge_descriptions = []
+                merge_clauses = []
+                merge_scopes = set()
+                merge_comments = []
+
+                for idx in selected_rows:
+                    row = st.session_state.edited_data.iloc[idx]
+                    merge_descriptions.append(row['Description'])
+                    if pd.notna(row['Clause/Requirement']):
+                        merge_clauses.append(str(row['Clause/Requirement']))
+                    if pd.notna(row['Requirement scope']):
+                        merge_scopes.add(str(row['Requirement scope']))
+                    if pd.notna(row['Comments']):
+                        merge_comments.append(str(row['Comments']))
+
+                merged_desc = "\n\n".join([f"[{i+1}] {d}" for i, d in enumerate(merge_descriptions)])
+                merged_clause = ", ".join(merge_clauses)
+                merged_scope = ", ".join(merge_scopes)
+                merged_comments = "; ".join(merge_comments)
+
+                st.text_area("Merged Description Preview:", merged_desc, height=150)
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("✅ Merge These Rows", type="primary"):
+                        # Create merged row
+                        first_row = st.session_state.edited_data.iloc[selected_rows[0]].copy()
+                        first_row['Description'] = merged_desc
+                        first_row['Clause/Requirement'] = merged_clause
+                        first_row['Requirement scope'] = merged_scope
+                        first_row['Comments'] = merged_comments + " (merged)"
+
+                        # Remove selected rows and add merged row
+                        df_temp = st.session_state.edited_data.copy()
+                        df_temp = df_temp.drop(selected_rows)
+                        df_temp = pd.concat([df_temp, pd.DataFrame([first_row])], ignore_index=True)
+
+                        st.session_state.edited_data = df_temp
+                        st.success(f"✅ Merged {len(selected_rows)} rows!")
+                        st.rerun()
+
+                with col2:
+                    if st.button("❌ Cancel"):
+                        st.rerun()
 
         # Editable DataFrame
         edited_df = st.data_editor(
