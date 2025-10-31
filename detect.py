@@ -553,6 +553,11 @@ def _is_garbage_line(line: str) -> bool:
     if not line:
         return False
 
+    # IMPORTANT: Don't filter subsection markers!
+    # Check if this looks like a subsection marker (e.g., "7.1 Addition:", "7.12 Replacement:")
+    if re.match(r'^\d+\.\d+(?:\.\d+)*\s+(?:Addition|Replacement|Amendment|Modification|Isolating)', line):
+        return False
+
     # Pattern 1: Reversed/scrambled text (has dots and backwards words)
     if re.search(r'\.(oN|redrO|sresu|thgirypoc|ot|tcejbus|era|sdradnatS)', line):
         return True
