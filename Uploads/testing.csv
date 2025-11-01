@@ -1,6 +1,197 @@
-Description,Standard/Reg,Clause/Requirement,Requirement scope,Formatting required?,Required in Print?,Comments
-"If symbols are used, their meaning shall be described in the instructions for use.",EN 15194-2017+A1-2023 (TC333 clean ver).pdf,4.2.2,ebike,N/A,N/A,Applies to control symbols
-"""On"" ""Off"" symbols, lightings symbols, start-up assistance symbols, audible warning device symbols design shall be in accordance with those described in Annex H and Annex I.",EN 15194-2017+A1-2023 (TC333 clean ver).pdf,4.2.2,ebike,Y,N/A,Specific symbol design requirements per Annex H and I
-EPAC manufacturer shall state in the manufacturer's instructions which levers operate the front and rear brakes,EN 15194-2017+A1-2023 (TC333 clean ver).pdf,4.3.5.2.1,ebike,N/A,N/A,See also Clause 6 i)
-"Marking, labelling - Requirement",EN 15194-2017+A1-2023 (TC333 clean ver).pdf,5.1,ebike,N/A,N/A,Section header only - specific requirements in Clause 6
-Instruction for use,EN 15194-2017+A1-2023 (TC333 clean ver).pdf,6,ebike,N/A,N/A,Main section for user manual requirements - details not visible in provided excerpt
+Unpacking objects: 100% (3/3), 815 bytes | 163.00 KiB/s, done.
+From https://github.com/3dees/bikerisk
+ * branch            claude/clarifying-questions-011CUdyiWqsc4sFVuboSSkKk -> FETCH_HEAD
+   147b6a4..179252e  claude/clarifying-questions-011CUdyiWqsc4sFVuboSSkKk -> origin/claude/clarifying-questions-011CUdyiWqsc4sFVuboSSkKk
+Updating 147b6a4..179252e
+Fast-forward
+ consolidate_improved.py | 18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+PS C:\Users\vsjam\bikerisk> .\start.bat
+E-Bike Standards Requirement Extractor
+==========================================
+
+Installing dependencies...
+Starting FastAPI backend on http://localhost:8000
+Starting Streamlit UI on http://localhost:8501
+
+Press Ctrl+C in each window to stop the servers
+
+
+  You can now view your Streamlit app in your browser.
+
+  Local URL: http://localhost:8503
+  Network URL: http://192.168.1.89:8503
+
+2025-11-01 12:00:52.176 Serialization of dataframe to Arrow table was unsuccessful due to: ("Could not convert '19.a.1' with type str: tried to convert to int64", 'Conversion failed for column Clause ID with type object'). Applying automatic fixes for column types to make the dataframe Arrow-compatible.
+2025-11-01 12:01:00.327 Serialization of dataframe to Arrow table was unsuccessful due to: ("Could not convert '19.a.1' with type str: tried to convert to int64", 'Conversion failed for column Clause ID with type object'). Applying automatic fixes for column types to make the dataframe Arrow-compatible.
+
+[DEBUG] DataFrame has 165 rows
+[DEBUG] Column names: ['Requirement (Clause)', 'Standard/ Regulation', 'Clause ID', 'Comments']
+[DEBUG] First row sample:
+  - Requirement (Clause): A bicycle shall have an instruction manual attached to its frame or included with the packaged unit.
+  - Standard/ Regulation: 16 CFR Part 1512
+  - Clause ID: 19
+  - Comments: nan
+
+[DEBUG] Row 0:
+  text found: True
+  text value: A bicycle shall have an instruction manual attached to its frame or included with the packaged unit.
+  standard: 16 CFR Part 1512
+  clause: 19
+
+[DEBUG] Row 1:
+  text found: True
+  text value: Operations and safety instructions describing operation of the brakes and gears, cautions concerning
+  standard: 16 CFR Part 1512
+  clause: 19.a.1
+
+[DEBUG] Row 2:
+  text found: True
+  text value: Assembly instructions for accomplishing complete and proper assembly.
+  standard: 16 CFR Part 1512
+  clause: 19.a.2
+
+[DEBUG] Total requirements converted: 158
+
+[DEBUG] Topic clustering results:
+  - manual_provision: 32 requirements
+  - safety_warnings: 28 requirements
+  - assembly: 21 requirements
+  - maintenance: 23 requirements
+  - grounding: 1 requirements
+  - general: 30 requirements
+  - tools: 4 requirements
+  - battery_charging: 9 requirements
+  - brakes: 2 requirements
+  - composite: 3 requirements
+  - tampering: 2 requirements
+  - symbols: 1 requirements
+  - electrical: 2 requirements
+
+[DEBUG] Group 0 (manual_provision): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (manual_provision): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (manual_provision): Trying to consolidate 8 requirements
+
+[DEBUG] Group 0 (safety_warnings): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (safety_warnings): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (safety_warnings): Trying to consolidate 4 requirements
+
+[DEBUG] Group 0 (assembly): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (assembly): Trying to consolidate 9 requirements
+
+[DEBUG] Group 0 (maintenance): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (maintenance): Trying to consolidate 11 requirements
+
+[DEBUG] Group 0 (general): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (general): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (general): Trying to consolidate 6 requirements
+
+[DEBUG] Group 0 (tools): Trying to consolidate 4 requirements
+
+[DEBUG] Group 0 (battery_charging): Trying to consolidate 9 requirements
+
+[DEBUG] Group 0 (brakes): Trying to consolidate 2 requirements
+
+[DEBUG] Group 0 (composite): Trying to consolidate 3 requirements
+
+[DEBUG] Group 0 (tampering): Trying to consolidate 2 requirements
+
+[DEBUG] Group 0 (electrical): Trying to consolidate 2 requirements
+
+[DEBUG] Processing complete:
+  - Total groups created: 0
+  - Ungrouped requirements: 158
+2025-11-01 12:01:07.601 Serialization of dataframe to Arrow table was unsuccessful due to: ("Could not convert '19.a.1' with type str: tried to convert to int64", 'Conversion failed for column Clause ID with type object'). Applying automatic fixes for column types to make the dataframe Arrow-compatible.
+
+[DEBUG] DataFrame has 165 rows
+[DEBUG] Column names: ['Requirement (Clause)', 'Standard/ Regulation', 'Clause ID', 'Comments']
+[DEBUG] First row sample:
+  - Requirement (Clause): A bicycle shall have an instruction manual attached to its frame or included with the packaged unit.
+  - Standard/ Regulation: 16 CFR Part 1512
+  - Clause ID: 19
+  - Comments: nan
+
+[DEBUG] Row 0:
+  text found: True
+  text value: A bicycle shall have an instruction manual attached to its frame or included with the packaged unit.
+  standard: 16 CFR Part 1512
+  clause: 19
+
+[DEBUG] Row 1:
+  text found: True
+  text value: Operations and safety instructions describing operation of the brakes and gears, cautions concerning
+  standard: 16 CFR Part 1512
+  clause: 19.a.1
+
+[DEBUG] Row 2:
+  text found: True
+  text value: Assembly instructions for accomplishing complete and proper assembly.
+  standard: 16 CFR Part 1512
+  clause: 19.a.2
+
+[DEBUG] Total requirements converted: 158
+
+[DEBUG] Topic clustering results:
+  - manual_provision: 32 requirements
+  - safety_warnings: 28 requirements
+  - assembly: 21 requirements
+  - maintenance: 23 requirements
+  - grounding: 1 requirements
+  - general: 30 requirements
+  - tools: 4 requirements
+  - battery_charging: 9 requirements
+  - brakes: 2 requirements
+  - composite: 3 requirements
+  - tampering: 2 requirements
+  - symbols: 1 requirements
+  - electrical: 2 requirements
+
+[DEBUG] Group 0 (manual_provision): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (manual_provision): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (manual_provision): Trying to consolidate 8 requirements
+
+[DEBUG] Group 0 (safety_warnings): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (safety_warnings): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (safety_warnings): Trying to consolidate 4 requirements
+
+[DEBUG] Group 0 (assembly): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (assembly): Trying to consolidate 9 requirements
+
+[DEBUG] Group 0 (maintenance): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (maintenance): Trying to consolidate 11 requirements
+
+[DEBUG] Group 0 (general): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (general): Trying to consolidate 12 requirements
+
+[DEBUG] Group 0 (general): Trying to consolidate 6 requirements
+
+[DEBUG] Group 0 (tools): Trying to consolidate 4 requirements
+
+[DEBUG] Group 0 (battery_charging): Trying to consolidate 9 requirements
+
+[DEBUG] Group 0 (brakes): Trying to consolidate 2 requirements
+
+[DEBUG] Group 0 (composite): Trying to consolidate 3 requirements
+
+[DEBUG] Group 0 (tampering): Trying to consolidate 2 requirements
+
+[DEBUG] Group 0 (electrical): Trying to consolidate 2 requirements
+
+[DEBUG] Processing complete:
+  - Total groups created: 0
+  - Ungrouped requirements: 158
