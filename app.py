@@ -227,7 +227,7 @@ def render_consolidation_tab():
             )
         
         # Run consolidation button
-        if st.button("� Analyze with Smart AI", type="primary", use_container_width=True):
+        if st.button("🧠 Analyze with Smart AI", type="primary", use_container_width=True):
             with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
                 try:
                     from consolidate_smart_ai import consolidate_with_smart_ai
@@ -309,18 +309,19 @@ def render_consolidation_tab():
                     st.markdown("### 💡 Why These Were Grouped")
                     st.markdown(group.reasoning)
                     
-                    # Show original requirements
-                    with st.expander("📄 View Original Requirements"):
-                        for idx in group.requirement_indices:
-                            if idx < len(df):
-                                req_row = df.iloc[idx]
-                                req_text = req_row.get('Requirement (Clause)', req_row.get('Description', ''))
-                                standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
-                                clause = req_row.get('Clause ID', req_row.get('Clause/Requirement', ''))
-                                
-                                st.markdown(f"**{standard}** (Clause {clause})")
-                                st.caption(str(req_text)[:300] + "..." if len(str(req_text)) > 300 else str(req_text))
-                                st.divider()
+                    # Show original requirements (NO nested expander)
+                    st.markdown("---")
+                    st.markdown("### 📄 Original Requirements")
+                    for idx in group.requirement_indices:
+                        if idx < len(df):
+                            req_row = df.iloc[idx]
+                            req_text = req_row.get('Requirement (Clause)', req_row.get('Description', ''))
+                            standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
+                            clause = req_row.get('Clause ID', req_row.get('Clause/Requirement', ''))
+                            
+                            st.markdown(f"**{standard}** (Clause {clause})")
+                            st.caption(str(req_text)[:300] + "..." if len(str(req_text)) > 300 else str(req_text))
+                            st.markdown("")  # spacing
                     
                     # Action buttons
                     col1, col2, col3 = st.columns(3)
