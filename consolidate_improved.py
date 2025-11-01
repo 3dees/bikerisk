@@ -171,7 +171,11 @@ class ImprovedConsolidator:
                     group_id += 1
                 else:
                     self.ungrouped.extend(subcluster)
-        
+
+        print(f"\n[DEBUG] Processing complete:")
+        print(f"  - Total groups created: {len(all_groups)}")
+        print(f"  - Ungrouped requirements: {len(self.ungrouped)}")
+
         return all_groups
     
     def _cluster_by_topic(self, requirements: List[Requirement]) -> Dict[str, List[Requirement]]:
@@ -191,7 +195,11 @@ class ImprovedConsolidator:
             
             if not assigned:
                 clusters['general'].append(req)
-        
+
+        print(f"\n[DEBUG] Topic clustering results:")
+        for topic, reqs in clusters.items():
+            print(f"  - {topic}: {len(reqs)} requirements")
+
         return dict(clusters)
     
     def _split_large_cluster(self, requirements: List[Requirement]) -> List[List[Requirement]]:
@@ -256,10 +264,12 @@ class ImprovedConsolidator:
                 return True
         return False
     
-    def _create_consolidation_group(self, requirements: List[Requirement], 
+    def _create_consolidation_group(self, requirements: List[Requirement],
                                    group_id: int, topic: str) -> Optional[CoreDeltaGroup]:
         """Create a Core + Deltas consolidation group"""
-        
+
+        print(f"\n[DEBUG] Group {group_id} ({topic}): Trying to consolidate {len(requirements)} requirements")
+
         if len(requirements) < 2:
             return None
         
