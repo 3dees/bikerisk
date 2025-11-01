@@ -8,6 +8,7 @@ import time
 import os
 from dotenv import load_dotenv
 from consolidate_ai import analyze_similarity_with_ai
+from consolidate_improved import ImprovedConsolidator
 
 # Load environment variables
 load_dotenv()
@@ -227,51 +228,82 @@ def render_consolidation_tab():
                 help="Select the column containing the requirement descriptions"
             )
 
-        # Run consolidation button
-        if st.button("🤖 Analyze with AI", type="primary"):
-            # Fun facts for consolidation
-            consolidation_facts = [
-                "🐘 Elephants can't jump - they're the only mammals that can't!",
-                "🍫 It takes about 400 cocoa beans to make one pound of chocolate!",
-                "🌟 There are more stars in the universe than grains of sand on all Earth's beaches!",
-                "🦘 Kangaroos can't walk backwards - that's why they're on Australia's coat of arms!",
-                "🎲 The probability of shuffling a deck of cards into a unique order is virtually guaranteed!",
-                "🐱 Cats spend 70% of their lives sleeping!",
-                "🌈 Light takes 8 minutes and 20 seconds to travel from the sun to Earth!",
-                "🦎 A crocodile can't stick its tongue out!",
-                "💧 A cloud can weigh more than a million pounds!",
-                "🎭 The shortest war in history lasted 38 minutes (UK vs Zanzibar, 1896)!",
-                "🦉 Owls can't move their eyeballs - that's why they turn their heads so much!",
-                "🍎 Apples float because they're 25% air!",
-                "🐜 Ants never sleep and don't have lungs!",
-                "🌋 There are more volcanoes on Venus than any other planet!",
-                "🎸 The inventor of the Pringles can is buried in one!",
-            ]
+# Create two columns for different consolidation methods
+col1, col2 = st.columns(2)
 
-            import random
-            spinner_text = random.choice(consolidation_facts)
+with col1:
+    # Run AI consolidation button
+    if st.button("🤖 Analyze with AI (Original)", type="secondary"):
+        with st.spinner("🔬 Analyzing with AI..."):
+            try:
+                # Convert DataFrame to list of dicts
+                requirements = df.to_dict('records')
 
-            with st.spinner(spinner_text):
-                try:
-                    # Convert DataFrame to list of dicts
-                    requirements = df.to_dict('records')
+                # Run AI analysis
+                consolidations = analyze_similarity_with_ai(
+                    requirements,
+                    st.session_state.anthropic_api_key,
+                    similarity_threshold
+                )
 
-                    # Run AI analysis
-                    consolidations = analyze_similarity_with_ai(
-                        requirements,
-                        st.session_state.anthropic_api_key,
-                        similarity_threshold
-                    )
+                # Store results
+                st.session_state.consolidations = consolidations
+                st.session_state.consolidation_method = 'ai'
 
-                    # Store results
-                    st.session_state.consolidations = consolidations
+                st.success(f"✅ Found {len(consolidations)} consolidation opportunities!")
 
-                    st.success(f"✅ Found {len(consolidations)} consolidation opportunities!")
+            except Exception as e:
+                st.error(f"❌ Error during AI analysis: {e}")
+                import traceback
+                st.code(traceback.format_exc())
 
-                except Exception as e:
-                    st.error(f"❌ Error during AI analysis: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
+with col2:
+    # Run improved consolidation button
+    if st.button("⚡ Core + Deltas (Improved)", type="primary"):
+        with st.spinner("🔧 Processing with Core + Deltas approach..."):
+            try:
+                # Use improved consolidator
+                consolidator = ImprovedConsolidator()
+                consolidator.MIN_SIMILARITY = similarity_threshold
+                
+                result = consolidator.consolidate_from_dataframe(df)
+                
+                # Convert result to format expected by display function
+                consolidations = []
+                groups_df = result['consolidation_groups']
+                
+                for idx, row in groups_df.iterrows():
+                    consolidations.append({
+                        'group_id': row['Group ID'],
+                        'similarity_score': row['Similarity Score'],
+                        'topic_keywords': [row['Topic Keywords']],
+                        'reasoning': row['Reasoning'],
+                        'suggested_consolidation': row['Suggested Consolidation'],
+                        'original_requirements': row['Original Requirement Indices'],
+                        'critical_differences': row.get('Critical Differences', [])
+                    })
+                
+                # Store results
+                st.session_state.consolidations = consolidations
+                st.session_state.consolidation_stats = result['statistics']
+                st.session_state.consolidation_method = 'improved'
+
+                st.success(f"✅ Created {len(consolidations)} consolidated groups!")
+                
+                # Show statistics
+                stats = result['statistics']
+                col_a, col_b, col_c = st.columns(3)
+                with col_a:
+                    st.metric("Original", stats['original_requirements'])
+                with col_b:
+                    st.metric("Groups", stats['consolidated_groups'])
+                with col_c:
+                    st.metric("Ungrouped", stats['ungrouped_count'])
+
+            except Exception as e:
+                st.error(f"❌ Error during consolidation: {e}")
+                import traceback
+                st.code(traceback.format_exc())
 
         # Display consolidation results
         if 'consolidations' in st.session_state and st.session_state.consolidations:

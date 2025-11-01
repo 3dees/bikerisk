@@ -335,6 +335,60 @@ def list_jobs():
 
     return {'jobs': jobs}
 
+@app.post("/consolidate_improved")
+async def consolidate_improved(
+    file: UploadFile = File(...),
+    similarity_threshold: float = 0.75
+):
+    """
+    Improved consolidation endpoint using Core + Deltas approach
+    
+    Args:
+        file: CSV or Excel file with requirements
+        similarity_threshold: Minimum similarity for grouping (0.0-1.0)
+    
+    Returns:
+        Consolidation results with groups and statistics
+    """
+    import io
+    
+    # Read file bytes
+    file_bytes = await file.read()
+    
+    try:
+        # Load file into DataFrame
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(file_bytes))
+        else:
+            # For Excel files
+            df = pd.read_excel(io.BytesIO(file_bytes))
+        
+        # Import and use improved consolidator
+        from consolidate_improved import ImprovedConsolidator
+        
+        consolidator = ImprovedConsolidator()
+        consolidator.MIN_SIMILARITY = similarity_threshold
+        
+        result = consolidator.consolidate_from_dataframe(df)
+        
+        # Convert DataFrame to dict for JSON response
+        groups_list = result['consolidation_groups'].to_dict('records')
+        
+        return {
+            'success': True,
+            'groups': groups_list,
+            'statistics': result['statistics']
+        }
+        
+    except Exception as e:
+        import traceback
+        raise HTTPException(
+            status_code=500, 
+            detail={
+                'error': str(e),
+                'traceback': traceback.format_exc()
+            }
+        )
 
 if __name__ == "__main__":
     import uvicorn
