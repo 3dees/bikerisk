@@ -57,11 +57,11 @@ def consolidate_with_smart_ai(
         os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com'
     
     try:
-        http_client = httpx.Client(proxies=None, timeout=180.0)
+        http_client = httpx.Client(timeout=180.0)
         client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
         print("[SMART AI] Client initialized")
     except Exception as e:
-        print(f"[SMART AI] Client init error: {e}")
+        print(f"[SMART AI] Client init with http_client failed: {e}, using simple init")
         client = anthropic.Anthropic(api_key=api_key)
     
     # Convert DataFrame to list format for Claude
