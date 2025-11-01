@@ -55,8 +55,8 @@ class ImprovedConsolidator:
     
     # Configuration - tuned for bike standards
     MAX_GROUP_SIZE = 12  # Optimal for bike requirements
-    MIN_SIMILARITY = 0.75
-    MIN_CORE_RATIO = 0.5  # Core must be 50% of each requirement
+    MIN_SIMILARITY = 0.70  # Lowered default - user can adjust with slider
+    MIN_CORE_RATIO = 0.30  # Lowered to 30% - was too strict at 50%
     
     # Topic definitions for bike/EPAC standards
     TOPIC_KEYWORDS = {
@@ -98,15 +98,6 @@ class ImprovedConsolidator:
         """Convert BikeRisk DataFrame to Requirement objects"""
         requirements = []
         
-        # ADD THIS DEBUG OUTPUT FIRST:
-        print(f"\n[DEBUG] DataFrame has {len(df)} rows")
-        print(f"[DEBUG] Column names: {list(df.columns)}")
-        print(f"[DEBUG] First row sample:")
-        if len(df) > 0:
-            first_row = df.iloc[0]
-            for col in df.columns:
-                print(f"  - {col}: {first_row[col]}")
-        
         for idx, row in df.iterrows():
             # Handle different column name variations
             text = (row.get('Requirement (Clause)') or 
@@ -121,24 +112,17 @@ class ImprovedConsolidator:
                      row.get('Clause/Requirement') or 
                      row.get('Clause', ''))
             
-            # ADD THIS DEBUG FOR FIRST FEW ROWS:
-            if idx < 3:
-                print(f"\n[DEBUG] Row {idx}:")
-                print(f"  text found: {text is not None and text != ''}")
-                print(f"  text value: {str(text)[:100] if text else 'NONE'}")
-                print(f"  standard: {standard}")
-                print(f"  clause: {clause}")
-            
             if pd.notna(text) and str(text).strip():
                 req = Requirement(
-                    text=str(text).strip(),
-                    standard=str(standard).strip(),
-                    clause=str(clause).strip()
+                    text=str(text),
+                    standard=str(standard) if pd.notna(standard) else '',
+                    clause=str(clause) if pd.notna(clause) else '',
+                    scope=str(row.get('Requirement scope', '')) if 'Requirement scope' in row else '',
+                    formatting_required=str(row.get('Formatting required?', '')) if 'Formatting required?' in row else '',
+                    required_in_print=str(row.get('Required in Print?', '')) if 'Required in Print?' in row else '',
+                    comments=str(row.get('Comments', '')) if 'Comments' in row else ''
                 )
                 requirements.append(req)
-        
-        # ADD THIS AT THE END:
-        print(f"\n[DEBUG] Total requirements converted: {len(requirements)}")
         
         return requirements
     
@@ -171,11 +155,7 @@ class ImprovedConsolidator:
                     group_id += 1
                 else:
                     self.ungrouped.extend(subcluster)
-
-        print(f"\n[DEBUG] Processing complete:")
-        print(f"  - Total groups created: {len(all_groups)}")
-        print(f"  - Ungrouped requirements: {len(self.ungrouped)}")
-
+        
         return all_groups
     
     def _cluster_by_topic(self, requirements: List[Requirement]) -> Dict[str, List[Requirement]]:
@@ -195,11 +175,7 @@ class ImprovedConsolidator:
             
             if not assigned:
                 clusters['general'].append(req)
-
-        print(f"\n[DEBUG] Topic clustering results:")
-        for topic, reqs in clusters.items():
-            print(f"  - {topic}: {len(reqs)} requirements")
-
+        
         return dict(clusters)
     
     def _split_large_cluster(self, requirements: List[Requirement]) -> List[List[Requirement]]:
@@ -264,42 +240,66 @@ class ImprovedConsolidator:
                 return True
         return False
     
-    def _create_consolidation_group(self, requirements: List[Requirement],
+    def _create_consolidation_group(self, requirements: List[Requirement], 
                                    group_id: int, topic: str) -> Optional[CoreDeltaGroup]:
         """Create a Core + Deltas consolidation group"""
-
+        
         print(f"\n[DEBUG] Group {group_id} ({topic}): Trying to consolidate {len(requirements)} requirements")
-
+        
         if len(requirements) < 2:
+            print(f"  -> REJECTED: Only {len(requirements)} requirement(s)")
             return None
         
         # Extract core requirement
         core = self._extract_core(requirements)
-        if not core:
+        if core:
+            print(f"  ✓ Core extracted: {core[:80]}...")
+        else:
+            print(f"  ✗ REJECTED: Core extraction failed (no common words)")
             return None
         
         # Check core ratio
-        for req in requirements:
+        print(f"  Checking core ratio (min: {self.MIN_CORE_RATIO})...")
+        failed_core_ratio = False
+        for idx, req in enumerate(requirements):
             core_words = set(core.lower().split())
             req_words = set(req.text.lower().split())
-            if len(core_words & req_words) / len(req_words) < self.MIN_CORE_RATIO:
-                return None
+            if len(req_words) == 0:
+                continue
+            ratio = len(core_words & req_words) / len(req_words)
+            if ratio < self.MIN_CORE_RATIO:
+                print(f"    Req {idx}: ratio={ratio:.2f} < {self.MIN_CORE_RATIO} FAIL")
+                print(f"      Text: {req.text[:60]}...")
+                failed_core_ratio = True
+                break
+        
+        if failed_core_ratio:
+            print(f"  ✗ REJECTED: Core ratio check failed")
+            return None
+        else:
+            print(f"  ✓ Core ratio check passed")
         
         # Extract deltas
         deltas = self._extract_deltas(requirements, core)
         
         # Calculate average similarity
+        print(f"  Checking similarity (min: {self.MIN_SIMILARITY})...")
         total_sim = 0
         count = 0
         for i in range(len(requirements)):
             for j in range(i+1, len(requirements)):
-                total_sim += self._calculate_similarity(requirements[i], requirements[j])
+                sim = self._calculate_similarity(requirements[i], requirements[j])
+                total_sim += sim
                 count += 1
         
         avg_similarity = total_sim / count if count > 0 else 0
+        print(f"    Average similarity: {avg_similarity:.3f}")
         
         if avg_similarity < self.MIN_SIMILARITY:
+            print(f"  ✗ REJECTED: Similarity {avg_similarity:.3f} < {self.MIN_SIMILARITY}")
             return None
+        
+        print(f"  ✓ ACCEPTED! Creating group with {len(requirements)} requirements")
         
         # Create group
         return CoreDeltaGroup(
@@ -330,7 +330,7 @@ class ImprovedConsolidator:
         for word_set in word_sets[1:]:
             common_words &= word_set
         
-        if len(common_words) < 3:
+        if len(common_words) < 2:  # Changed from 3 to 2 - less strict
             return ""
         
         # Build core statement
