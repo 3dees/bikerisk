@@ -228,82 +228,82 @@ def render_consolidation_tab():
                 help="Select the column containing the requirement descriptions"
             )
 
-# Create two columns for different consolidation methods
-col1, col2 = st.columns(2)
+        # Create two columns for different consolidation methods
+        col1, col2 = st.columns(2)
 
-with col1:
-    # Run AI consolidation button
-    if st.button("🤖 Analyze with AI (Original)", type="secondary"):
-        with st.spinner("🔬 Analyzing with AI..."):
-            try:
-                # Convert DataFrame to list of dicts
-                requirements = df.to_dict('records')
+        with col1:
+            # Run AI consolidation button
+            if st.button("🤖 Analyze with AI (Original)", type="secondary"):
+                with st.spinner("🔬 Analyzing with AI..."):
+                    try:
+                        # Convert DataFrame to list of dicts
+                        requirements = df.to_dict('records')
 
-                # Run AI analysis
-                consolidations = analyze_similarity_with_ai(
-                    requirements,
-                    st.session_state.anthropic_api_key,
-                    similarity_threshold
-                )
+                        # Run AI analysis
+                        consolidations = analyze_similarity_with_ai(
+                            requirements,
+                            st.session_state.anthropic_api_key,
+                            similarity_threshold
+                        )
 
-                # Store results
-                st.session_state.consolidations = consolidations
-                st.session_state.consolidation_method = 'ai'
+                        # Store results
+                        st.session_state.consolidations = consolidations
+                        st.session_state.consolidation_method = 'ai'
 
-                st.success(f"✅ Found {len(consolidations)} consolidation opportunities!")
+                        st.success(f"✅ Found {len(consolidations)} consolidation opportunities!")
 
-            except Exception as e:
-                st.error(f"❌ Error during AI analysis: {e}")
-                import traceback
-                st.code(traceback.format_exc())
+                    except Exception as e:
+                        st.error(f"❌ Error during AI analysis: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
 
-with col2:
-    # Run improved consolidation button
-    if st.button("⚡ Core + Deltas (Improved)", type="primary"):
-        with st.spinner("🔧 Processing with Core + Deltas approach..."):
-            try:
-                # Use improved consolidator
-                consolidator = ImprovedConsolidator()
-                consolidator.MIN_SIMILARITY = similarity_threshold
-                
-                result = consolidator.consolidate_from_dataframe(df)
-                
-                # Convert result to format expected by display function
-                consolidations = []
-                groups_df = result['consolidation_groups']
-                
-                for idx, row in groups_df.iterrows():
-                    consolidations.append({
-                        'group_id': row['Group ID'],
-                        'similarity_score': row['Similarity Score'],
-                        'topic_keywords': [row['Topic Keywords']],
-                        'reasoning': row['Reasoning'],
-                        'suggested_consolidation': row['Suggested Consolidation'],
-                        'original_requirements': row['Original Requirement Indices'],
-                        'critical_differences': row.get('Critical Differences', [])
-                    })
-                
-                # Store results
-                st.session_state.consolidations = consolidations
-                st.session_state.consolidation_stats = result['statistics']
-                st.session_state.consolidation_method = 'improved'
+        with col2:
+            # Run improved consolidation button
+            if st.button("⚡ Core + Deltas (Improved)", type="primary"):
+                with st.spinner("🔧 Processing with Core + Deltas approach..."):
+                    try:
+                        # Use improved consolidator
+                        consolidator = ImprovedConsolidator()
+                        consolidator.MIN_SIMILARITY = similarity_threshold
+                        
+                        result = consolidator.consolidate_from_dataframe(df)
+                        
+                        # Convert result to format expected by display function
+                        consolidations = []
+                        groups_df = result['consolidation_groups']
+                        
+                        for idx, row in groups_df.iterrows():
+                            consolidations.append({
+                                'group_id': row['Group ID'],
+                                'similarity_score': row['Similarity Score'],
+                                'topic_keywords': [row['Topic Keywords']],
+                                'reasoning': row['Reasoning'],
+                                'suggested_consolidation': row['Suggested Consolidation'],
+                                'original_requirements': row['Original Requirement Indices'],
+                                'critical_differences': row.get('Critical Differences', [])
+                            })
+                        
+                        # Store results
+                        st.session_state.consolidations = consolidations
+                        st.session_state.consolidation_stats = result['statistics']
+                        st.session_state.consolidation_method = 'improved'
 
-                st.success(f"✅ Created {len(consolidations)} consolidated groups!")
-                
-                # Show statistics
-                stats = result['statistics']
-                col_a, col_b, col_c = st.columns(3)
-                with col_a:
-                    st.metric("Original", stats['original_requirements'])
-                with col_b:
-                    st.metric("Groups", stats['consolidated_groups'])
-                with col_c:
-                    st.metric("Ungrouped", stats['ungrouped_count'])
+                        st.success(f"✅ Created {len(consolidations)} consolidated groups!")
+                        
+                        # Show statistics
+                        stats = result['statistics']
+                        col_a, col_b, col_c = st.columns(3)
+                        with col_a:
+                            st.metric("Original", stats['original_requirements'])
+                        with col_b:
+                            st.metric("Groups", stats['consolidated_groups'])
+                        with col_c:
+                            st.metric("Ungrouped", stats['ungrouped_count'])
 
-            except Exception as e:
-                st.error(f"❌ Error during consolidation: {e}")
-                import traceback
-                st.code(traceback.format_exc())
+                    except Exception as e:
+                        st.error(f"❌ Error during consolidation: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
 
         # Display consolidation results
         if 'consolidations' in st.session_state and st.session_state.consolidations:
