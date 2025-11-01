@@ -98,6 +98,15 @@ class ImprovedConsolidator:
         """Convert BikeRisk DataFrame to Requirement objects"""
         requirements = []
         
+        # ADD THIS DEBUG OUTPUT FIRST:
+        print(f"\n[DEBUG] DataFrame has {len(df)} rows")
+        print(f"[DEBUG] Column names: {list(df.columns)}")
+        print(f"[DEBUG] First row sample:")
+        if len(df) > 0:
+            first_row = df.iloc[0]
+            for col in df.columns:
+                print(f"  - {col}: {first_row[col]}")
+        
         for idx, row in df.iterrows():
             # Handle different column name variations
             text = (row.get('Requirement (Clause)') or 
@@ -112,17 +121,24 @@ class ImprovedConsolidator:
                      row.get('Clause/Requirement') or 
                      row.get('Clause', ''))
             
+            # ADD THIS DEBUG FOR FIRST FEW ROWS:
+            if idx < 3:
+                print(f"\n[DEBUG] Row {idx}:")
+                print(f"  text found: {text is not None and text != ''}")
+                print(f"  text value: {str(text)[:100] if text else 'NONE'}")
+                print(f"  standard: {standard}")
+                print(f"  clause: {clause}")
+            
             if pd.notna(text) and str(text).strip():
                 req = Requirement(
-                    text=str(text),
-                    standard=str(standard) if pd.notna(standard) else '',
-                    clause=str(clause) if pd.notna(clause) else '',
-                    scope=str(row.get('Requirement scope', '')) if 'Requirement scope' in row else '',
-                    formatting_required=str(row.get('Formatting required?', '')) if 'Formatting required?' in row else '',
-                    required_in_print=str(row.get('Required in Print?', '')) if 'Required in Print?' in row else '',
-                    comments=str(row.get('Comments', '')) if 'Comments' in row else ''
+                    text=str(text).strip(),
+                    standard=str(standard).strip(),
+                    clause=str(clause).strip()
                 )
                 requirements.append(req)
+        
+        # ADD THIS AT THE END:
+        print(f"\n[DEBUG] Total requirements converted: {len(requirements)}")
         
         return requirements
     
