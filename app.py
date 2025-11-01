@@ -10,6 +10,13 @@ from dotenv import load_dotenv
 from consolidate_ai import analyze_similarity_with_ai
 from consolidate_improved import ImprovedConsolidator
 
+# MUST be the first Streamlit command - at module level, not in a function
+st.set_page_config(
+    page_title="E-Bike Standards Extractor",
+    page_icon="🚴",
+    layout="wide"
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -18,12 +25,6 @@ API_BASE_URL = "http://localhost:8000"
 
 
 def main():
-    st.set_page_config(
-        page_title="E-Bike Standards Extractor",
-        page_icon="🚴",
-        layout="wide"
-    )
-
     st.title("🚴 E-Bike Standards Requirement Extractor")
 
     # API Key configuration in sidebar (persistent across tabs)
