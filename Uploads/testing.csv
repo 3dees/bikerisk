@@ -1,7 +1,3 @@
-PS C:\Users\vsjam\bikerisk> .\start.bat
-E-Bike Standards Requirement Extractor
-==========================================
-
 Installing dependencies...
 Starting FastAPI backend on http://localhost:8000
 Starting Streamlit UI on http://localhost:8501
@@ -11,93 +7,69 @@ Press Ctrl+C in each window to stop the servers
 
   You can now view your Streamlit app in your browser.
 
-  Local URL: http://localhost:8504
-  Network URL: http://192.168.1.89:8504
+  Local URL: http://localhost:8505
+  Network URL: http://192.168.1.89:8505
 
-2025-11-01 12:06:40.524 Serialization of dataframe to Arrow table was unsuccessful due to: ("Could not convert '19.a.1' with type str: tried to convert to int64", 'Conversion failed for column Clause ID with type object'). Applying automatic fixes for column types to make the dataframe Arrow-compatible.
-2025-11-01 12:06:47.057 Serialization of dataframe to Arrow table was unsuccessful due to: ("Could not convert '19.a.1' with type str: tried to convert to int64", 'Conversion failed for column Clause ID with type object'). Applying automatic fixes for column types to make the dataframe Arrow-compatible.
-
-[DEBUG] DataFrame has 165 rows
-[DEBUG] Column names: ['Requirement (Clause)', 'Standard/ Regulation', 'Clause ID', 'Comments']
-[DEBUG] First row sample:
-  - Requirement (Clause): A bicycle shall have an instruction manual attached to its frame or included with the packaged unit.
-  - Standard/ Regulation: 16 CFR Part 1512
-  - Clause ID: 19
-  - Comments: nan
-
-[DEBUG] Row 0:
-  text found: True
-  text value: A bicycle shall have an instruction manual attached to its frame or included with the packaged unit.
-  standard: 16 CFR Part 1512
-  clause: 19
-
-[DEBUG] Row 1:
-  text found: True
-  text value: Operations and safety instructions describing operation of the brakes and gears, cautions concerning
-  standard: 16 CFR Part 1512
-  clause: 19.a.1
-
-[DEBUG] Row 2:
-  text found: True
-  text value: Assembly instructions for accomplishing complete and proper assembly.
-  standard: 16 CFR Part 1512
-  clause: 19.a.2
-
-[DEBUG] Total requirements converted: 158
-
-[DEBUG] Topic clustering results:
-  - manual_provision: 32 requirements
-  - safety_warnings: 28 requirements
-  - assembly: 21 requirements
-  - maintenance: 23 requirements
-  - grounding: 1 requirements
-  - general: 30 requirements
-  - tools: 4 requirements
-  - battery_charging: 9 requirements
-  - brakes: 2 requirements
-  - composite: 3 requirements
-  - tampering: 2 requirements
-  - symbols: 1 requirements
-  - electrical: 2 requirements
+2025-11-01 12:12:27.744 Serialization of dataframe to Arrow table was unsuccessful due to: ("Could not convert '19.a.1' with type str: tried to convert to int64", 'Conversion failed for column Clause ID with type object'). Applying automatic fixes for column types to make the dataframe Arrow-compatible.
+2025-11-01 12:12:36.129 Serialization of dataframe to Arrow table was unsuccessful due to: ("Could not convert '19.a.1' with type str: tried to convert to int64", 'Conversion failed for column Clause ID with type object'). Applying automatic fixes for column types to make the dataframe Arrow-compatible.
 
 [DEBUG] Group 0 (manual_provision): Trying to consolidate 12 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (manual_provision): Trying to consolidate 12 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (manual_provision): Trying to consolidate 8 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (safety_warnings): Trying to consolidate 12 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (safety_warnings): Trying to consolidate 12 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (safety_warnings): Trying to consolidate 4 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (assembly): Trying to consolidate 12 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (assembly): Trying to consolidate 9 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (maintenance): Trying to consolidate 12 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (maintenance): Trying to consolidate 11 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (general): Trying to consolidate 12 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (general): Trying to consolidate 12 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (general): Trying to consolidate 6 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (tools): Trying to consolidate 4 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (battery_charging): Trying to consolidate 9 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (brakes): Trying to consolidate 2 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (composite): Trying to consolidate 3 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (tampering): Trying to consolidate 2 requirements
+  ✗ REJECTED: Core extraction failed (no common words)
 
 [DEBUG] Group 0 (electrical): Trying to consolidate 2 requirements
-
-[DEBUG] Processing complete:
-  - Total groups created: 0
-  - Ungrouped requirements: 158
+  ✓ Core extracted: The manufacturer shall provide....
+  Checking core ratio (min: 0.3)...
+    Req 0: ratio=0.03 < 0.3 FAIL
+      Text: If a product must be tested and authorized under Supplier's ...
+  ✗ REJECTED: Core ratio check failed
