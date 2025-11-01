@@ -7,8 +7,7 @@ import pandas as pd
 import time
 import os
 from dotenv import load_dotenv
-from consolidate_ai import analyze_similarity_with_ai
-from consolidate_improved import ImprovedConsolidator
+from consolidate_smart_ai import consolidate_with_smart_ai
 
 # MUST be the first Streamlit command - at module level, not in a function
 st.set_page_config(
