@@ -153,9 +153,14 @@ def render_consolidation_tab():
                     st.markdown("### 🎯 Regulatory Intent")
                     st.info(group.regulatory_intent)
                     
-                    # Core Requirement
-                    st.markdown("### 📌 Core Requirement (Consolidated)")
-                    st.success(group.core_requirement)
+                    # Core Requirement (now detailed and structured)
+                    st.markdown("### 📌 Consolidated Requirement (Ready to Use)")
+                    st.caption("💡 This detailed requirement can be used directly in your product manual")
+                    st.markdown("""
+                    <div style="background-color: #d4edda; padding: 15px; border-radius: 5px; border-left: 5px solid #28a745;">
+                    """ + group.core_requirement.replace('\n', '<br>') + """
+                    </div>
+                    """, unsafe_allow_html=True)
                     
                     # Standards Covered
                     st.markdown("### 📋 Applies To")

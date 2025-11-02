@@ -107,20 +107,41 @@ CRITICAL INSTRUCTIONS:
 
 2. **Respect Compliance Keywords:** Pay close attention to:
    - "shall" vs "must" vs "should" (different requirement levels)
-   - "instructions" vs "user manual" vs "documentation" (same thing)
+   - "instructions" vs "user manual" vs "documentation" (same thing - treat as equivalent)
    - "included with product" vs "made available" (different obligations)
 
 3. **Group Size:** Create groups of 3-12 requirements. Avoid tiny groups (1-2) and huge groups (15+).
 
-4. **Preserve Critical Differences:** For each group, explicitly list:
+4. **CRITICAL: Create DETAILED Core Requirements**
+   
+   ❌ DO NOT create vague summaries like: "Instructions must address stability"
+   
+   ✅ DO create detailed, structured requirements listing ALL elements:
+   
+   Example Format:
+   "Instructions shall address safe transport, handling, and storage, including:
+   
+   a) Stability conditions during use, transportation, assembly, dismantling, testing, and foreseeable breakdowns
+   
+   b) Mass information for the machinery/product and component parts regularly transported separately
+   
+   c) Moving and storage procedures - IF moving or storage could result in damage creating risk of fire, electric shock, or injury during subsequent use, describe proper procedures preceded by warning statement
+   
+   d) Prevention of sudden movements or hazards due to instability when handled per instructions"
+   
+   **Key Rules for Core Requirements:**
+   - Use structured format with bullets (a, b, c) or numbers (1, 2, 3)
+   - List EVERY specific element that must be included
+   - Consolidate where standards say the EXACT same thing
+   - Preserve ALL conditional clauses (IF X, THEN Y)
+   - Keep ALL measurements, temperatures, voltages, specifications
+   - Make it ACTIONABLE - someone should be able to write the manual section using this
+
+5. **Preserve Critical Differences:** For each group, explicitly list:
    - Different temperature/voltage/measurement specifications
    - Format requirements (paper vs digital)
    - Different legal obligations (shall vs may)
-   - Standard-specific details
-
-5. **Create Core + Deltas:** For each group:
-   - Core Requirement: What all requirements have in common
-   - Critical Differences: What's unique to each standard
+   - Standard-specific details that DON'T fit in the consolidated core
 
 OUTPUT FORMAT (JSON):
 {
@@ -129,12 +150,12 @@ OUTPUT FORMAT (JSON):
       "group_id": 0,
       "topic": "Brief topic name",
       "regulatory_intent": "What this group of requirements is trying to achieve",
-      "core_requirement": "The common requirement all standards share",
+      "core_requirement": "DETAILED, structured requirement with all elements listed using a), b), c) format",
       "applies_to_standards": ["16 CFR Part 1512", "EN 15194", ...],
       "critical_differences": [
         "16 CFR requires paper format only",
         "EN 15194 allows digital with paper",
-        "UL 2849 specifies temperature range 0-40°C"
+        "UL 2849 specifies temperature range 0-40°C while EN specifies -20 to 50°C"
       ],
       "consolidation_potential": 0.85,
       "requirement_indices": [0, 5, 12, 23],
@@ -153,7 +174,9 @@ CONSOLIDATION POTENTIAL SCORING:
 
 Only create groups with consolidation_potential >= 0.6
 
-Be thorough but pragmatic. Create useful consolidations that help reduce manual size while preserving ALL critical compliance details.
+**REMEMBER:** The core_requirement should be detailed enough that someone could write the actual manual section from it. It's NOT just a summary - it's the consolidated instruction text itself!
+
+Be thorough and detailed. Create consolidations that help reduce manual size while preserving ALL critical compliance details.
 """
     
     try:
