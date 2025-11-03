@@ -1,6 +1,7 @@
 """
 Smart AI consolidation based on regulatory intent and semantic understanding.
 Uses Claude API with improved prompting for high-quality consolidations.
+Includes automatic batching for large datasets.
 """
 
 import anthropic
@@ -33,37 +34,23 @@ def consolidate_with_smart_ai(
     df: pd.DataFrame,
     api_key: str,
     min_group_size: int = 3,
-    max_group_size: int = 12
+    max_group_size: int = 12,
+    batch_size: int = 150  # Auto-batch if more than this
 ) -> Dict:
     """
     Use Claude to intelligently consolidate requirements based on regulatory intent.
-    
-    This mimics the manual analysis approach where requirements are grouped by
-    what they're actually trying to achieve, not just text similarity.
+    Automatically batches large datasets to avoid timeouts.
     
     Args:
         df: DataFrame with requirements
         api_key: Anthropic API key
         min_group_size: Minimum requirements per group (default 3)
         max_group_size: Maximum requirements per group (default 12)
+        batch_size: Maximum requirements per batch (default 150)
     
     Returns:
         Dict with consolidation results
     """
-    
-    # Setup client with MUCH longer timeouts
-    no_proxy = os.getenv('NO_PROXY', '')
-    if 'anthropic.com' not in no_proxy:
-        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com'
-    
-    try:
-        # Increased timeout to 10 minutes (600 seconds)
-        http_client = httpx.Client(timeout=600.0)
-        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
-        print("[SMART AI] Client initialized with 10-minute timeout")
-    except Exception as e:
-        print(f"[SMART AI] Client init with http_client failed: {e}, using simple init")
-        client = anthropic.Anthropic(api_key=api_key)
     
     # Convert DataFrame to list format for Claude
     requirements = []
@@ -80,12 +67,36 @@ def consolidate_with_smart_ai(
                 'clause': str(clause) if pd.notna(clause) else ''
             })
     
-    print(f"[SMART AI] Processing {len(requirements)} requirements")
-    print(f"[SMART AI] Estimated time: {len(requirements) // 10} - {len(requirements) // 5} minutes")
+    total_requirements = len(requirements)
+    print(f"[SMART AI] Processing {total_requirements} requirements")
     
-    # If there are too many requirements, warn and potentially batch
-    if len(requirements) > 100:
-        print(f"[SMART AI WARNING] Large dataset ({len(requirements)} requirements) - this may take 5-15 minutes")
+    # Check if we need to batch
+    if total_requirements > batch_size:
+        print(f"[SMART AI] Dataset is large ({total_requirements} requirements)")
+        print(f"[SMART AI] Using automatic batching ({batch_size} requirements per batch)")
+        return _consolidate_batched(requirements, api_key, batch_size)
+    else:
+        print(f"[SMART AI] Dataset size OK - processing in single batch")
+        return _consolidate_single_batch(requirements, api_key)
+
+
+def _consolidate_single_batch(requirements: List[Dict], api_key: str) -> Dict:
+    """Process a single batch of requirements."""
+    
+    # Setup client with long timeout
+    no_proxy = os.getenv('NO_PROXY', '')
+    if 'anthropic.com' not in no_proxy:
+        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com'
+    
+    try:
+        http_client = httpx.Client(timeout=600.0)  # 10 minute timeout
+        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
+        print("[SMART AI] Client initialized with 10-minute timeout")
+    except Exception as e:
+        print(f"[SMART AI] Client init with http_client failed: {e}, using simple init")
+        client = anthropic.Anthropic(api_key=api_key)
+    
+    print(f"[SMART AI] Estimated time: 3-8 minutes for {len(requirements)} requirements")
     
     # Build comprehensive prompt
     prompt = f"""You are an expert in e-bike and bicycle safety standards and compliance requirements.
@@ -187,13 +198,12 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
     
     try:
         print(f"[SMART AI] Sending to Claude Sonnet 4.5...")
-        print(f"[SMART AI] This may take several minutes for {len(requirements)} requirements...")
         
         message = client.messages.create(
             model="claude-sonnet-4-5-20250929",
             max_tokens=16000,
             temperature=0,
-            timeout=600.0,  # 10 minute timeout (up from 3 minutes)
+            timeout=600.0,  # 10 minute timeout
             messages=[{"role": "user", "content": prompt}]
         )
         
@@ -241,7 +251,7 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
         print(f"[SMART AI TIMEOUT] {e}")
         raise ValueError(
             f"Analysis timed out after 10 minutes. Your dataset has {len(requirements)} requirements. "
-            f"Try reducing the dataset or splitting it into smaller batches. "
+            f"Try using a smaller batch size or contact support. "
             f"Original error: {str(e)}"
         )
     except Exception as e:
@@ -249,3 +259,36 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
         import traceback
         traceback.print_exc()
         raise ValueError(f"Smart AI consolidation failed: {str(e)}")
+
+
+def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int) -> Dict:
+    """
+    Process requirements in batches and combine results.
+    Useful for very large datasets (150+ requirements).
+    """
+    total_requirements = len(requirements)
+    num_batches = (total_requirements + batch_size - 1) // batch_size
+    
+    print(f"[BATCH] Splitting {total_requirements} requirements into {num_batches} batches")
+    
+    all_groups = []
+    all_ungrouped = []
+    batch_analyses = []
+    
+    for batch_num in range(num_batches):
+        start_idx = batch_num * batch_size
+        end_idx = min(start_idx + batch_size, total_requirements)
+        batch_reqs = requirements[start_idx:end_idx]
+        
+        print(f"\n[BATCH {batch_num + 1}/{num_batches}] Processing requirements {start_idx}-{end_idx-1}")
+        
+        try:
+            batch_result = _consolidate_single_batch(batch_reqs, api_key)
+            
+            # Adjust group IDs to be globally unique
+            for group in batch_result['groups']:
+                group.group_id = len(all_groups)
+                all_groups.append(group)
+            
+            # Adjust ungrouped indices to be globally correct
+            for idx in batch_result
