@@ -149,6 +149,8 @@ def render_consolidation_tab():
         st.session_state.removed_requirements = {}  # group_id -> set of removed indices
     if 'show_all_groups' not in st.session_state:
         st.session_state.show_all_groups = False
+    if 'modified_groups' not in st.session_state:
+        st.session_state.modified_groups = set()  # Groups with removed/restored requirements
     
     st.markdown("""
     Upload a spreadsheet with requirements from multiple standards.
@@ -238,6 +240,18 @@ def render_consolidation_tab():
                 help="Maximum number of requirements per group"
             )
         
+        # Show estimated processing time
+        total_reqs = len(df)
+        if total_reqs <= 150:
+            estimate = "3-8 minutes"
+            batches_info = ""
+        else:
+            batches = (total_reqs + 149) // 150
+            estimate = f"{batches * 3}-{batches * 8} minutes"
+            batches_info = f" ({batches} batches)"
+        
+        st.info(f"⏱️ Estimated processing time: {estimate}{batches_info}")
+        
         # Run consolidation button
         if st.button("🧠 Analyze with Smart AI", type="primary", use_container_width=True):
             with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
@@ -259,6 +273,7 @@ def render_consolidation_tab():
                     st.session_state.rejected_groups = set()
                     st.session_state.edited_groups = {}
                     st.session_state.removed_requirements = {}
+                    st.session_state.modified_groups = set()
                     st.session_state.show_all_groups = False
                     
                     st.success(f"✅ Analysis complete!")
@@ -333,6 +348,7 @@ def render_consolidation_tab():
                 # Check if this group has been accepted/rejected
                 is_accepted = group.group_id in st.session_state.accepted_groups
                 is_rejected = group.group_id in st.session_state.rejected_groups
+                is_modified = group.group_id in st.session_state.modified_groups
                 
                 # Add status badge to expander title
                 status_badge = ""
@@ -340,6 +356,8 @@ def render_consolidation_tab():
                     status_badge = " ✅ ACCEPTED"
                 elif is_rejected:
                     status_badge = " ❌ REJECTED"
+                if is_modified:
+                    status_badge += " ⚠️ MODIFIED"
                 
                 with st.expander(
                     f"{status_emoji} **Group {group.group_id + 1}: {group.topic}** "
@@ -354,6 +372,10 @@ def render_consolidation_tab():
                     st.markdown("### 📌 Consolidated Requirement (Ready to Use)")
                     st.caption("💡 This detailed requirement can be used directly in your product manual")
                     
+                    # Show warning if requirements were removed
+                    if is_modified:
+                        st.warning("⚠️ Requirements were removed from this group. Consider reviewing the consolidated requirement for accuracy.")
+                    
                     # Check if we're editing this group
                     if st.session_state.get(f'editing_{group.group_id}', False):
                         # Show text area for editing
@@ -364,7 +386,7 @@ def render_consolidation_tab():
                             key=f"edit_area_{group.group_id}"
                         )
                         
-                        col1, col2 = st.columns(2)
+                        col1, col2, col3 = st.columns(3)
                         with col1:
                             if st.button("💾 Save Changes", key=f"save_{group.group_id}"):
                                 st.session_state.edited_groups[group.group_id] = edited_text
@@ -372,6 +394,13 @@ def render_consolidation_tab():
                                 st.success("Changes saved!")
                                 st.rerun()
                         with col2:
+                            if st.button("🔄 Revert to Original", key=f"revert_{group.group_id}"):
+                                if group.group_id in st.session_state.edited_groups:
+                                    del st.session_state.edited_groups[group.group_id]
+                                st.session_state[f'editing_{group.group_id}'] = False
+                                st.success("Reverted to original!")
+                                st.rerun()
+                        with col3:
                             if st.button("❌ Cancel", key=f"cancel_{group.group_id}"):
                                 st.session_state[f'editing_{group.group_id}'] = False
                                 st.rerun()
@@ -406,6 +435,12 @@ def render_consolidation_tab():
                     if group.group_id not in st.session_state.removed_requirements:
                         st.session_state.removed_requirements[group.group_id] = set()
                     
+                    # Toggle removal mode
+                    removal_mode = st.toggle("Enable Removal Mode", key=f"removal_mode_{group.group_id}")
+                    
+                    if removal_mode:
+                        st.caption("⚠️ Check requirements to remove them from this group")
+                    
                     # Filter out removed requirements
                     active_indices = [idx for idx in group.requirement_indices 
                                       if idx not in st.session_state.removed_requirements[group.group_id]]
@@ -417,24 +452,33 @@ def render_consolidation_tab():
                             standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
                             clause = req_row.get('Clause ID', req_row.get('Clause/Requirement', ''))
                             
-                            # Create columns for requirement and delete button
-                            col_req, col_del = st.columns([10, 1])
-                            
-                            with col_req:
+                            if removal_mode:
+                                # Show checkbox when in removal mode
+                                col_check, col_req = st.columns([1, 20])
+                                with col_check:
+                                    if st.checkbox("", key=f"check_{group.group_id}_{idx}", label_visibility="collapsed"):
+                                        st.session_state.removed_requirements[group.group_id].add(idx)
+                                        st.session_state.modified_groups.add(group.group_id)
+                                        st.rerun()
+                                with col_req:
+                                    st.markdown(f"**{standard}** (Clause {clause})")
+                                    st.caption(str(req_text)[:300] + "..." if len(str(req_text)) > 300 else str(req_text))
+                            else:
+                                # Normal display
                                 st.markdown(f"**{standard}** (Clause {clause})")
                                 st.caption(str(req_text)[:300] + "..." if len(str(req_text)) > 300 else str(req_text))
                             
-                            with col_del:
-                                if st.button("🗑️", key=f"remove_{group.group_id}_{idx}", help="Remove from this group"):
-                                    st.session_state.removed_requirements[group.group_id].add(idx)
-                                    st.rerun()
-                            
                             st.markdown("")  # spacing
                     
-                    # Show removed requirements (if any)
+                    # Show removed requirements (FIXED: using checkbox instead of nested expander)
                     removed_indices = st.session_state.removed_requirements[group.group_id]
                     if removed_indices:
-                        with st.expander(f"🗑️ Removed Requirements ({len(removed_indices)})"):
+                        show_removed = st.checkbox(
+                            f"Show Removed Requirements ({len(removed_indices)})", 
+                            key=f"show_removed_{group.group_id}"
+                        )
+                        if show_removed:
+                            st.markdown("**🗑️ Removed Requirements:**")
                             for idx in removed_indices:
                                 if idx < len(df):
                                     req_row = df.iloc[idx]
@@ -447,6 +491,9 @@ def render_consolidation_tab():
                                     with col_restore:
                                         if st.button("↩️", key=f"restore_{group.group_id}_{idx}", help="Restore to group"):
                                             st.session_state.removed_requirements[group.group_id].remove(idx)
+                                            # Remove modified flag if no more removed items
+                                            if not st.session_state.removed_requirements[group.group_id]:
+                                                st.session_state.modified_groups.discard(group.group_id)
                                             st.rerun()
                     
                     # Action buttons
@@ -484,60 +531,179 @@ def render_consolidation_tab():
                                     st.session_state.accepted_groups.remove(group.group_id)
                                 st.rerun()
             
-            # Export results
+            # Export/Print section
             st.divider()
             
             # Show summary of actions
-            col1, col2, col3 = st.columns(3)
+            col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Accepted Groups", len(st.session_state.accepted_groups))
+                st.metric("Accepted", len(st.session_state.accepted_groups))
             with col2:
-                st.metric("Rejected Groups", len(st.session_state.rejected_groups))
+                st.metric("Rejected", len(st.session_state.rejected_groups))
             with col3:
-                st.metric("Edited Groups", len(st.session_state.edited_groups))
+                st.metric("Edited", len(st.session_state.edited_groups))
+            with col4:
+                st.metric("Modified", len(st.session_state.modified_groups))
             
-            if st.button("📥 Export Consolidation Report", type="primary"):
-                # Create export DataFrame with actions tracked
-                export_data = []
-                for group in result['groups']:
-                    # Determine status
-                    if group.group_id in st.session_state.accepted_groups:
-                        status = "ACCEPTED"
-                    elif group.group_id in st.session_state.rejected_groups:
-                        status = "REJECTED"
-                    else:
-                        status = "PENDING"
+            # Combined Export/Print buttons
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("📥 Export Full Report (CSV)", type="primary", use_container_width=True):
+                    # Create export DataFrame with actions tracked
+                    export_data = []
+                    for group in result['groups']:
+                        # Determine status
+                        if group.group_id in st.session_state.accepted_groups:
+                            status = "ACCEPTED"
+                        elif group.group_id in st.session_state.rejected_groups:
+                            status = "REJECTED"
+                        else:
+                            status = "PENDING"
+                        
+                        # Get edited text if exists
+                        core_req = st.session_state.edited_groups.get(group.group_id, group.core_requirement)
+                        
+                        # Get active requirements (excluding removed ones)
+                        removed = st.session_state.removed_requirements.get(group.group_id, set())
+                        active_reqs = [idx for idx in group.requirement_indices if idx not in removed]
+                        
+                        export_data.append({
+                            'Status': status,
+                            'Group ID': group.group_id + 1,
+                            'Topic': group.topic,
+                            'Regulatory Intent': group.regulatory_intent,
+                            'Core Requirement': core_req,
+                            'Applies To Standards': ', '.join(group.applies_to_standards),
+                            'Critical Differences': '; '.join(group.critical_differences),
+                            'Consolidation Potential': f"{group.consolidation_potential:.0%}",
+                            'Requirement Count': len(active_reqs),
+                            'Original Indices': ', '.join(map(str, active_reqs)),
+                            'Removed Indices': ', '.join(map(str, removed)) if removed else 'None',
+                            'Modified': 'Yes' if group.group_id in st.session_state.modified_groups else 'No'
+                        })
                     
-                    # Get edited text if exists
-                    core_req = st.session_state.edited_groups.get(group.group_id, group.core_requirement)
+                    export_df = pd.DataFrame(export_data)
+                    csv = export_df.to_csv(index=False)
                     
-                    # Get active requirements (excluding removed ones)
-                    removed = st.session_state.removed_requirements.get(group.group_id, set())
-                    active_reqs = [idx for idx in group.requirement_indices if idx not in removed]
+                    st.download_button(
+                        label="📥 Download CSV Report",
+                        data=csv,
+                        file_name="smart_consolidation_report.csv",
+                        mime="text/csv"
+                    )
+            
+            with col2:
+                if st.button("🖨️ Print-Friendly Report (HTML)", type="secondary", use_container_width=True):
+                    # Generate HTML report
+                    html_content = generate_html_report(result, st.session_state, df)
                     
-                    export_data.append({
-                        'Status': status,
-                        'Group ID': group.group_id + 1,
-                        'Topic': group.topic,
-                        'Regulatory Intent': group.regulatory_intent,
-                        'Core Requirement': core_req,
-                        'Applies To Standards': ', '.join(group.applies_to_standards),
-                        'Critical Differences': '; '.join(group.critical_differences),
-                        'Consolidation Potential': f"{group.consolidation_potential:.0%}",
-                        'Requirement Count': len(active_reqs),
-                        'Original Indices': ', '.join(map(str, active_reqs)),
-                        'Removed Indices': ', '.join(map(str, removed)) if removed else 'None'
-                    })
+                    st.download_button(
+                        label="📄 Download Print Report",
+                        data=html_content,
+                        file_name="consolidation_report.html",
+                        mime="text/html"
+                    )
+
+
+def generate_html_report(result, session_state, df):
+    """Generate a print-friendly HTML report."""
+    
+    html = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Consolidation Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; line-height: 1.6; }
+            h1 { color: #28a745; border-bottom: 3px solid #28a745; padding-bottom: 10px; }
+            h2 { color: #155724; margin-top: 30px; page-break-before: always; }
+            h3 { color: #495057; margin-top: 20px; }
+            .group { border: 2px solid #d4edda; padding: 20px; margin: 20px 0; background-color: #f8f9fa; }
+            .accepted { border-left: 5px solid #28a745; }
+            .rejected { border-left: 5px solid #dc3545; }
+            .pending { border-left: 5px solid #ffc107; }
+            .core-req { background-color: #d4edda; padding: 15px; border-radius: 5px; color: #155724; font-weight: bold; }
+            .metadata { color: #6c757d; font-size: 0.9em; }
+            .requirement { margin: 10px 0; padding: 10px; background-color: white; }
+            @media print {
+                .group { page-break-inside: avoid; }
+                h2 { page-break-before: always; }
+            }
+        </style>
+    </head>
+    <body>
+        <h1>📊 E-Bike Standards Consolidation Report</h1>
+        <p class="metadata">Generated: """ + pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S') + """</p>
+        <p class="metadata">Total Requirements: """ + str(result['total_requirements']) + """</p>
+        <p class="metadata">Groups Created: """ + str(len(result['groups'])) + """</p>
+    """
+    
+    # Add each group
+    for group in result['groups']:
+        # Determine status
+        if group.group_id in session_state.accepted_groups:
+            status = "ACCEPTED"
+            status_class = "accepted"
+        elif group.group_id in session_state.rejected_groups:
+            status = "REJECTED"
+            status_class = "rejected"
+        else:
+            status = "PENDING"
+            status_class = "pending"
+        
+        # Get edited text if exists
+        core_req = session_state.edited_groups.get(group.group_id, group.core_requirement)
+        
+        # Get active requirements
+        removed = session_state.removed_requirements.get(group.group_id, set())
+        active_reqs = [idx for idx in group.requirement_indices if idx not in removed]
+        
+        html += f"""
+        <div class="group {status_class}">
+            <h2>Group {group.group_id + 1}: {group.topic}</h2>
+            <p class="metadata">Status: <strong>{status}</strong> | Similarity: {group.consolidation_potential:.0%} | Requirements: {len(active_reqs)}</p>
+            
+            <h3>🎯 Regulatory Intent</h3>
+            <p>{group.regulatory_intent}</p>
+            
+            <h3>📌 Consolidated Requirement</h3>
+            <div class="core-req">{core_req.replace(chr(10), '<br>')}</div>
+            
+            <h3>📋 Applies To</h3>
+            <p>{', '.join(group.applies_to_standards)}</p>
+        """
+        
+        if group.critical_differences:
+            html += "<h3>⚠️ Critical Differences</h3><ul>"
+            for diff in group.critical_differences:
+                html += f"<li>{diff}</li>"
+            html += "</ul>"
+        
+        html += "<h3>📄 Original Requirements</h3>"
+        for idx in active_reqs:
+            if idx < len(df):
+                req_row = df.iloc[idx]
+                req_text = req_row.get('Requirement (Clause)', req_row.get('Description', ''))
+                standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
+                clause = req_row.get('Clause ID', req_row.get('Clause/Requirement', ''))
                 
-                export_df = pd.DataFrame(export_data)
-                csv = export_df.to_csv(index=False)
-                
-                st.download_button(
-                    label="📥 Download CSV Report",
-                    data=csv,
-                    file_name="smart_consolidation_report.csv",
-                    mime="text/csv"
-                )
+                html += f"""
+                <div class="requirement">
+                    <strong>{standard}</strong> (Clause {clause})<br>
+                    <span class="metadata">{str(req_text)[:500]}{'...' if len(str(req_text)) > 500 else ''}</span>
+                </div>
+                """
+        
+        html += "</div>"
+    
+    html += """
+    </body>
+    </html>
+    """
+    
+    return html
 
 
 def check_api_health():

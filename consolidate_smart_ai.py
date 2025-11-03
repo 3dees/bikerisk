@@ -74,13 +74,13 @@ def consolidate_with_smart_ai(
     if total_requirements > batch_size:
         print(f"[SMART AI] Dataset is large ({total_requirements} requirements)")
         print(f"[SMART AI] Using automatic batching ({batch_size} requirements per batch)")
-        return _consolidate_batched(requirements, api_key, batch_size)
+        return _consolidate_batched(requirements, api_key, batch_size, min_group_size, max_group_size)
     else:
         print(f"[SMART AI] Dataset size OK - processing in single batch")
-        return _consolidate_single_batch(requirements, api_key)
+        return _consolidate_single_batch(requirements, api_key, min_group_size, max_group_size)
 
 
-def _consolidate_single_batch(requirements: List[Dict], api_key: str) -> Dict:
+def _consolidate_single_batch(requirements: List[Dict], api_key: str, min_group_size: int = 3, max_group_size: int = 12) -> Dict:
     """Process a single batch of requirements."""
     
     # Setup client with long timeout
@@ -113,7 +113,7 @@ REQUIREMENTS:
         if len(req['text']) > 200:
             prompt += "..."
     
-    prompt += """
+    prompt += f"""
 
 CRITICAL INSTRUCTIONS:
 
@@ -127,7 +127,7 @@ CRITICAL INSTRUCTIONS:
    - "instructions" vs "user manual" vs "documentation" (same thing - treat as equivalent)
    - "included with product" vs "made available" (different obligations)
 
-3. **Group Size:** Create groups of 3-12 requirements. Avoid tiny groups (1-2) and huge groups (15+).
+3. **Group Size:** Create groups of {min_group_size}-{max_group_size} requirements. Avoid groups smaller than {min_group_size} or larger than {max_group_size}.
 
 4. **CRITICAL: Create DETAILED Core Requirements**
    
@@ -161,9 +161,9 @@ CRITICAL INSTRUCTIONS:
    - Standard-specific details that DON'T fit in the consolidated core
 
 OUTPUT FORMAT (JSON):
-{
+{{
   "groups": [
-    {
+    {{
       "group_id": 0,
       "topic": "Brief topic name",
       "regulatory_intent": "What this group of requirements is trying to achieve",
@@ -177,11 +177,11 @@ OUTPUT FORMAT (JSON):
       "consolidation_potential": 0.85,
       "requirement_indices": [0, 5, 12, 23],
       "reasoning": "Why these requirements share the same regulatory intent"
-    }
+    }}
   ],
   "ungrouped_indices": [3, 7, 15],
   "analysis_notes": "Overall observations about the requirements"
-}
+}}
 
 CONSOLIDATION POTENTIAL SCORING:
 - 0.9-1.0: Nearly identical, easy to consolidate
@@ -261,7 +261,7 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
         raise ValueError(f"Smart AI consolidation failed: {str(e)}")
 
 
-def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int) -> Dict:
+def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int, min_group_size: int = 3, max_group_size: int = 12) -> Dict:
     """
     Process requirements in batches and combine results.
     Useful for very large datasets (150+ requirements).
@@ -283,7 +283,7 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
         print(f"\n[BATCH {batch_num + 1}/{num_batches}] Processing requirements {start_idx}-{end_idx-1}")
         
         try:
-            batch_result = _consolidate_single_batch(batch_reqs, api_key)
+            batch_result = _consolidate_single_batch(batch_reqs, api_key, min_group_size, max_group_size)
             
             # Adjust group IDs to be globally unique
             for group in batch_result['groups']:
