@@ -51,15 +51,16 @@ def consolidate_with_smart_ai(
         Dict with consolidation results
     """
     
-    # Setup client
+    # Setup client with MUCH longer timeouts
     no_proxy = os.getenv('NO_PROXY', '')
     if 'anthropic.com' not in no_proxy:
         os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com'
     
     try:
-        http_client = httpx.Client(timeout=180.0)
+        # Increased timeout to 10 minutes (600 seconds)
+        http_client = httpx.Client(timeout=600.0)
         client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
-        print("[SMART AI] Client initialized")
+        print("[SMART AI] Client initialized with 10-minute timeout")
     except Exception as e:
         print(f"[SMART AI] Client init with http_client failed: {e}, using simple init")
         client = anthropic.Anthropic(api_key=api_key)
@@ -80,6 +81,11 @@ def consolidate_with_smart_ai(
             })
     
     print(f"[SMART AI] Processing {len(requirements)} requirements")
+    print(f"[SMART AI] Estimated time: {len(requirements) // 10} - {len(requirements) // 5} minutes")
+    
+    # If there are too many requirements, warn and potentially batch
+    if len(requirements) > 100:
+        print(f"[SMART AI WARNING] Large dataset ({len(requirements)} requirements) - this may take 5-15 minutes")
     
     # Build comprehensive prompt
     prompt = f"""You are an expert in e-bike and bicycle safety standards and compliance requirements.
@@ -181,12 +187,13 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
     
     try:
         print(f"[SMART AI] Sending to Claude Sonnet 4.5...")
+        print(f"[SMART AI] This may take several minutes for {len(requirements)} requirements...")
         
         message = client.messages.create(
             model="claude-sonnet-4-5-20250929",
             max_tokens=16000,
             temperature=0,
-            timeout=180.0,
+            timeout=600.0,  # 10 minute timeout (up from 3 minutes)
             messages=[{"role": "user", "content": prompt}]
         )
         
@@ -230,6 +237,13 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
             'ungrouped_count': len(result.get('ungrouped_indices', []))
         }
         
+    except anthropic.APITimeoutError as e:
+        print(f"[SMART AI TIMEOUT] {e}")
+        raise ValueError(
+            f"Analysis timed out after 10 minutes. Your dataset has {len(requirements)} requirements. "
+            f"Try reducing the dataset or splitting it into smaller batches. "
+            f"Original error: {str(e)}"
+        )
     except Exception as e:
         print(f"[SMART AI ERROR] {e}")
         import traceback

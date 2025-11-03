@@ -291,7 +291,7 @@ def render_consolidation_tab():
                     st.markdown("### 🎯 Regulatory Intent")
                     st.info(group.regulatory_intent)
                     
-                    # Core Requirement (now detailed and structured)
+                    # Core Requirement (enhanced display with HTML styling)
                     st.markdown("### 📌 Consolidated Requirement (Ready to Use)")
                     st.caption("💡 This detailed requirement can be used directly in your product manual")
                     st.markdown("""
@@ -314,7 +314,7 @@ def render_consolidation_tab():
                     st.markdown("### 💡 Why These Were Grouped")
                     st.markdown(group.reasoning)
                     
-                    # Show original requirements (NO nested expander)
+                    # Show original requirements (NO nested expander - direct display)
                     st.markdown("---")
                     st.markdown("### 📄 Original Requirements")
                     for idx in group.requirement_indices:
