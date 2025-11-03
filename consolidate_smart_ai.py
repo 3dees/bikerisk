@@ -180,10 +180,10 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
 """
     
     try:
-        print(f"[SMART AI] Sending to Claude Opus...")
+        print(f"[SMART AI] Sending to Claude Sonnet 4.5...")
         
         message = client.messages.create(
-            model="claude-opus-4-20250514",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=16000,
             temperature=0,
             timeout=180.0,

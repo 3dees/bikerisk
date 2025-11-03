@@ -98,7 +98,7 @@ Be thorough but precise."""
         try:
             # Use streaming for each section
             with client.messages.stream(
-                model="claude-opus-4-20250514",
+                model="claude-sonnet-4-5-20250929",
                 max_tokens=8000,
                 temperature=0,
                 timeout=300.0,
@@ -247,10 +247,10 @@ Respond with a JSON object:
 Extract ALL relevant requirements. Be thorough but precise."""
 
     try:
-        print(f"[AI EXTRACTION] Sending {len(pdf_text)} chars to Claude Opus...")
+        print(f"[AI EXTRACTION] Sending {len(pdf_text)} chars to Claude Sonnet 4.5...")
 
         # For large documents, we need to limit the input text to avoid timeouts
-        # Claude Opus can handle ~200k tokens input, but let's be conservative
+        # Claude Sonnet 4.5 can handle ~200k tokens input, but let's be conservative
         max_chars = 80000  # About 60k tokens, leaves room for response
         if len(pdf_text) > max_chars:
             print(f"[AI EXTRACTION] PDF is large ({len(pdf_text)} chars), truncating to {max_chars} chars")
@@ -261,7 +261,7 @@ Extract ALL relevant requirements. Be thorough but precise."""
 
         # Use streaming with longer timeout for large documents
         with client.messages.stream(
-            model="claude-opus-4-20250514",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=16000,
             temperature=0,  # Deterministic for extraction
             timeout=600.0,  # 10 minute timeout
