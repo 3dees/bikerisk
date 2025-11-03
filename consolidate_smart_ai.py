@@ -291,4 +291,27 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
                 all_groups.append(group)
             
             # Adjust ungrouped indices to be globally correct
-            for idx in batch_result
+            for idx in batch_result.get('ungrouped_indices', []):
+                all_ungrouped.append(batch_reqs[idx]['index'])
+            
+            batch_analyses.append(batch_result.get('analysis_notes', ''))
+            
+            print(f"[BATCH {batch_num + 1}/{num_batches}] ✓ Created {len(batch_result['groups'])} groups")
+            
+        except Exception as e:
+            print(f"[BATCH {batch_num + 1}/{num_batches}] ✗ Failed: {e}")
+            # Continue with other batches even if one fails
+            continue
+    
+    combined_analysis = f"Processed {num_batches} batches. " + " | ".join(batch_analyses)
+    
+    print(f"\n[BATCH] Complete! Created {len(all_groups)} total groups from {num_batches} batches")
+    
+    return {
+        'groups': all_groups,
+        'ungrouped_indices': all_ungrouped,
+        'analysis_notes': combined_analysis,
+        'total_requirements': total_requirements,
+        'grouped_count': sum(len(g.requirement_indices) for g in all_groups),
+        'ungrouped_count': len(all_ungrouped)
+    }
