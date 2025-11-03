@@ -295,9 +295,7 @@ def render_consolidation_tab():
                     st.markdown("### 📌 Consolidated Requirement (Ready to Use)")
                     st.caption("💡 This detailed requirement can be used directly in your product manual")
                     st.markdown("""
-                    <div style="background-color: #d4edda; padding: 15px; border-radius: 5px; border-left: 5px solid #28a745;">
-                    """ + group.core_requirement.replace('\n', '<br>') + """
-                    </div>
+                    
                     """, unsafe_allow_html=True)
                     
                     # Standards Covered
@@ -329,16 +327,128 @@ def render_consolidation_tab():
                             st.markdown("")  # spacing
                     
                     # Action buttons
+                    st.markdown("---")
                     col1, col2, col3 = st.columns(3)
                     with col1:
                         if st.button(f"✅ Accept", key=f"accept_smart_{group.group_id}"):
                             st.success("Group accepted!")
                     with col2:
-                        if st.button(f"✏️ Edit", key=f"edit_smart_{group.group_id}"):
-                            st.info("Edit functionality coming soon")
+                        edit_mode_key = f"edit_mode_{group.group_id}"
+                        if edit_mode_key not in st.session_state:
+                            st.session_state[edit_mode_key] = False
+                        
+                        if st.button(f"✏️ {'Exit Edit' if st.session_state[edit_mode_key] else 'Edit Group'}", 
+                                    key=f"edit_smart_{group.group_id}"):
+                            st.session_state[edit_mode_key] = not st.session_state[edit_mode_key]
+                            st.rerun()
                     with col3:
                         if st.button(f"❌ Reject", key=f"reject_smart_{group.group_id}"):
                             st.warning("Group rejected")
+                    
+                    # Edit mode interface
+                    if st.session_state.get(edit_mode_key, False):
+                        st.markdown("---")
+                        st.markdown("### ✏️ Edit Mode")
+                        
+                        # Initialize edited group in session state
+                        edited_key = f"edited_group_{group.group_id}"
+                        if edited_key not in st.session_state:
+                            st.session_state[edited_key] = {
+                                'indices': list(group.requirement_indices),
+                                'core_requirement': group.core_requirement,
+                                'topic': group.topic
+                            }
+                        
+                        edited_group = st.session_state[edited_key]
+                        
+                        # Edit consolidated text
+                        st.markdown("**Edit Consolidated Requirement:**")
+                        edited_text = st.text_area(
+                            "Consolidated Requirement",
+                            value=edited_group['core_requirement'],
+                            height=200,
+                            key=f"text_edit_{group.group_id}",
+                            label_visibility="collapsed"
+                        )
+                        if edited_text != edited_group['core_requirement']:
+                            edited_group['core_requirement'] = edited_text
+                        
+                        st.markdown("**Manage Requirements in This Group:**")
+                        
+                        # Show current requirements with remove option
+                        st.markdown("*Current Requirements:*")
+                        to_remove = []
+                        for idx in edited_group['indices']:
+                            if idx < len(df):
+                                req_row = df.iloc[idx]
+                                req_text = req_row.get('Requirement (Clause)', req_row.get('Description', ''))
+                                standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
+                                clause = req_row.get('Clause ID', req_row.get('Clause/Requirement', ''))
+                                
+                                col_a, col_b = st.columns([0.9, 0.1])
+                                with col_a:
+                                    st.caption(f"**{standard}** (Clause {clause})")
+                                    st.caption(str(req_text)[:150] + "..." if len(str(req_text)) > 150 else str(req_text))
+                                with col_b:
+                                    if st.button("🗑️", key=f"remove_{group.group_id}_{idx}"):
+                                        to_remove.append(idx)
+                        
+                        # Remove marked requirements
+                        if to_remove:
+                            for idx in to_remove:
+                                edited_group['indices'].remove(idx)
+                            st.rerun()
+                        
+                        # Add requirements
+                        st.markdown("---")
+                        st.markdown("*Add Requirements:*")
+                        
+                        # Get all requirement indices not in this group
+                        all_indices = set(range(len(df)))
+                        used_indices = set(edited_group['indices'])
+                        
+                        # Also exclude indices from other groups
+                        for other_group in result['groups']:
+                            if other_group.group_id != group.group_id:
+                                used_indices.update(other_group.requirement_indices)
+                        
+                        available_indices = sorted(all_indices - used_indices)
+                        
+                        if available_indices:
+                            # Create a selectbox to choose requirement to add
+                            add_options = {}
+                            for idx in available_indices[:50]:  # Limit to 50 to avoid overwhelming UI
+                                if idx < len(df):
+                                    req_row = df.iloc[idx]
+                                    req_text = req_row.get('Requirement (Clause)', req_row.get('Description', ''))
+                                    standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
+                                    preview = f"{standard} - {str(req_text)[:80]}..."
+                                    add_options[preview] = idx
+                            
+                            if add_options:
+                                selected_preview = st.selectbox(
+                                    "Select requirement to add:",
+                                    options=[""] + list(add_options.keys()),
+                                    key=f"add_select_{group.group_id}"
+                                )
+                                
+                                if selected_preview and st.button("➕ Add to Group", key=f"add_btn_{group.group_id}"):
+                                    idx_to_add = add_options[selected_preview]
+                                    edited_group['indices'].append(idx_to_add)
+                                    st.success(f"Added requirement to group!")
+                                    st.rerun()
+                        else:
+                            st.info("No available requirements to add (all are in other groups)")
+                        
+                        # Save edits button
+                        st.markdown("---")
+                        if st.button("💾 Save Edits", type="primary", key=f"save_{group.group_id}"):
+                            # Update the actual group with edited values
+                            group.requirement_indices = edited_group['indices']
+                            group.core_requirement = edited_group['core_requirement']
+                            st.success("✅ Edits saved!")
+                            st.session_state[edit_mode_key] = False
+                            st.rerun()
             
             # Export results
             st.divider()
