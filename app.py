@@ -135,6 +135,94 @@ def render_extraction_tab():
     if 'job_id' in st.session_state:
         display_results(st.session_state.job_id)
 
+
+# ============================================================================
+# CONSOLIDATION TAB HELPER FUNCTIONS
+# ============================================================================
+
+def format_requirement_display(req_row, max_length=300):
+    """
+    Helper to format a requirement for display.
+
+    Args:
+        req_row: DataFrame row containing requirement data
+        max_length: Maximum length for text display (default 300)
+
+    Returns:
+        dict with keys: text, standard, clause
+    """
+    req_text = req_row.get('Requirement (Clause)', req_row.get('Description', ''))
+    standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
+    clause = req_row.get('Clause ID', req_row.get('Clause/Requirement', ''))
+
+    # Convert to string and handle NaN
+    text_str = str(req_text) if pd.notna(req_text) else '[Empty]'
+    standard_str = str(standard) if pd.notna(standard) else '[Unknown]'
+    clause_str = str(clause) if pd.notna(clause) else '[Unknown]'
+
+    # Truncate text if needed
+    if len(text_str) > max_length:
+        text_str = text_str[:max_length] + '...'
+
+    return {
+        'text': text_str,
+        'standard': standard_str,
+        'clause': clause_str
+    }
+
+
+def generate_export_data(result, session_state):
+    """
+    Generate export data from consolidation results.
+
+    Args:
+        result: Consolidation result dict with 'groups'
+        session_state: Streamlit session state
+
+    Returns:
+        pandas DataFrame ready for export
+    """
+    export_data = []
+    for group in result['groups']:
+        # Determine status
+        if group.group_id in session_state.accepted_groups:
+            status = "ACCEPTED"
+        elif group.group_id in session_state.rejected_groups:
+            status = "REJECTED"
+        else:
+            status = "PENDING"
+
+        # Get edited text if exists
+        core_req = session_state.edited_groups.get(group.group_id, group.core_requirement)
+
+        # Get active requirements (excluding removed ones)
+        removed = session_state.removed_requirements.get(group.group_id, set())
+        active_reqs = [idx for idx in group.requirement_indices if idx not in removed]
+
+        export_data.append({
+            'Status': status,
+            'Group ID': group.group_id + 1,
+            'Topic': group.topic,
+            'Regulatory Intent': group.regulatory_intent,
+            'Core Requirement': core_req,
+            'Applies To Standards': ', '.join(group.applies_to_standards),
+            'Critical Differences': '; '.join(group.critical_differences),
+            'Consolidation Potential': f"{group.consolidation_potential:.0%}",
+            'Requirement Count': len(active_reqs),
+            'Original Indices': ', '.join(map(str, active_reqs)),
+            'Removed Indices': ', '.join(map(str, removed)) if removed else 'None',
+            'Modified': 'Yes' if group.group_id in session_state.modified_groups else 'No'
+        })
+
+    export_df = pd.DataFrame(export_data)
+
+    # Convert all columns to string to prevent Arrow warnings
+    for col in export_df.columns:
+        export_df[col] = export_df[col].astype(str)
+
+    return export_df
+
+
 def render_consolidation_tab():
     """Tab 2: Smart AI Consolidation"""
     
@@ -456,10 +544,8 @@ def render_consolidation_tab():
                     for idx in active_indices:
                         if idx < len(df):
                             req_row = df.iloc[idx]
-                            req_text = req_row.get('Requirement (Clause)', req_row.get('Description', ''))
-                            standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
-                            clause = req_row.get('Clause ID', req_row.get('Clause/Requirement', ''))
-                            
+                            req_info = format_requirement_display(req_row)
+
                             if removal_mode:
                                 # Show checkbox when in removal mode
                                 col_check, col_req = st.columns([1, 20])
@@ -469,13 +555,13 @@ def render_consolidation_tab():
                                         st.session_state.modified_groups.add(group.group_id)
                                         st.rerun()
                                 with col_req:
-                                    st.markdown(f"**{standard}** (Clause {clause})")
-                                    st.caption(str(req_text)[:300] + "..." if len(str(req_text)) > 300 else str(req_text))
+                                    st.markdown(f"**{req_info['standard']}** (Clause {req_info['clause']})")
+                                    st.caption(req_info['text'])
                             else:
                                 # Normal display
-                                st.markdown(f"**{standard}** (Clause {clause})")
-                                st.caption(str(req_text)[:300] + "..." if len(str(req_text)) > 300 else str(req_text))
-                            
+                                st.markdown(f"**{req_info['standard']}** (Clause {req_info['clause']})")
+                                st.caption(req_info['text'])
+
                             st.markdown("")  # spacing
                     
                     # Show removed requirements (FIXED: using checkbox instead of nested expander)
@@ -490,12 +576,11 @@ def render_consolidation_tab():
                             for idx in removed_indices:
                                 if idx < len(df):
                                     req_row = df.iloc[idx]
-                                    req_text = req_row.get('Requirement (Clause)', req_row.get('Description', ''))
-                                    standard = req_row.get('Standard/ Regulation', req_row.get('Standard/Reg', ''))
-                                    
+                                    req_info = format_requirement_display(req_row, max_length=100)
+
                                     col_req, col_restore = st.columns([10, 1])
                                     with col_req:
-                                        st.caption(f"~~{standard}: {str(req_text)[:100]}...~~")
+                                        st.caption(f"~~{req_info['standard']}: {req_info['text']}~~")
                                     with col_restore:
                                         if st.button("↩️", key=f"restore_{group.group_id}_{idx}", help="Restore to group"):
                                             st.session_state.removed_requirements[group.group_id].remove(idx)
@@ -554,44 +639,7 @@ def render_consolidation_tab():
                 st.metric("Modified", len(st.session_state.modified_groups))
             
             # Generate export data ONCE (outside button clicks to avoid nested buttons)
-            export_data = []
-            for group in result['groups']:
-                # Determine status
-                if group.group_id in st.session_state.accepted_groups:
-                    status = "ACCEPTED"
-                elif group.group_id in st.session_state.rejected_groups:
-                    status = "REJECTED"
-                else:
-                    status = "PENDING"
-
-                # Get edited text if exists
-                core_req = st.session_state.edited_groups.get(group.group_id, group.core_requirement)
-
-                # Get active requirements (excluding removed ones)
-                removed = st.session_state.removed_requirements.get(group.group_id, set())
-                active_reqs = [idx for idx in group.requirement_indices if idx not in removed]
-
-                export_data.append({
-                    'Status': status,
-                    'Group ID': group.group_id + 1,
-                    'Topic': group.topic,
-                    'Regulatory Intent': group.regulatory_intent,
-                    'Core Requirement': core_req,
-                    'Applies To Standards': ', '.join(group.applies_to_standards),
-                    'Critical Differences': '; '.join(group.critical_differences),
-                    'Consolidation Potential': f"{group.consolidation_potential:.0%}",
-                    'Requirement Count': len(active_reqs),
-                    'Original Indices': ', '.join(map(str, active_reqs)),
-                    'Removed Indices': ', '.join(map(str, removed)) if removed else 'None',
-                    'Modified': 'Yes' if group.group_id in st.session_state.modified_groups else 'No'
-                })
-
-            export_df = pd.DataFrame(export_data)
-
-            # FIX: Convert all columns to string to prevent Arrow warnings
-            for col in export_df.columns:
-                export_df[col] = export_df[col].astype(str)
-
+            export_df = generate_export_data(result, st.session_state)
             csv = export_df.to_csv(index=False)
 
             # Generate HTML report
