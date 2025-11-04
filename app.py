@@ -464,7 +464,7 @@ def render_consolidation_tab():
                                 # Show checkbox when in removal mode
                                 col_check, col_req = st.columns([1, 20])
                                 with col_check:
-                                    if st.checkbox("", key=f"check_{group.group_id}_{idx}", label_visibility="collapsed"):
+                                    if st.checkbox(f"Remove requirement {idx}", key=f"check_{group.group_id}_{idx}", label_visibility="collapsed"):
                                         st.session_state.removed_requirements[group.group_id].add(idx)
                                         st.session_state.modified_groups.add(group.group_id)
                                         st.rerun()
@@ -553,65 +553,72 @@ def render_consolidation_tab():
             with col4:
                 st.metric("Modified", len(st.session_state.modified_groups))
             
-            # Combined Export/Print buttons
+            # Generate export data ONCE (outside button clicks to avoid nested buttons)
+            export_data = []
+            for group in result['groups']:
+                # Determine status
+                if group.group_id in st.session_state.accepted_groups:
+                    status = "ACCEPTED"
+                elif group.group_id in st.session_state.rejected_groups:
+                    status = "REJECTED"
+                else:
+                    status = "PENDING"
+
+                # Get edited text if exists
+                core_req = st.session_state.edited_groups.get(group.group_id, group.core_requirement)
+
+                # Get active requirements (excluding removed ones)
+                removed = st.session_state.removed_requirements.get(group.group_id, set())
+                active_reqs = [idx for idx in group.requirement_indices if idx not in removed]
+
+                export_data.append({
+                    'Status': status,
+                    'Group ID': group.group_id + 1,
+                    'Topic': group.topic,
+                    'Regulatory Intent': group.regulatory_intent,
+                    'Core Requirement': core_req,
+                    'Applies To Standards': ', '.join(group.applies_to_standards),
+                    'Critical Differences': '; '.join(group.critical_differences),
+                    'Consolidation Potential': f"{group.consolidation_potential:.0%}",
+                    'Requirement Count': len(active_reqs),
+                    'Original Indices': ', '.join(map(str, active_reqs)),
+                    'Removed Indices': ', '.join(map(str, removed)) if removed else 'None',
+                    'Modified': 'Yes' if group.group_id in st.session_state.modified_groups else 'No'
+                })
+
+            export_df = pd.DataFrame(export_data)
+
+            # FIX: Convert all columns to string to prevent Arrow warnings
+            for col in export_df.columns:
+                export_df[col] = export_df[col].astype(str)
+
+            csv = export_df.to_csv(index=False)
+
+            # Generate HTML report
+            html_content = generate_html_report(result, st.session_state, df)
+
+            # Combined Export/Print buttons - DIRECT download (no nested buttons!)
             col1, col2 = st.columns(2)
-            
+
             with col1:
-                if st.button("📥 Export Full Report (CSV)", type="primary", use_container_width=True):
-                    # Create export DataFrame with actions tracked
-                    export_data = []
-                    for group in result['groups']:
-                        # Determine status
-                        if group.group_id in st.session_state.accepted_groups:
-                            status = "ACCEPTED"
-                        elif group.group_id in st.session_state.rejected_groups:
-                            status = "REJECTED"
-                        else:
-                            status = "PENDING"
-                        
-                        # Get edited text if exists
-                        core_req = st.session_state.edited_groups.get(group.group_id, group.core_requirement)
-                        
-                        # Get active requirements (excluding removed ones)
-                        removed = st.session_state.removed_requirements.get(group.group_id, set())
-                        active_reqs = [idx for idx in group.requirement_indices if idx not in removed]
-                        
-                        export_data.append({
-                            'Status': status,
-                            'Group ID': group.group_id + 1,
-                            'Topic': group.topic,
-                            'Regulatory Intent': group.regulatory_intent,
-                            'Core Requirement': core_req,
-                            'Applies To Standards': ', '.join(group.applies_to_standards),
-                            'Critical Differences': '; '.join(group.critical_differences),
-                            'Consolidation Potential': f"{group.consolidation_potential:.0%}",
-                            'Requirement Count': len(active_reqs),
-                            'Original Indices': ', '.join(map(str, active_reqs)),
-                            'Removed Indices': ', '.join(map(str, removed)) if removed else 'None',
-                            'Modified': 'Yes' if group.group_id in st.session_state.modified_groups else 'No'
-                        })
-                    
-                    export_df = pd.DataFrame(export_data)
-                    csv = export_df.to_csv(index=False)
-                    
-                    st.download_button(
-                        label="📥 Download CSV Report",
-                        data=csv,
-                        file_name="smart_consolidation_report.csv",
-                        mime="text/csv"
-                    )
-            
+                st.download_button(
+                    label="📥 Export Full Report (CSV)",
+                    data=csv,
+                    file_name="smart_consolidation_report.csv",
+                    mime="text/csv",
+                    type="primary",
+                    use_container_width=True
+                )
+
             with col2:
-                if st.button("🖨️ Print-Friendly Report (HTML)", type="secondary", use_container_width=True):
-                    # Generate HTML report
-                    html_content = generate_html_report(result, st.session_state, df)
-                    
-                    st.download_button(
-                        label="📄 Download Print Report",
-                        data=html_content,
-                        file_name="consolidation_report.html",
-                        mime="text/html"
-                    )
+                st.download_button(
+                    label="🖨️ Print-Friendly Report (HTML)",
+                    data=html_content,
+                    file_name="consolidation_report.html",
+                    mime="text/html",
+                    type="secondary",
+                    use_container_width=True
+                )
 
 
 def generate_html_report(result, session_state, df):
