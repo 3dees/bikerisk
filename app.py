@@ -6,8 +6,17 @@ import requests
 import pandas as pd
 import time
 import os
+from datetime import datetime
 from dotenv import load_dotenv
 from consolidate_smart_ai import consolidate_with_smart_ai
+from project_storage import (
+    save_project,
+    load_project,
+    list_saved_projects,
+    delete_project,
+    auto_save_project,
+    format_project_display
+)
 
 # MUST be the first Streamlit command - at module level, not in a function
 st.set_page_config(
@@ -63,6 +72,75 @@ def main():
             if api_key:
                 st.session_state.anthropic_api_key = api_key
                 st.success("✅ API key saved for session")
+
+        # ========================================
+        # PROJECT MANAGEMENT SECTION
+        # ========================================
+        st.divider()
+        st.header("📂 Project Management")
+
+        # Load existing project dropdown
+        projects = list_saved_projects()
+        if projects:
+            project_options = ["-- New Project --"] + projects
+
+            selected_idx = st.selectbox(
+                "Load Project:",
+                options=range(len(project_options)),
+                format_func=lambda i: project_options[i]['name'] if i > 0 else "-- New Project --",
+                key="project_selector"
+            )
+
+            if selected_idx > 0:
+                selected_project = project_options[selected_idx]
+                if st.button("📂 Load Project", use_container_width=True):
+                    if load_project(selected_project['id']):
+                        st.rerun()
+
+        # Current project management
+        if 'current_project' in st.session_state:
+            st.divider()
+            st.markdown("### 💾 Current Project")
+
+            project_name = st.text_input(
+                "Project Name:",
+                value=st.session_state.current_project['name'],
+                key="project_name_input"
+            )
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("💾 Save", use_container_width=True, type="primary"):
+                    save_project(project_name)
+            with col2:
+                if st.button("💾 Save As...", use_container_width=True):
+                    new_name = st.text_input("New project name:", key="save_as_name")
+                    if new_name:
+                        save_project(new_name)
+
+            # Last saved indicator
+            if 'last_saved' in st.session_state:
+                st.caption(f"✓ Saved at {st.session_state.last_saved}")
+
+            # Delete project button
+            if st.button("🗑️ Delete Project", use_container_width=True):
+                if st.checkbox("⚠️ Confirm deletion", key="confirm_delete"):
+                    if delete_project(st.session_state.current_project['id']):
+                        del st.session_state.current_project
+                        st.success("Project deleted")
+                        st.rerun()
+
+        # Save button even if no current project (for first-time save)
+        elif 'smart_consolidation' in st.session_state:
+            st.divider()
+            st.markdown("### 💾 Save Results")
+            new_project_name = st.text_input(
+                "Project Name:",
+                value=f"Project_{datetime.now().strftime('%Y%m%d_%H%M')}",
+                key="new_project_name"
+            )
+            if st.button("💾 Save New Project", use_container_width=True, type="primary"):
+                save_project(new_project_name)
 
     # Create tabs
     tab1, tab2 = st.tabs(["📄 Extract from PDFs", "🔗 Consolidate Requirements"])
@@ -487,6 +565,7 @@ def render_consolidation_tab():
                             if st.button("💾 Save Changes", key=f"save_{group.group_id}"):
                                 st.session_state.edited_groups[group.group_id] = edited_text
                                 st.session_state[f'editing_{group.group_id}'] = False
+                                auto_save_project()
                                 st.success("Changes saved!")
                                 st.rerun()
                         with col2:
@@ -553,6 +632,7 @@ def render_consolidation_tab():
                                     if st.checkbox(f"Remove requirement {idx}", key=f"check_{group.group_id}_{idx}", label_visibility="collapsed"):
                                         st.session_state.removed_requirements[group.group_id].add(idx)
                                         st.session_state.modified_groups.add(group.group_id)
+                                        auto_save_project()
                                         st.rerun()
                                 with col_req:
                                     st.markdown(f"**{req_info['standard']}** (Clause {req_info['clause']})")
@@ -587,6 +667,7 @@ def render_consolidation_tab():
                                             # Remove modified flag if no more removed items
                                             if not st.session_state.removed_requirements[group.group_id]:
                                                 st.session_state.modified_groups.discard(group.group_id)
+                                            auto_save_project()
                                             st.rerun()
                     
                     # Action buttons
@@ -604,6 +685,7 @@ def render_consolidation_tab():
                                 st.session_state.accepted_groups.add(group.group_id)
                                 if group.group_id in st.session_state.rejected_groups:
                                     st.session_state.rejected_groups.remove(group.group_id)
+                                auto_save_project()
                                 st.rerun()
                     
                     with col2:
@@ -622,6 +704,7 @@ def render_consolidation_tab():
                                 st.session_state.rejected_groups.add(group.group_id)
                                 if group.group_id in st.session_state.accepted_groups:
                                     st.session_state.accepted_groups.remove(group.group_id)
+                                auto_save_project()
                                 st.rerun()
             
             # Export/Print section
