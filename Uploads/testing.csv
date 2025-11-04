@@ -1,1 +1,567 @@
+**Yes! This is the optimal workflow:**
 
+**Me (Claude Web)** → Design & write complete code → **You** → Pass to **Claude Code** → Implement & test
+
+**Why this works best:**
+- I have all the business context from our discussion
+- I can write complete modules in one shot
+- Claude Code can focus on file manipulation and testing
+- You review the final result
+
+---
+
+# 📦 Phase 1: Complete Storage Implementation
+
+## Instructions for Claude Code:
+
+```
+Create a new file called project_storage.py in the bikerisk directory with the provided code.
+
+Then update app.py:
+1. Add import at top: from project_storage import *
+2. Replace the sidebar section with the new Project Management sidebar code
+3. Add auto_save hooks after Accept/Reject/Edit actions
+
+After implementation, test by:
+1. Running the app: streamlit run app.py
+2. Upload a file and consolidate
+3. Save the project
+4. Refresh the page
+5. Load the saved project
+6. Verify all state is restored correctly
+```
+
+---
+
+## File 1: `project_storage.py`
+
+```python
+"""
+Project storage and management for E-Bike Standards consolidation.
+Handles saving/loading consolidation projects with all user actions.
+"""
+
+import json
+import os
+from datetime import datetime
+from pathlib import Path
+import pandas as pd
+import streamlit as st
+from typing import Dict, List, Optional
+import hashlib
+
+
+# Storage directory
+PROJECTS_DIR = Path("saved_projects")
+PROJECTS_DIR.mkdir(exist_ok=True)
+
+PROJECT_INDEX_FILE = PROJECTS_DIR / "project_index.json"
+
+
+def generate_project_id(project_name: str) -> str:
+    """Generate unique project ID from name and timestamp."""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    safe_name = "".join(c for c in project_name if c.isalnum() or c in (' ', '-', '_')).strip()
+    safe_name = safe_name.replace(' ', '_').lower()
+    return f"{safe_name}_{timestamp}"
+
+
+def calculate_dataframe_hash(df: pd.DataFrame) -> str:
+    """Calculate hash of dataframe to detect changes."""
+    return hashlib.md5(df.to_json().encode()).hexdigest()
+
+
+def save_project(project_name: Optional[str] = None, auto_save: bool = False) -> bool:
+    """
+    Save current consolidation project to JSON file.
+    
+    Args:
+        project_name: Name for the project. If None, uses existing name.
+        auto_save: If True, saves silently without user feedback.
+    
+    Returns:
+        bool: True if save successful, False otherwise
+    """
+    
+    # Check if we have consolidation results to save
+    if 'smart_consolidation' not in st.session_state:
+        if not auto_save:
+            st.warning("No consolidation results to save. Please run analysis first.")
+        return False
+    
+    if 'consolidation_df' not in st.session_state:
+        if not auto_save:
+            st.warning("No source data found. Cannot save project.")
+        return False
+    
+    try:
+        # Determine project name
+        if project_name is None:
+            if 'current_project' in st.session_state:
+                project_name = st.session_state.current_project['name']
+            else:
+                project_name = f"Project_{datetime.now().strftime('%Y%m%d_%H%M')}"
+        
+        # Generate or reuse project ID
+        if 'current_project' in st.session_state and not project_name != st.session_state.current_project['name']:
+            project_id = st.session_state.current_project['id']
+        else:
+            project_id = generate_project_id(project_name)
+        
+        df = st.session_state.consolidation_df
+        result = st.session_state.smart_consolidation
+        
+        # Extract standards from dataframe
+        standards_col = 'Standard/ Regulation' if 'Standard/ Regulation' in df.columns else 'Standard/Reg'
+        standards_included = df[standards_col].dropna().unique().tolist() if standards_col in df.columns else []
+        
+        # Build project data structure
+        project_data = {
+            "metadata": {
+                "project_name": project_name,
+                "project_id": project_id,
+                "created_at": st.session_state.current_project['created_at'] if 'current_project' in st.session_state else datetime.now().isoformat(),
+                "last_modified": datetime.now().isoformat(),
+                "standards_included": [str(s) for s in standards_included],
+                "total_requirements": len(df),
+                "file_hash": calculate_dataframe_hash(df)
+            },
+            "source_data": {
+                "dataframe_json": df.to_json(orient='records'),
+                "filename": st.session_state.get('uploaded_filename', 'unknown.xlsx')
+            },
+            "consolidation_results": {
+                "groups": [
+                    {
+                        "group_id": g.group_id,
+                        "topic": g.topic,
+                        "regulatory_intent": g.regulatory_intent,
+                        "core_requirement": g.core_requirement,
+                        "applies_to_standards": g.applies_to_standards,
+                        "critical_differences": g.critical_differences,
+                        "consolidation_potential": g.consolidation_potential,
+                        "requirement_indices": g.requirement_indices,
+                        "reasoning": g.reasoning
+                    }
+                    for g in result['groups']
+                ],
+                "ungrouped_indices": result.get('ungrouped_indices', []),
+                "analysis_notes": result.get('analysis_notes', ''),
+                "total_requirements": result.get('total_requirements', 0),
+                "grouped_count": result.get('grouped_count', 0),
+                "ungrouped_count": result.get('ungrouped_count', 0)
+            },
+            "user_actions": {
+                "accepted_groups": list(st.session_state.get('accepted_groups', set())),
+                "rejected_groups": list(st.session_state.get('rejected_groups', set())),
+                "edited_groups": st.session_state.get('edited_groups', {}),
+                "removed_requirements": {
+                    str(k): list(v) for k, v in st.session_state.get('removed_requirements', {}).items()
+                },
+                "modified_groups": list(st.session_state.get('modified_groups', set()))
+            }
+        }
+        
+        # Save project file
+        project_file = PROJECTS_DIR / f"{project_id}.json"
+        with open(project_file, 'w') as f:
+            json.dump(project_data, f, indent=2)
+        
+        # Update project index
+        update_project_index(project_id, project_name, project_data['metadata'])
+        
+        # Update session state
+        st.session_state.current_project = {
+            'id': project_id,
+            'name': project_name,
+            'created_at': project_data['metadata']['created_at'],
+            'file_path': str(project_file)
+        }
+        st.session_state.last_saved = datetime.now().strftime("%I:%M %p")
+        
+        if not auto_save:
+            st.success(f"✅ Project '{project_name}' saved successfully!")
+        
+        return True
+        
+    except Exception as e:
+        if not auto_save:
+            st.error(f"❌ Error saving project: {str(e)}")
+        print(f"[STORAGE ERROR] Failed to save project: {e}")
+        return False
+
+
+def load_project(project_id: str) -> bool:
+    """
+    Load a saved project and restore all state.
+    
+    Args:
+        project_id: ID of the project to load
+    
+    Returns:
+        bool: True if load successful, False otherwise
+    """
+    
+    try:
+        project_file = PROJECTS_DIR / f"{project_id}.json"
+        
+        if not project_file.exists():
+            st.error(f"❌ Project file not found: {project_id}")
+            return False
+        
+        # Load project data
+        with open(project_file, 'r') as f:
+            project_data = json.load(f)
+        
+        # Restore dataframe
+        df = pd.read_json(project_data['source_data']['dataframe_json'], orient='records')
+        st.session_state.consolidation_df = df
+        st.session_state.uploaded_filename = project_data['source_data']['filename']
+        
+        # Restore consolidation results
+        from consolidate_smart_ai import ConsolidationGroup
+        
+        groups = []
+        for g_data in project_data['consolidation_results']['groups']:
+            group = ConsolidationGroup(
+                group_id=g_data['group_id'],
+                topic=g_data['topic'],
+                regulatory_intent=g_data['regulatory_intent'],
+                core_requirement=g_data['core_requirement'],
+                applies_to_standards=g_data['applies_to_standards'],
+                critical_differences=g_data['critical_differences'],
+                consolidation_potential=g_data['consolidation_potential'],
+                requirement_indices=g_data['requirement_indices'],
+                reasoning=g_data['reasoning']
+            )
+            groups.append(group)
+        
+        st.session_state.smart_consolidation = {
+            'groups': groups,
+            'ungrouped_indices': project_data['consolidation_results']['ungrouped_indices'],
+            'analysis_notes': project_data['consolidation_results']['analysis_notes'],
+            'total_requirements': project_data['consolidation_results']['total_requirements'],
+            'grouped_count': project_data['consolidation_results']['grouped_count'],
+            'ungrouped_count': project_data['consolidation_results']['ungrouped_count']
+        }
+        
+        # Restore user actions
+        actions = project_data['user_actions']
+        st.session_state.accepted_groups = set(actions['accepted_groups'])
+        st.session_state.rejected_groups = set(actions['rejected_groups'])
+        st.session_state.edited_groups = actions['edited_groups']
+        st.session_state.removed_requirements = {
+            int(k): set(v) for k, v in actions['removed_requirements'].items()
+        }
+        st.session_state.modified_groups = set(actions['modified_groups'])
+        
+        # Set current project
+        st.session_state.current_project = {
+            'id': project_id,
+            'name': project_data['metadata']['project_name'],
+            'created_at': project_data['metadata']['created_at'],
+            'file_path': str(project_file)
+        }
+        
+        st.success(f"✅ Loaded project: {project_data['metadata']['project_name']}")
+        return True
+        
+    except Exception as e:
+        st.error(f"❌ Error loading project: {str(e)}")
+        print(f"[STORAGE ERROR] Failed to load project: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def list_saved_projects() -> List[Dict]:
+    """
+    Get list of all saved projects with metadata.
+    
+    Returns:
+        List of dicts with project info
+    """
+    
+    try:
+        if not PROJECT_INDEX_FILE.exists():
+            return []
+        
+        with open(PROJECT_INDEX_FILE, 'r') as f:
+            index = json.load(f)
+        
+        # Sort by last modified (newest first)
+        projects = sorted(
+            index.get('projects', []),
+            key=lambda x: x.get('last_modified', ''),
+            reverse=True
+        )
+        
+        return projects
+        
+    except Exception as e:
+        print(f"[STORAGE ERROR] Failed to list projects: {e}")
+        return []
+
+
+def update_project_index(project_id: str, project_name: str, metadata: Dict):
+    """Update the project index file with new/updated project."""
+    
+    try:
+        # Load existing index
+        if PROJECT_INDEX_FILE.exists():
+            with open(PROJECT_INDEX_FILE, 'r') as f:
+                index = json.load(f)
+        else:
+            index = {'projects': []}
+        
+        # Remove existing entry if updating
+        index['projects'] = [p for p in index['projects'] if p['id'] != project_id]
+        
+        # Add new entry
+        index['projects'].append({
+            'id': project_id,
+            'name': project_name,
+            'created_at': metadata['created_at'],
+            'last_modified': metadata['last_modified'],
+            'standards_count': len(metadata['standards_included']),
+            'requirements_count': metadata['total_requirements']
+        })
+        
+        # Save index
+        with open(PROJECT_INDEX_FILE, 'w') as f:
+            json.dump(index, f, indent=2)
+            
+    except Exception as e:
+        print(f"[STORAGE ERROR] Failed to update index: {e}")
+
+
+def delete_project(project_id: str) -> bool:
+    """Delete a saved project."""
+    
+    try:
+        project_file = PROJECTS_DIR / f"{project_id}.json"
+        
+        if project_file.exists():
+            project_file.unlink()
+        
+        # Update index
+        if PROJECT_INDEX_FILE.exists():
+            with open(PROJECT_INDEX_FILE, 'r') as f:
+                index = json.load(f)
+            
+            index['projects'] = [p for p in index['projects'] if p['id'] != project_id]
+            
+            with open(PROJECT_INDEX_FILE, 'w') as f:
+                json.dump(index, f, indent=2)
+        
+        return True
+        
+    except Exception as e:
+        print(f"[STORAGE ERROR] Failed to delete project: {e}")
+        return False
+
+
+def auto_save_project():
+    """Auto-save current project if one is loaded."""
+    
+    if 'current_project' in st.session_state:
+        save_project(auto_save=True)
+
+
+def format_project_display(project: Dict) -> str:
+    """Format project info for display in dropdown."""
+    
+    from datetime import datetime
+    
+    try:
+        modified = datetime.fromisoformat(project['last_modified'])
+        date_str = modified.strftime("%b %d, %I:%M %p")
+    except:
+        date_str = "Unknown date"
+    
+    return f"{project['name']} ({date_str}) - {project['requirements_count']} reqs"
+```
+
+---
+
+## File 2: Updated Sidebar Code for `app.py`
+
+**Find the sidebar section in `main()` function (around line 28-64) and ADD this AFTER the API key section:**
+
+```python
+        # API key section ends here...
+        
+        # ========================================
+        # PROJECT MANAGEMENT SECTION (NEW)
+        # ========================================
+        st.divider()
+        st.header("📂 Project Management")
+        
+        # Load existing project dropdown
+        projects = list_saved_projects()
+        if projects:
+            project_options = ["-- New Project --"] + projects
+            
+            selected_idx = st.selectbox(
+                "Load Project:",
+                options=range(len(project_options)),
+                format_func=lambda i: project_options[i]['name'] if i > 0 else "-- New Project --",
+                key="project_selector"
+            )
+            
+            if selected_idx > 0:
+                selected_project = project_options[selected_idx]
+                if st.button("📂 Load Project", use_container_width=True):
+                    if load_project(selected_project['id']):
+                        st.rerun()
+        
+        # Current project management
+        if 'current_project' in st.session_state:
+            st.divider()
+            st.markdown("### 💾 Current Project")
+            
+            project_name = st.text_input(
+                "Project Name:",
+                value=st.session_state.current_project['name'],
+                key="project_name_input"
+            )
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("💾 Save", use_container_width=True, type="primary"):
+                    save_project(project_name)
+            with col2:
+                if st.button("💾 Save As...", use_container_width=True):
+                    new_name = st.text_input("New project name:", key="save_as_name")
+                    if new_name:
+                        save_project(new_name)
+            
+            # Last saved indicator
+            if 'last_saved' in st.session_state:
+                st.caption(f"✓ Saved at {st.session_state.last_saved}")
+            
+            # Delete project button
+            if st.button("🗑️ Delete Project", use_container_width=True):
+                if st.checkbox("⚠️ Confirm deletion", key="confirm_delete"):
+                    if delete_project(st.session_state.current_project['id']):
+                        del st.session_state.current_project
+                        st.success("Project deleted")
+                        st.rerun()
+        
+        # Save button even if no current project (for first-time save)
+        elif 'smart_consolidation' in st.session_state:
+            st.divider()
+            st.markdown("### 💾 Save Results")
+            new_project_name = st.text_input(
+                "Project Name:",
+                value=f"Project_{datetime.now().strftime('%Y%m%d_%H%M')}",
+                key="new_project_name"
+            )
+            if st.button("💾 Save New Project", use_container_width=True, type="primary"):
+                save_project(new_project_name)
+```
+
+---
+
+## File 3: Add Auto-Save Hooks in `app.py`
+
+**Find these button actions in `render_consolidation_tab()` and add `auto_save_project()` after each:**
+
+### Location 1: After Accept button (around line 470)
+```python
+if st.button(f"✅ Accept", key=f"accept_smart_{group.group_id}"):
+    st.session_state.accepted_groups.add(group.group_id)
+    if group.group_id in st.session_state.rejected_groups:
+        st.session_state.rejected_groups.remove(group.group_id)
+    auto_save_project()  # ADD THIS LINE
+    st.rerun()
+```
+
+### Location 2: After Reject button (around line 485)
+```python
+if st.button(f"❌ Reject", key=f"reject_smart_{group.group_id}"):
+    st.session_state.rejected_groups.add(group.group_id)
+    if group.group_id in st.session_state.accepted_groups:
+        st.session_state.accepted_groups.remove(group.group_id)
+    auto_save_project()  # ADD THIS LINE
+    st.rerun()
+```
+
+### Location 3: After Save Changes (editing) (around line 410)
+```python
+if st.button("💾 Save Changes", key=f"save_{group.group_id}"):
+    st.session_state.edited_groups[group.group_id] = edited_text
+    st.session_state[f'editing_{group.group_id}'] = False
+    auto_save_project()  # ADD THIS LINE
+    st.success("Changes saved!")
+    st.rerun()
+```
+
+### Location 4: After removing requirement (around line 440)
+```python
+if st.checkbox(...):
+    st.session_state.removed_requirements[group.group_id].add(idx)
+    st.session_state.modified_groups.add(group.group_id)
+    auto_save_project()  # ADD THIS LINE
+    st.rerun()
+```
+
+### Location 5: After restoring requirement (around line 465)
+```python
+if st.button("↩️", ...):
+    st.session_state.removed_requirements[group.group_id].remove(idx)
+    if not st.session_state.removed_requirements[group.group_id]:
+        st.session_state.modified_groups.discard(group.group_id)
+    auto_save_project()  # ADD THIS LINE
+    st.rerun()
+```
+
+---
+
+## File 4: Add Import at Top of `app.py`
+
+**At the top of `app.py`, add:**
+
+```python
+from datetime import datetime  # If not already imported
+from project_storage import (
+    save_project,
+    load_project,
+    list_saved_projects,
+    delete_project,
+    auto_save_project,
+    format_project_display
+)
+```
+
+---
+
+## ✅ Testing Checklist for Claude Code:
+
+After implementation, test:
+
+1. **Save New Project:**
+   - Upload file → Consolidate → Save with custom name
+   - Check that `saved_projects/` folder was created
+   - Verify JSON file exists
+
+2. **Load Project:**
+   - Refresh page → Load saved project from dropdown
+   - Verify all groups appear
+   - Check that Accept/Reject/Edit states are restored
+
+3. **Auto-Save:**
+   - Load project → Click Accept on a group
+   - Check "✓ Saved at..." updates in sidebar
+
+4. **Save As:**
+   - Load project → Change name → Save As
+   - Verify new project file created
+
+5. **Delete Project:**
+   - Select project → Delete → Confirm
+   - Verify file removed from `saved_projects/`
+
+---
+
+**Give this entire response to Claude Code and ask it to implement Phase 1!** 🚀
