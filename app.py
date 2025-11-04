@@ -218,6 +218,128 @@ def render_extraction_tab():
 # CONSOLIDATION TAB HELPER FUNCTIONS
 # ============================================================================
 
+def normalize_column_names(df):
+    """
+    Normalize column names to match expected format.
+    Handles both PDF extractor output and direct spreadsheet uploads.
+    
+    Expected columns after normalization:
+    - 'Requirement (Clause)' or 'Description'
+    - 'Standard/ Regulation' or 'Standard/Reg'
+    - 'Clause ID' or 'Clause/Requirement'
+    """
+    # Create mapping of possible column names
+    column_mapping = {
+        # Description/Requirement column
+        'Description': 'Requirement (Clause)',
+        'Requirement': 'Requirement (Clause)',
+        'Requirement Text': 'Requirement (Clause)',
+        'Text': 'Requirement (Clause)',
+        
+        # Standard column
+        'Standard/Reg': 'Standard/ Regulation',
+        'Standard': 'Standard/ Regulation',
+        'Regulation': 'Standard/ Regulation',
+        'Standard Name': 'Standard/ Regulation',
+        
+        # Clause column
+        'Clause/Requirement': 'Clause ID',
+        'Clause': 'Clause ID',
+        'Clause Number': 'Clause ID',
+        'Section': 'Clause ID',
+    }
+    
+    # Apply mapping
+    df_normalized = df.copy()
+    for old_name, new_name in column_mapping.items():
+        if old_name in df_normalized.columns and new_name not in df_normalized.columns:
+            df_normalized.rename(columns={old_name: new_name}, inplace=True)
+    
+    return df_normalized
+
+
+def merge_dataframes(df1, df2):
+    """
+    Merge two requirement dataframes, handling column mismatches.
+    
+    Args:
+        df1: Original dataframe
+        df2: New dataframe to append
+    
+    Returns:
+        Merged dataframe with normalized columns
+    """
+    # Normalize both dataframes
+    df1_norm = normalize_column_names(df1)
+    df2_norm = normalize_column_names(df2)
+    
+    # Get all columns from both
+    all_columns = set(df1_norm.columns) | set(df2_norm.columns)
+    
+    # Add missing columns with NaN
+    for col in all_columns:
+        if col not in df1_norm.columns:
+            df1_norm[col] = pd.NA
+        if col not in df2_norm.columns:
+            df2_norm[col] = pd.NA
+    
+    # Concatenate
+    merged = pd.concat([df1_norm, df2_norm], ignore_index=True)
+    
+    return merged
+
+
+def save_data_state():
+    """Save current data and consolidation state to history for undo."""
+    if 'consolidation_df' not in st.session_state:
+        return
+    
+    # Create state snapshot
+    state = {
+        'df': st.session_state.consolidation_df.copy(),
+        'consolidation': st.session_state.get('smart_consolidation'),
+        'accepted': st.session_state.accepted_groups.copy(),
+        'rejected': st.session_state.rejected_groups.copy(),
+        'edited': st.session_state.edited_groups.copy(),
+        'removed': {k: v.copy() for k, v in st.session_state.removed_requirements.items()},
+        'modified': st.session_state.modified_groups.copy(),
+    }
+    
+    # Add to history (limit to last 5 states)
+    if 'data_history' not in st.session_state:
+        st.session_state.data_history = []
+    
+    st.session_state.data_history.append(state)
+    if len(st.session_state.data_history) > 5:
+        st.session_state.data_history.pop(0)
+    
+    st.session_state.show_undo = True
+
+
+def restore_previous_state():
+    """Restore previous data state from history."""
+    if not st.session_state.get('data_history'):
+        return False
+    
+    # Pop last state
+    state = st.session_state.data_history.pop()
+    
+    # Restore all components
+    st.session_state.consolidation_df = state['df']
+    st.session_state.smart_consolidation = state['consolidation']
+    st.session_state.accepted_groups = state['accepted']
+    st.session_state.rejected_groups = state['rejected']
+    st.session_state.edited_groups = state['edited']
+    st.session_state.removed_requirements = state['removed']
+    st.session_state.modified_groups = state['modified']
+    
+    # Hide undo if no more history
+    if not st.session_state.data_history:
+        st.session_state.show_undo = False
+    
+    return True
+
+
 def format_requirement_display(req_row, max_length=300):
     """
     Helper to format a requirement for display.
@@ -318,6 +440,12 @@ def render_consolidation_tab():
     if 'modified_groups' not in st.session_state:
         st.session_state.modified_groups = set()  # Groups with removed/restored requirements
     
+    # Data history for undo functionality
+    if 'data_history' not in st.session_state:
+        st.session_state.data_history = []  # Stack: [(df, consolidation_result), ...]
+    if 'show_undo' not in st.session_state:
+        st.session_state.show_undo = False
+    
     st.markdown("""
     Upload a spreadsheet with requirements from multiple standards.
     
@@ -366,6 +494,9 @@ def render_consolidation_tab():
 
                 df = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=header_row)
 
+            # Normalize columns
+            df = normalize_column_names(df)
+
             # FIX: Convert clause columns to string to avoid Arrow serialization warnings
             if 'Clause/Requirement' in df.columns:
                 df['Clause/Requirement'] = df['Clause/Requirement'].astype(str)
@@ -387,9 +518,169 @@ def render_consolidation_tab():
             st.error(f"❌ Error reading file: {e}")
             return
 
-    # If data is loaded, show consolidation controls
+    # ========================================
+    # DATA MANAGEMENT: Add More Data & Delete Standards
+    # ========================================
     if 'consolidation_df' in st.session_state:
         df = st.session_state.consolidation_df
+        
+        st.divider()
+        
+        # Show undo button if changes were made
+        if st.session_state.get('show_undo'):
+            if st.button("↩️ Undo Last Change", type="secondary", use_container_width=True):
+                if restore_previous_state():
+                    auto_save_project()
+                    st.success("✅ Previous state restored!")
+                    st.rerun()
+                else:
+                    st.error("No previous state to restore")
+        
+        with st.expander("🔧 Manage Dataset", expanded=False):
+            tab_add, tab_delete = st.tabs(["➕ Add More Data", "🗑️ Delete Standards"])
+            
+            # ===== ADD MORE DATA TAB =====
+            with tab_add:
+                st.markdown("**Upload additional requirements to merge with current dataset**")
+                st.caption("Column names will be automatically matched")
+                
+                add_file = st.file_uploader(
+                    "Additional Requirements File",
+                    type=['csv', 'xlsx', 'xls'],
+                    help="Upload spreadsheet with additional requirements",
+                    key="add_data_uploader"
+                )
+                
+                if add_file:
+                    try:
+                        # Read new file
+                        if add_file.name.endswith('.csv'):
+                            new_df = pd.read_csv(add_file)
+                        else:
+                            excel_file = pd.ExcelFile(add_file)
+                            if len(excel_file.sheet_names) > 1:
+                                sheet_name = st.selectbox("Select Sheet", excel_file.sheet_names, key="add_sheet")
+                            else:
+                                sheet_name = excel_file.sheet_names[0]
+                            
+                            new_df = pd.read_excel(add_file, sheet_name=sheet_name, header=None)
+                            
+                            # Find header
+                            header_row = 0
+                            for i in range(min(5, len(new_df))):
+                                row_str = ' '.join([str(x).lower() for x in new_df.iloc[i] if pd.notna(x)])
+                                if 'requirement' in row_str or 'description' in row_str:
+                                    header_row = i
+                                    break
+                            
+                            new_df = pd.read_excel(add_file, sheet_name=sheet_name, header=header_row)
+                        
+                        # Normalize columns
+                        new_df = normalize_column_names(new_df)
+                        
+                        st.success(f"✅ Loaded {len(new_df)} new requirements")
+                        
+                        # Preview
+                        with st.expander("Preview New Data"):
+                            st.dataframe(new_df.head(10))
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            if st.button("✅ Merge into Dataset", type="primary", use_container_width=True):
+                                # Save current state for undo
+                                save_data_state()
+                                
+                                # Merge dataframes
+                                merged_df = merge_dataframes(df, new_df)
+                                st.session_state.consolidation_df = merged_df
+                                
+                                # Clear consolidation results
+                                if 'smart_consolidation' in st.session_state:
+                                    del st.session_state.smart_consolidation
+                                
+                                # Reset tracking
+                                st.session_state.accepted_groups = set()
+                                st.session_state.rejected_groups = set()
+                                st.session_state.edited_groups = {}
+                                st.session_state.removed_requirements = {}
+                                st.session_state.modified_groups = set()
+                                
+                                # Auto-save
+                                auto_save_project()
+                                
+                                st.success(f"✅ Merged! Total requirements: {len(merged_df)}")
+                                st.info("🔄 Please re-run the analysis to include new data")
+                                st.rerun()
+                        
+                        with col2:
+                            if st.button("❌ Cancel", use_container_width=True):
+                                st.rerun()
+                    
+                    except Exception as e:
+                        st.error(f"❌ Error loading file: {e}")
+            
+            # ===== DELETE STANDARDS TAB =====
+            with tab_delete:
+                st.markdown("**Remove specific standards from current dataset**")
+                
+                # Get unique standards
+                standard_col = 'Standard/ Regulation' if 'Standard/ Regulation' in df.columns else 'Standard/Reg'
+                if standard_col in df.columns:
+                    standards = sorted(df[standard_col].dropna().unique().tolist())
+                    
+                    if standards:
+                        # Count requirements per standard
+                        standard_counts = df[standard_col].value_counts().to_dict()
+                        
+                        # Format options with counts
+                        standard_options = [f"{std} ({standard_counts.get(std, 0)} requirements)" for std in standards]
+                        
+                        to_remove = st.multiselect(
+                            "Select Standards to Remove:",
+                            options=standards,
+                            format_func=lambda x: f"{x} ({standard_counts.get(x, 0)} requirements)"
+                        )
+                        
+                        if to_remove:
+                            # Calculate impact
+                            rows_to_remove = df[df[standard_col].isin(to_remove)]
+                            st.warning(f"⚠️ This will remove {len(rows_to_remove)} requirements from {len(to_remove)} standard(s)")
+                            
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                if st.button("🗑️ Remove Selected", type="primary", use_container_width=True):
+                                    # Save current state for undo
+                                    save_data_state()
+                                    
+                                    # Filter dataframe
+                                    filtered_df = df[~df[standard_col].isin(to_remove)].reset_index(drop=True)
+                                    st.session_state.consolidation_df = filtered_df
+                                    
+                                    # Clear consolidation results
+                                    if 'smart_consolidation' in st.session_state:
+                                        del st.session_state.smart_consolidation
+                                    
+                                    # Reset tracking
+                                    st.session_state.accepted_groups = set()
+                                    st.session_state.rejected_groups = set()
+                                    st.session_state.edited_groups = {}
+                                    st.session_state.removed_requirements = {}
+                                    st.session_state.modified_groups = set()
+                                    
+                                    # Auto-save
+                                    auto_save_project()
+                                    
+                                    st.success(f"✅ Removed {len(to_remove)} standard(s). Remaining: {len(filtered_df)} requirements")
+                                    st.info("🔄 Please re-run the analysis with updated data")
+                                    st.rerun()
+                            
+                            with col2:
+                                if st.button("❌ Cancel", use_container_width=True):
+                                    st.rerun()
+                    else:
+                        st.info("No standards found in dataset")
+                else:
+                    st.error("❌ Standard column not found in dataset")
 
         st.divider()
         
