@@ -200,6 +200,14 @@ def render_consolidation_tab():
 
                 df = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=header_row)
 
+            # FIX: Convert clause columns to string to avoid Arrow serialization warnings
+            if 'Clause/Requirement' in df.columns:
+                df['Clause/Requirement'] = df['Clause/Requirement'].astype(str)
+            if 'Clause ID' in df.columns:
+                df['Clause ID'] = df['Clause ID'].astype(str)
+            if 'Clause' in df.columns:
+                df['Clause'] = df['Clause'].astype(str)
+
             st.success(f"✅ Loaded {len(df)} rows")
 
             # Show preview
