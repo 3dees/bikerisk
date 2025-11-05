@@ -620,8 +620,9 @@ def render_consolidation_tab():
                         
                         st.success(f"✅ Loaded {len(new_df)} new requirements")
                         
-                        # Preview
-                        with st.expander("Preview New Data"):
+                        # Preview using checkbox instead of expander (can't nest expanders)
+                        show_preview = st.checkbox("Show Preview", value=False, key="show_add_data_preview")
+                        if show_preview:
                             st.dataframe(new_df.head(10))
                         
                         col1, col2 = st.columns(2)
