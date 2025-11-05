@@ -11,13 +11,9 @@ import json
 from typing import List, Dict, Optional
 import pandas as pd
 from dataclasses import dataclass
+from dotenv import load_dotenv
 
-# Optional dotenv import so Cloud deployments without python-dotenv don't fail
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    load_dotenv = None
+load_dotenv()
 
 
 @dataclass
