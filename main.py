@@ -163,41 +163,8 @@ async def upload_file(
             traceback.print_exc()
             raise HTTPException(
                 status_code=500,
-                detail=f"AI extraction failed: {str(e)}. Try rule-based mode instead."
+                detail=f"AI extraction failed: {str(e)}."
             )
-
-    else:
-        # RULE-BASED MODE: Original logic
-        print(f"[EXTRACTION] Using rule-based mode")
-
-        # Step 2: Detect manual sections (Pass A)
-        blocks = extraction_result['blocks']
-        custom_names = [custom_section_name] if custom_section_name else None
-        manual_sections = detect_manual_sections(blocks, custom_names)
-
-        # Step 3: Detect manual clauses (Pass B)
-        manual_clauses = detect_manual_clauses(blocks, manual_sections)
-
-        # Step 4: Combine detections
-        detected_items = combine_detections(manual_sections, manual_clauses)
-
-        # Step 5: Classify into schema
-        classified_rows = classify_detected_items(detected_items, standard_name)
-
-        # Step 6: Consolidate (Phase 3 - placeholder for now)
-        consolidations = consolidate_requirements(classified_rows)
-
-        # Convert to CSV-friendly format
-        csv_rows = rows_to_csv_dicts(classified_rows)
-
-        stats = {
-            'total_detected': len(detected_items),
-            'manual_sections': len(manual_sections),
-            'manual_clauses': len(manual_clauses),
-            'classified_rows': len(classified_rows),
-        }
-        confidence = extraction_result['confidence']
-        extraction_method = extraction_result['method']
 
     # Store results
     RESULTS_STORE[job_id] = {
