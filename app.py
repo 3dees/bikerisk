@@ -193,7 +193,7 @@ def render_extraction_tab():
         mode_value = "ai"
         custom_section_name = None
 
-        process_button = st.button("🔍 Process Document", type="primary", use_container_width=True)
+        process_button = st.button("🔍 Process Document", type="primary")
 
         if process_button:
             process_document(uploaded_file, standard_name, None, "ai")
@@ -519,12 +519,40 @@ def render_consolidation_tab():
 
             st.success(f"✅ Loaded {len(df)} rows")
 
-            # Show preview
-            with st.expander(f"📋 Data Preview (first 10 rows)"):
-                st.dataframe(df.head(10))
+            # ADD SEARCH FOR CONSOLIDATION DATA
+            search_term = st.text_input(
+                "🔍 Search Requirements",
+                placeholder="Search before consolidating...",
+                help="Filter requirements by keyword",
+                key="consolidation_search"
+            )
+            
+            if search_term:
+                # Determine which columns to search
+                search_cols = ['Requirement (Clause)', 'Description', 'Standard/ Regulation', 'Standard/Reg']
+                available_cols = [col for col in search_cols if col in df.columns]
+                
+                # Build search mask
+                mask = pd.Series([False] * len(df))
+                for col in available_cols:
+                    mask = mask | df[col].astype(str).str.contains(search_term, case=False, na=False)
+                
+                df_filtered = df[mask]
+                
+                if len(df_filtered) == 0:
+                    st.warning(f"No results found for '{search_term}'")
+                    df_filtered = df
+                else:
+                    st.info(f"Found {len(df_filtered)} of {len(df)} requirements")
+            else:
+                df_filtered = df
 
-            # Store in session state
-            st.session_state.consolidation_df = df
+            # Show preview with filtered data
+            with st.expander(f"📋 Data Preview (first 10 rows)"):
+                st.dataframe(df_filtered.head(10))
+
+            # Store FILTERED data in session state
+            st.session_state.consolidation_df = df_filtered
 
         except Exception as e:
             st.error(f"❌ Error reading file: {e}")
@@ -730,7 +758,7 @@ def render_consolidation_tab():
         st.info(f"⏱️ Estimated processing time: {estimate}{batches_info}")
         
         # Run consolidation button
-        if st.button("🧠 Analyze with Smart AI", type="primary", use_container_width=True):
+        if st.button("🧠 Analyze with Smart AI", type="primary"):
             with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
                 try:
                     from consolidate_smart_ai import consolidate_with_smart_ai
@@ -1310,9 +1338,39 @@ def display_results(job_id):
             'Safety Notice Type'    # NEW - marks WARNING/DANGER/CAUTION
         ]
 
+        # ADD SEARCH FUNCTIONALITY HERE
+        st.divider()
+        
+        # Search box
+        search_term = st.text_input(
+            "🔍 Search Requirements",
+            placeholder="Search in Description, Comments, Clause, Standard...",
+            help="Filter results by keyword (searches across multiple columns)",
+            key="extraction_search"
+        )
+        
+        # Filter dataframe if search term provided
+        if search_term:
+            # Search across multiple columns
+            mask = (
+                df['Description'].astype(str).str.contains(search_term, case=False, na=False) |
+                df['Comments'].astype(str).str.contains(search_term, case=False, na=False) |
+                df['Clause/Requirement'].astype(str).str.contains(search_term, case=False, na=False) |
+                df['Standard/Reg'].astype(str).str.contains(search_term, case=False, na=False)
+            )
+            df_filtered = df[mask]
+            
+            if len(df_filtered) == 0:
+                st.warning(f"No results found for '{search_term}'")
+                df_filtered = df  # Show all if no matches
+            else:
+                st.success(f"Found {len(df_filtered)} of {len(df)} requirements")
+        else:
+            df_filtered = df
+
         # Initialize edited data in session state if not exists
         if 'edited_data' not in st.session_state or st.session_state.get('current_job_id') != st.session_state.job_id:
-            st.session_state.edited_data = df[display_columns].copy()
+            st.session_state.edited_data = df_filtered[display_columns].copy()
             st.session_state.current_job_id = st.session_state.job_id
 
         # Instructions
@@ -1385,17 +1443,27 @@ def display_results(job_id):
             use_container_width=True,
             hide_index=False,
             height=500,
-            num_rows="dynamic",  # Allow adding/deleting rows
+            num_rows="dynamic",
             column_config={
+                # Main content columns with wrapping
                 "Description": st.column_config.TextColumn(
                     "Description",
                     width="large",
-                    help="Full requirement text"
+                    help="Full requirement text - click to edit"
                 ),
                 "Comments": st.column_config.TextColumn(
                     "Comments",
                     width="medium",
-                    help="Additional notes"
+                    help="AI notes and context"
+                ),
+                # Reference columns - compact
+                "Standard/Reg": st.column_config.TextColumn(
+                    "Standard/Reg",
+                    width="small"
+                ),
+                "Clause/Requirement": st.column_config.TextColumn(
+                    "Clause/Requirement",
+                    width="small"
                 ),
             },
             key="data_editor"
