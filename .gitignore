@@ -56,12 +56,3 @@ test_data/
 # Environment variables
 .env
 .env.local
-
-# History files (local editor history)
-.history/
-
-# Generated outputs
-csvresults.csv
-testing.xlsx
-results/
-output/
