@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+import pandas as pd
 
 from extract import extract_from_file
 from extract_ai import extract_requirements_with_ai, extract_from_detected_sections
