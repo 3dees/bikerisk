@@ -1,0 +1,6 @@
+Description,Standard/Reg,Clause/Requirement,Requirement scope,Formatting required?,Required in Print?,Comments
+"If symbols are used, their meaning shall be described in the instructions for use.",EN 15194-2017+A1-2023 (TC333 clean ver).pdf,4.2.2,ebike,N/A,N/A,Applies to control symbols
+"""On"" ""Off"" symbols, lightings symbols, start-up assistance symbols, audible warning device symbols design shall be in accordance with those described in Annex H and Annex I.",EN 15194-2017+A1-2023 (TC333 clean ver).pdf,4.2.2,ebike,Y,N/A,Specific symbol design requirements per Annex H and I
+EPAC manufacturer shall state in the manufacturer's instructions which levers operate the front and rear brakes,EN 15194-2017+A1-2023 (TC333 clean ver).pdf,4.3.5.2.1,ebike,N/A,N/A,See also Clause 6 i)
+"Marking, labelling - Requirement",EN 15194-2017+A1-2023 (TC333 clean ver).pdf,5.1,ebike,N/A,N/A,Section header only - specific requirements in Clause 6
+Instruction for use,EN 15194-2017+A1-2023 (TC333 clean ver).pdf,6,ebike,N/A,N/A,Main section for user manual requirements - details not visible in provided excerpt
