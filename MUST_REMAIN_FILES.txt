@@ -1,0 +1,149 @@
+╔════════════════════════════════════════════════════════════════╗
+║            FILES THAT MUST REMAIN IN REPOSITORY                ║
+╚════════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CORE PYTHON APPLICATION (10 files) - CRITICAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ main.py
+   Purpose: FastAPI backend server
+   Imported by: N/A (entry point)
+   Imports: extract.py, extract_ai.py, detect.py, classify.py,
+            consolidate.py, consolidate_improved.py
+
+✅ app.py
+   Purpose: Streamlit frontend UI
+   Imported by: N/A (entry point)
+   Imports: consolidate_smart_ai.py, project_storage.py
+
+✅ extract.py
+   Purpose: PDF text extraction with pdfplumber/pypdf fallback
+   Imported by: main.py
+   
+✅ extract_ai.py
+   Purpose: AI-powered extraction using Claude
+   Imported by: main.py
+   
+✅ detect.py
+   Purpose: Pattern matching for manual sections and clauses
+   Imported by: main.py
+   
+✅ classify.py
+   Purpose: Classification rules and 8-column schema
+   Imported by: main.py
+   
+✅ consolidate.py
+   Purpose: Phase 3 placeholder (906 bytes)
+   Imported by: main.py
+   
+✅ consolidate_smart_ai.py
+   Purpose: Smart AI consolidation with intent-based batching
+   Imported by: app.py
+   
+✅ consolidate_improved.py
+   Purpose: Improved consolidation endpoint
+   Imported by: main.py (endpoint /consolidate_improved)
+   
+✅ project_storage.py
+   Purpose: Project save/load functionality
+   Imported by: app.py
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONFIGURATION & STARTUP (5 files) - ESSENTIAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ requirements.txt
+   Purpose: Python package dependencies
+   
+✅ start.sh
+   Purpose: Linux/Mac startup script (launches both servers)
+   
+✅ start.bat
+   Purpose: Windows startup script (launches both servers)
+   
+✅ .gitignore
+   Purpose: Git ignore patterns (updated with new patterns)
+   
+✅ README.md
+   Purpose: Main project documentation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IDE & TOOL CONFIGURATION (3 files) - RECOMMENDED
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ .vscode/extensions.json
+   Purpose: VS Code extension recommendations
+   
+✅ .claude/settings.local.json
+   Purpose: Claude Code permissions configuration
+   
+✅ .github/copilot-instructions.md
+   Purpose: GitHub Copilot context and architecture docs
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TEST DATA (1 file) - USEFUL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Uploads/testing.csv
+   Purpose: Sample test data for validation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFERENCE MATERIALS (12 files in docs/) - EVALUATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  docs/*.pdf (10 PDF files, ~28MB)
+⚠️  docs/*.xlsx (2 Excel files, ~5.5MB)
+
+Status: Currently kept
+Recommendation: Consider moving to:
+  - Git LFS (for versioned large files)
+  - External storage (S3, Google Drive, etc.)
+  - Keep only extracted requirements as CSVs
+
+These are copyrighted e-bike standards - may not be suitable for
+public repository. Good for internal reference, but large file size.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DOCUMENTATION (2 new files) - INFORMATIONAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📄 FILE_REVIEW_ANALYSIS.md
+   Purpose: Complete file-by-file analysis and deletion justification
+   
+📄 CLEANUP_SUMMARY.md
+   Purpose: Quick reference cleanup summary
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ARCHIVED (11 files in docs/archive/) - HISTORICAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📁 docs/archive/START_HERE.md
+📁 docs/archive/TASK_1_REPLACE_EXTRACTION.md
+📁 docs/archive/TASK_2_DISPLAY_COLUMNS.md
+📁 docs/archive/TASK_3_COLUMN_DEFAULTS.md
+📁 docs/archive/TASK_4_REMOVE_TOGGLE.md
+📁 docs/archive/TASK_5_UPDATE_MAIN.md
+📁 docs/archive/TASK_6_TESTING.md
+📁 docs/archive/BITE_SIZED_README.md
+📁 docs/archive/DIRECT_FLOW_IMPLEMENTATION.md
+📁 docs/archive/DIRECT_FLOW_SUMMARY.md
+📁 docs/archive/phase1.txt
+
+Status: Archived (not deleted) for historical reference
+Purpose: Completed task documentation
+Can be deleted if: History is not needed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TOTAL ESSENTIAL FILES: 19 files
+  - 10 Python modules
+  - 5 Configuration files
+  - 3 IDE/tool configs
+  - 1 Test data file
+
+TOTAL CURRENT FILES: 67 files (including PDFs and archives)
+
+MINIMUM VIABLE REPOSITORY: 19 files (without PDFs/archives)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
