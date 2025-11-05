@@ -183,31 +183,15 @@ def render_extraction_tab():
             help="Name of the standard/regulation being analyzed"
         )
 
-        # Extraction mode toggle
-        extraction_mode = st.radio(
-            "Extraction Mode",
-            options=["🤖 AI (Recommended)", "⚙️ Rule-Based (Legacy)"],
-            index=0,
-            help="AI mode uses Claude for intelligent extraction. Rule-based uses pattern matching."
-        )
-
-        # Convert UI label to API value
-        mode_value = "ai" if "AI" in extraction_mode else "rules"
-
-        # Only show custom section name for rule-based mode
+        # Always use AI mode
+        mode_value = "ai"
         custom_section_name = None
-        if mode_value == "rules":
-            custom_section_name = st.text_input(
-                "Custom Section Name (optional)",
-                placeholder="e.g., Instruction for use",
-                help="Specific section name to look for in the document. Leave blank to use default patterns."
-            )
 
         process_button = st.button("🔍 Process Document", type="primary", use_container_width=True)
 
     # Main content area
     if process_button and uploaded_file:
-        process_document(uploaded_file, standard_name, custom_section_name, mode_value)
+        process_document(uploaded_file, standard_name, None, "ai")
 
     # Show existing results if available
     if 'job_id' in st.session_state:
@@ -254,7 +238,13 @@ def normalize_column_names(df):
     for old_name, new_name in column_mapping.items():
         if old_name in df_normalized.columns and new_name not in df_normalized.columns:
             df_normalized.rename(columns={old_name: new_name}, inplace=True)
-    
+
+    # Add defaults for new columns (backward compatibility)
+    if 'Contains Image?' not in df_normalized.columns:
+        df_normalized['Contains Image?'] = 'N'
+    if 'Safety Notice Type' not in df_normalized.columns:
+        df_normalized['Safety Notice Type'] = 'None'
+
     return df_normalized
 
 
@@ -1285,7 +1275,7 @@ def display_results(job_id):
         # Convert to DataFrame
         df = pd.DataFrame(rows)
 
-        # Keep only the 7 schema columns
+        # Keep only the 9 schema columns
         display_columns = [
             'Description',
             'Standard/Reg',
@@ -1293,7 +1283,9 @@ def display_results(job_id):
             'Requirement scope',
             'Formatting required?',
             'Required in Print?',
-            'Comments'
+            'Comments',
+            'Contains Image?',      # NEW - flags figure references
+            'Safety Notice Type'    # NEW - marks WARNING/DANGER/CAUTION
         ]
 
         # Initialize edited data in session state if not exists

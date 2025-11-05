@@ -1,6 +1,5 @@
 """
-AI-powered PDF extraction using Claude.
-Much simpler and more robust than rule-based extraction.
+Improved AI-powered PDF extraction for manual requirements.
 """
 import anthropic
 from typing import Dict, List
@@ -8,36 +7,57 @@ import json
 import os
 from dotenv import load_dotenv
 import httpx
+import re
 
 load_dotenv()
 
 
+def detect_image_references(text: str) -> tuple[bool, str]:
+    """Detect if requirement references an image/figure."""
+    patterns = [
+        r'[Ff]igure\s+[\dA-Z]+\.?\d*',
+        r'[Ff]ig\.?\s+[\dA-Z]+\.?\d*',
+        r'[Ii]llustration\s+[\dA-Z]+\.?\d*',
+        r'[Dd]iagram\s+[\dA-Z]+\.?\d*',
+        r'[Pp]ictogram\s+[\dA-Z]+\.?\d*',
+        r'[Ss]ymbol\s+shown',
+        r'see\s+image',
+        r'as\s+shown\s+in',
+        r'[Tt]able\s+[\dA-Z]+\.?\d*',
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text)
+        if match:
+            return True, match.group(0)
+
+    return False, ""
+
+
+def detect_safety_notice(text: str) -> str:
+    """Detect safety notice type."""
+    text_upper = text.upper()
+
+    if 'DANGER' in text_upper:
+        return "DANGER"
+    elif 'WARNING' in text_upper:
+        return "WARNING"
+    elif 'HAZARD' in text_upper:
+        return "HAZARD"
+    elif 'CAUTION' in text_upper:
+        return "CAUTION"
+
+    return "None"
+
+
 def extract_from_detected_sections(sections: List[Dict], standard_name: str = None, api_key: str = None) -> Dict:
-    """
-    HYBRID APPROACH: Use AI to intelligently extract from sections already detected by rules.
+    """Extract requirements from detected sections using AI."""
 
-    This is the best approach:
-    - Rules scan entire document and find relevant sections (fast, no API cost)
-    - AI processes only those sections (smart, no truncation, no timeout)
-
-    Args:
-        sections: List of sections detected by rule-based detect_manual_sections()
-        standard_name: Optional standard name for context
-        api_key: Anthropic API key (uses env var if not provided)
-
-    Returns:
-        Dict with:
-        - rows: List of requirement dicts with all 7 columns
-        - stats: Extraction statistics
-        - confidence: AI confidence level (high/medium/low)
-    """
-
-    # Get API key from env if not provided
     if not api_key:
         api_key = os.getenv('ANTHROPIC_API_KEY')
 
     if not api_key:
-        raise ValueError("No Anthropic API key provided or found in environment")
+        raise ValueError("No Anthropic API key provided")
 
     # Setup client
     no_proxy = os.getenv('NO_PROXY', '')
@@ -48,22 +68,21 @@ def extract_from_detected_sections(sections: List[Dict], standard_name: str = No
         http_client = httpx.Client(proxies=None, timeout=120.0)
         client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
     except Exception as e:
-        print(f"[AI EXTRACTION] Client init error: {e}, trying without custom http_client")
+        print(f"[AI EXTRACTION] Client init error: {e}")
         client = anthropic.Anthropic(api_key=api_key)
 
     all_requirements = []
-
-    print(f"[HYBRID AI] Processing {len(sections)} sections with Claude...")
+    print(f"[HYBRID AI] Processing {len(sections)} sections...")
 
     for i, section in enumerate(sections, 1):
         section_text = section.get('content', '')
         heading = section.get('heading', '')
         clause = section.get('clause_number', '')
 
-        print(f"[HYBRID AI] Section {i}/{len(sections)}: {heading} (Clause {clause})")
+        print(f"[HYBRID AI] Section {i}/{len(sections)}: {heading}")
 
-        # Build prompt for this specific section
-        prompt = f"""You are an expert at analyzing e-bike safety standards and regulations.
+        # THE IMPROVED PROMPT
+        prompt = f"""You are an expert at analyzing e-bike safety standards to identify what manufacturers must communicate to users.
 
 Standard: {standard_name or 'Unknown'}
 Section: {heading}
@@ -72,31 +91,64 @@ Clause: {clause}
 Section Content:
 {section_text}
 
-Extract ALL requirements from this section related to user manuals, instructions, warnings, and documentation.
+EXTRACTION RULES:
 
-For EACH requirement found:
-- Split numbered subsections (7.1, 7.6, 7.12) into SEPARATE requirements
-- Split lettered items (a), b), c)) into SEPARATE requirements
-- Preserve ALL specific details: measurements, voltages, symbols, legal keywords (shall, must)
+Extract ANY requirement that obligates the manufacturer to COMMUNICATE something to users in manuals/documentation.
+
+✅ INCLUDE if it says or implies:
+• "shall be stated/included in the manual"
+• "user shall be informed/warned"
+• "instructions must contain/include"
+• "information must be presented/made available"
+• "user must be made aware"
+• "shall be provided to the user" (even if doesn't say "in manual")
+
+✅ ALWAYS INCLUDE:
+• ANY text with WARNING, DANGER, CAUTION, HAZARD
+• Requirements about what users need to know (temperature, load limits, maintenance)
+• Assembly instructions
+• Safety information
+• Symbols/pictograms for documentation
+
+❌ EXCLUDE only if:
+• Pure physical product requirement with NO user communication mention
+• Internal manufacturing processes
+• Testing procedures users don't need to know
+
+WHEN IN DOUBT → INCLUDE IT.
+
+For EACH requirement, extract:
+1. Description: Full requirement text
+2. Clause/Requirement: Clause ID with full hierarchy (e.g., "7.1.1.a")
+3. Requirement scope: Keywords (ebike, battery, charger, etc.)
+4. Formatting required?: "Y" if specific formatting specified, else "N/A"
+5. Required in Print?: "y" if print required, "n" if digital OK, "N/A" if unclear
+6. Comments: Note if vague language, ambiguous, etc.
+7. Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
+8. Safety Notice Type: "WARNING" | "DANGER" | "CAUTION" | "HAZARD" | "None"
+
+SPLIT numbered/lettered subsections into SEPARATE requirements.
+PRESERVE full clause hierarchy.
 
 Respond with JSON:
 {{
   "requirements": [
     {{
-      "Description": "Full requirement text",
-      "Clause/Requirement": "7.1",
-      "Requirement scope": "battery, charger",
+      "Description": "Full text",
+      "Clause/Requirement": "7.1.1.a",
+      "Requirement scope": "ebike, battery",
       "Formatting required?": "Y",
       "Required in Print?": "y",
-      "Comments": "any special notes"
+      "Comments": "vague language used",
+      "Contains Image?": "Y - Figure 7.2",
+      "Safety Notice Type": "WARNING"
     }}
-  ]
-}}
-
-Be thorough but precise."""
+  ],
+  "extraction_notes": "Observations",
+  "confidence": "high|medium|low"
+}}"""
 
         try:
-            # Use streaming for each section
             with client.messages.stream(
                 model="claude-sonnet-4-5-20250929",
                 max_tokens=8000,
@@ -119,164 +171,100 @@ Be thorough but precise."""
             result = json.loads(json_str)
             section_requirements = result.get('requirements', [])
 
-            # Add standard name to each requirement
+            # Add standard name and validate
             for req in section_requirements:
                 req['Standard/Reg'] = standard_name or 'Unknown'
 
+                desc = req.get('Description', '')
+
+                # Double-check image detection
+                has_image, img_ref = detect_image_references(desc)
+                if has_image and req.get('Contains Image?', 'N') == 'N':
+                    req['Contains Image?'] = f"Y - {img_ref}"
+
+                # Double-check safety notice
+                safety_type = detect_safety_notice(desc)
+                if safety_type != "None" and req.get('Safety Notice Type', 'None') == 'None':
+                    req['Safety Notice Type'] = safety_type
+
             all_requirements.extend(section_requirements)
-            print(f"[HYBRID AI] Extracted {len(section_requirements)} requirements from this section")
+            print(f"[HYBRID AI] Extracted {len(section_requirements)} requirements")
 
         except Exception as e:
-            print(f"[HYBRID AI] Error processing section {i}: {e}")
-            # Continue with other sections even if one fails
+            print(f"[HYBRID AI] Error in section {i}: {e}")
             continue
 
-    print(f"[HYBRID AI] Total extracted: {len(all_requirements)} requirements")
+    print(f"[HYBRID AI] Total: {len(all_requirements)} requirements")
 
     return {
         'rows': all_requirements,
         'stats': {
             'total_detected': len(all_requirements),
             'classified_rows': len(all_requirements),
-            'sections_processed': len(sections),
-            'extraction_notes': f'Hybrid extraction: {len(sections)} sections processed'
+            'sections_processed': len(sections)
         },
         'confidence': 'high'
     }
 
 
 def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, api_key: str = None) -> Dict:
-    """
-    Use Claude to intelligently extract instruction/manual requirements from PDF text.
+    """Fallback: Extract from full PDF text when no sections found."""
 
-    Args:
-        pdf_text: Raw text extracted from PDF
-        standard_name: Optional standard name for context
-        api_key: Anthropic API key (uses env var if not provided)
-
-    Returns:
-        Dict with:
-        - rows: List of requirement dicts with all 7 columns
-        - stats: Extraction statistics
-        - confidence: AI confidence level (high/medium/low)
-    """
-
-    # Get API key from env if not provided
     if not api_key:
         api_key = os.getenv('ANTHROPIC_API_KEY')
 
     if not api_key:
-        raise ValueError("No Anthropic API key provided or found in environment")
+        raise ValueError("No API key")
 
-    # Create httpx client that respects proxy settings
-    # Anthropic API should not go through proxy, so we add it to NO_PROXY
+    # Setup client
     no_proxy = os.getenv('NO_PROXY', '')
     if 'anthropic.com' not in no_proxy:
         os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
 
     try:
-        # Initialize client with explicit http_client to avoid proxy issues
-        http_client = httpx.Client(
-            proxies=None,  # Explicitly disable proxies for Anthropic API
-            timeout=120.0
-        )
-        client = anthropic.Anthropic(
-            api_key=api_key,
-            http_client=http_client
-        )
+        http_client = httpx.Client(proxies=None, timeout=180.0)
+        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
     except Exception as e:
-        print(f"[AI EXTRACTION] Client init error: {e}, trying without custom http_client")
-        # Fallback: try simple initialization
+        print(f"[AI EXTRACTION] Error: {e}")
         client = anthropic.Anthropic(api_key=api_key)
 
-    standard_context = f"Standard: {standard_name}\n" if standard_name else ""
+    print(f"[AI EXTRACTION] Processing {len(pdf_text)} chars...")
 
-    # Build prompt template (pdf_text will be inserted later after truncation)
-    prompt_template = """You are an expert at analyzing e-bike safety standards and regulations.
+    # Limit text to avoid timeout
+    max_chars = 100000
+    if len(pdf_text) > max_chars:
+        print(f"[AI EXTRACTION] Truncating to {max_chars} chars")
+        pdf_text = pdf_text[:max_chars] + "\n\n[Document truncated]"
 
-{standard_context}
-Your task: Extract ALL requirements related to user manuals, instruction manuals, warnings, documentation, and information that must be provided to users.
+    # Use same prompt as section-based extraction
+    prompt = f"""Extract manual requirements from this e-bike standard.
+
+Standard: {standard_name or 'Unknown'}
 
 PDF Text:
-{{PDF_TEXT}}
+{pdf_text}
 
-IMPORTANT GUIDELINES:
-1. Look for requirements about what must be INCLUDED in user manuals/instructions
-2. Include requirements about:
-   - Manual content (what information must be provided)
-   - Warnings and cautions
-   - Safety instructions
-   - Marking requirements (if they appear on the manual)
-   - Documentation requirements
-   - Information for use
+[Use same rules as section-based extraction]
 
-3. EXCLUDE requirements about:
-   - Manual operation (vs automatic operation)
-   - Warning devices (vs warning text)
-   - Physical product requirements unrelated to documentation
+Extract requirements that obligate manufacturers to communicate with users.
+BE AGGRESSIVE - include anything that might be user communication.
+Extract 9 fields per requirement including "Contains Image?" and "Safety Notice Type".
 
-4. For EACH requirement found, extract:
-   - **Description**: The full requirement text
-   - **Clause**: The clause/section number (e.g., "7.1", "19.a.1", "a)")
-   - **Requirement scope**: Keywords like "ebike, battery, charger" (what product types this applies to)
-   - **Formatting required**: "Y" if specific formatting/symbols required, "N/A" otherwise
-   - **Required in Print**: "y" if must be in physical manual, "n" if digital is OK, "N/A" if unclear
-   - **Comments**: Any special notes (e.g., "inside instructions section", "warning token", etc.)
-
-5. If you find numbered subsections (like 7.1, 7.6, 7.12), split them into SEPARATE requirements
-6. If you find lettered items (like a), b), c)), split them into SEPARATE requirements
-7. Preserve ALL specific details: measurements, voltages, symbols, legal keywords (shall, must)
-
-Respond with a JSON object:
-{{
-  "requirements": [
-    {{
-      "Description": "Full requirement text here",
-      "Clause/Requirement": "7.1",
-      "Requirement scope": "battery, charger",
-      "Formatting required?": "Y",
-      "Required in Print?": "y",
-      "Comments": "inside instructions section"
-    }},
-    ...
-  ],
-  "extraction_notes": "Any important observations about the extraction",
-  "confidence": "high|medium|low"
-}}
-
-Extract ALL relevant requirements. Be thorough but precise."""
+Respond with JSON."""
 
     try:
-        print(f"[AI EXTRACTION] Sending {len(pdf_text)} chars to Claude Sonnet 4.5...")
-
-        # For large documents, we need to limit the input text to avoid timeouts
-        # Claude Sonnet 4.5 can handle ~200k tokens input, but let's be conservative
-        max_chars = 80000  # About 60k tokens, leaves room for response
-        if len(pdf_text) > max_chars:
-            print(f"[AI EXTRACTION] PDF is large ({len(pdf_text)} chars), truncating to {max_chars} chars")
-            pdf_text = pdf_text[:max_chars] + "\n\n[Document truncated due to length]"
-
-        # Insert pdf_text into prompt template
-        final_prompt = prompt_template.replace('{standard_context}', standard_context).replace('{PDF_TEXT}', pdf_text)
-
-        # Use streaming with longer timeout for large documents
         with client.messages.stream(
             model="claude-sonnet-4-5-20250929",
             max_tokens=16000,
-            temperature=0,  # Deterministic for extraction
-            timeout=600.0,  # 10 minute timeout
-            messages=[{
-                "role": "user",
-                "content": final_prompt
-            }]
+            temperature=0,
+            timeout=600.0,
+            messages=[{"role": "user", "content": prompt}]
         ) as stream:
             response_text = ""
             for text in stream.text_stream:
                 response_text += text
 
-        print(f"[AI EXTRACTION] Received response: {len(response_text)} chars")
-
-        # Parse JSON response
+        # Parse JSON
         if "```json" in response_text:
             json_str = response_text.split("```json")[1].split("```")[0].strip()
         elif "```" in response_text:
@@ -285,58 +273,30 @@ Extract ALL relevant requirements. Be thorough but precise."""
             json_str = response_text.strip()
 
         result = json.loads(json_str)
-
-        # Add standard name to each requirement
         requirements = result.get('requirements', [])
+
+        # Add standard and validate
         for req in requirements:
             req['Standard/Reg'] = standard_name or 'Unknown'
 
-        print(f"[AI EXTRACTION] Extracted {len(requirements)} requirements")
+            desc = req.get('Description', '')
+            has_image, img_ref = detect_image_references(desc)
+            if has_image and req.get('Contains Image?', 'N') == 'N':
+                req['Contains Image?'] = f"Y - {img_ref}"
+
+            safety_type = detect_safety_notice(desc)
+            if safety_type != "None" and req.get('Safety Notice Type', 'None') == 'None':
+                req['Safety Notice Type'] = safety_type
 
         return {
             'rows': requirements,
             'stats': {
                 'total_detected': len(requirements),
-                'classified_rows': len(requirements),
-                'extraction_notes': result.get('extraction_notes', '')
+                'classified_rows': len(requirements)
             },
             'confidence': result.get('confidence', 'medium')
         }
 
-    except anthropic.APIError as e:
-        print(f"[AI EXTRACTION ERROR] API error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise ValueError(f"Claude API error: {str(e)}")
-
-    except json.JSONDecodeError as e:
-        print(f"[AI EXTRACTION ERROR] JSON parse error: {e}")
-        print(f"Response was: {response_text[:500]}")
-        raise ValueError(f"Failed to parse AI response as JSON: {str(e)}")
-
     except Exception as e:
-        print(f"[AI EXTRACTION ERROR] Unexpected error: {e}")
-        import traceback
-        traceback.print_exc()
-        raise ValueError(f"AI extraction failed: {str(e)}")
-
-
-def validate_requirement_schema(req: Dict) -> Dict:
-    """
-    Validate and normalize a requirement dict to match our 7-column schema.
-    """
-    schema_columns = [
-        'Description',
-        'Standard/Reg',
-        'Clause/Requirement',
-        'Requirement scope',
-        'Formatting required?',
-        'Required in Print?',
-        'Comments'
-    ]
-
-    normalized = {}
-    for col in schema_columns:
-        normalized[col] = req.get(col, 'N/A')
-
-    return normalized
+        print(f"[AI EXTRACTION] Failed: {e}")
+        raise
