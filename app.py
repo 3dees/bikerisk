@@ -153,7 +153,7 @@ def main():
 
 
 def render_extraction_tab():
-    """Tab 1: PDF extraction (original functionality)"""
+    """Tab 1: PDF extraction - upload in main area"""
     st.markdown("""
     Extract instruction/manual requirements from e-bike standards and regulations.
     Upload a PDF to analyze its manual/instruction requirements.
@@ -165,18 +165,17 @@ def render_extraction_tab():
         st.code("python main.py", language="bash")
         return
 
-    # Sidebar for file upload
-    with st.sidebar:
-        st.divider()
-        st.header("📁 Upload Document")
+    # File upload in main area (like consolidation tab)
+    st.divider()
+    
+    uploaded_file = st.file_uploader(
+        "Upload PDF Standard",
+        type=['pdf'],
+        help="Upload a PDF containing e-bike standards or regulations",
+        key="pdf_uploader"
+    )
 
-        uploaded_file = st.file_uploader(
-            "Choose a PDF file",
-            type=['pdf'],
-            help="Upload a PDF containing e-bike standards or regulations",
-            key="pdf_uploader"
-        )
-
+    if uploaded_file:
         standard_name = st.text_input(
             "Standard Name (optional)",
             placeholder="e.g., EN 15194, 16 CFR Part 1512",
@@ -189,9 +188,8 @@ def render_extraction_tab():
 
         process_button = st.button("🔍 Process Document", type="primary", use_container_width=True)
 
-    # Main content area
-    if process_button and uploaded_file:
-        process_document(uploaded_file, standard_name, None, "ai")
+        if process_button:
+            process_document(uploaded_file, standard_name, None, "ai")
 
     # Show existing results if available
     if 'job_id' in st.session_state:
@@ -1357,13 +1355,25 @@ def display_results(job_id):
                     if st.button("❌ Cancel"):
                         st.rerun()
 
-        # Editable DataFrame
+        # Editable DataFrame with text wrapping
         edited_df = st.data_editor(
             st.session_state.edited_data,
             use_container_width=True,
             hide_index=False,
             height=500,
             num_rows="dynamic",  # Allow adding/deleting rows
+            column_config={
+                "Description": st.column_config.TextColumn(
+                    "Description",
+                    width="large",
+                    help="Full requirement text"
+                ),
+                "Comments": st.column_config.TextColumn(
+                    "Comments",
+                    width="medium",
+                    help="Additional notes"
+                ),
+            },
             key="data_editor"
         )
 
