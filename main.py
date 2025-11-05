@@ -8,7 +8,13 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
-from dotenv import load_dotenv
+import pandas as pd
+# Optional dotenv import for environments without python-dotenv
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    load_dotenv = None
 
 from extract import extract_from_file
 from extract_ai import extract_requirements_with_ai, extract_from_detected_sections
@@ -20,7 +26,7 @@ from detect import (
 from classify import classify_detected_items, rows_to_csv_dicts
 from consolidate import consolidate_requirements
 
-load_dotenv()
+# load_dotenv already attempted above; proceed regardless
 
 
 # In-memory storage for results

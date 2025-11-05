@@ -7,7 +7,12 @@ import pandas as pd
 import time
 import os
 from datetime import datetime
-from dotenv import load_dotenv
+# Optional dotenv import for local dev; Streamlit Cloud may not have it installed
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    load_dotenv = None
 from consolidate_smart_ai import consolidate_with_smart_ai
 from project_storage import (
     save_project,
@@ -25,8 +30,13 @@ st.set_page_config(
     layout="wide"
 )
 
-# Load environment variables
-load_dotenv()
+# Load environment variables (already attempted above). Also support Streamlit Cloud secrets.
+try:
+    # If running on Streamlit Cloud, prefer st.secrets
+    if hasattr(st, 'secrets') and 'ANTHROPIC_API_KEY' in st.secrets:
+        os.environ['ANTHROPIC_API_KEY'] = st.secrets['ANTHROPIC_API_KEY']
+except Exception:
+    pass
 
 # Configuration
 API_BASE_URL = "http://localhost:8000"

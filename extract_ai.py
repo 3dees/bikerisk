@@ -5,11 +5,17 @@ import anthropic
 from typing import Dict, List
 import json
 import os
-from dotenv import load_dotenv
 import httpx
+
+# Optional dotenv import for environments where python-dotenv isn't available
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    load_dotenv = None
 import re
 
-load_dotenv()
+# load_dotenv already attempted above; also allow Streamlit Cloud secrets via env
 
 
 def detect_image_references(text: str) -> tuple[bool, str]:
