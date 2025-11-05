@@ -142,13 +142,20 @@ def main():
             if st.button("💾 Save New Project", use_container_width=True, type="primary"):
                 save_project(new_project_name)
 
-    # Create tabs
-    tab1, tab2 = st.tabs(["📄 Extract from PDFs", "🔗 Consolidate Requirements"])
-
-    with tab1:
+    # Create tabs with dynamic selection
+    if 'switch_to_consolidation' in st.session_state and st.session_state.switch_to_consolidation:
+        default_tab = 1
+        st.session_state.switch_to_consolidation = False
+    else:
+        default_tab = 0
+    
+    tabs = st.tabs(["📄 Extract from PDFs", "🔗 Consolidate Requirements"])
+    
+    # Render tabs
+    with tabs[0]:
         render_extraction_tab()
-
-    with tab2:
+    
+    with tabs[1]:
         render_consolidation_tab()
 
 
@@ -455,6 +462,23 @@ def render_consolidation_tab():
         help="Upload a CSV or Excel file containing requirements",
         key="consolidation_uploader"
     )
+    
+    # Check if data was passed from extraction tab (only if no file uploaded)
+    if 'consolidation_df' in st.session_state and uploaded_file is None:
+        st.info("📊 Using data from extraction. You can also upload a different file above.")
+        df = st.session_state.consolidation_df
+        
+        st.success(f"✅ Loaded {len(df)} requirements from extraction")
+        
+        # Show preview
+        with st.expander(f"📋 Data Preview (first 10 rows)"):
+            st.dataframe(df.head(10))
+        
+        # Add clear button to allow fresh upload
+        if st.button("🗑️ Clear Data (Upload Different File)", use_container_width=True):
+            if 'consolidation_df' in st.session_state:
+                del st.session_state.consolidation_df
+            st.rerun()
 
     if uploaded_file:
         # Read the file
@@ -1388,13 +1412,40 @@ def display_results(job_id):
         # Convert edited DataFrame to CSV
         csv_data = edited_df.to_csv(index=False)
 
-        st.download_button(
-            label="📥 Download CSV",
-            data=csv_data,
-            file_name=f"{result['filename']}_requirements.csv",
-            mime="text/csv",
-            type="primary"
-        )
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv_data,
+                file_name=f"{result['filename']}_requirements.csv",
+                mime="text/csv",
+                type="secondary",
+                use_container_width=True
+            )
+        
+        with col2:
+            if st.button("➡️ Continue to Consolidation", type="primary", use_container_width=True):
+                # Store edited data for consolidation
+                st.session_state.consolidation_df = edited_df.copy()
+                
+                # Clear any previous consolidation results
+                if 'smart_consolidation' in st.session_state:
+                    del st.session_state.smart_consolidation
+                
+                # Reset consolidation tracking
+                st.session_state.accepted_groups = set()
+                st.session_state.rejected_groups = set()
+                st.session_state.edited_groups = {}
+                st.session_state.removed_requirements = {}
+                st.session_state.modified_groups = set()
+                st.session_state.show_all_groups = False
+                
+                # Set flag to switch tabs
+                st.session_state.switch_to_consolidation = True
+                
+                st.success("✅ Data loaded into consolidation tab!")
+                st.rerun()
 
     except Exception as e:
         st.error(f"Error displaying results: {str(e)}")
