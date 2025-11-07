@@ -32,80 +32,6 @@ load_dotenv()
 API_BASE_URL = "http://localhost:8000"
 
 
-def render_feedback_widget():
-    """Render feedback collection widget in sidebar."""
-    import json  # noqa: F401 (used via alias in write)
-    from datetime import datetime as _dt
-    import streamlit as st
-
-    st.divider()
-    st.markdown("### 💬 Feedback")
-
-    with st.expander("📝 Send Feedback", expanded=False):
-        feedback_type = st.selectbox(
-            "Type",
-            ["🐛 Bug Report", "💡 Feature Request", "💬 General Feedback", "⭐ Rating"],
-            key="feedback_type"
-        )
-
-        rating = None
-        if feedback_type == "⭐ Rating":
-            rating = st.slider(
-                "How satisfied are you?",
-                1, 5, 3,
-                key="rating",
-                help="1 = Very Unsatisfied, 5 = Very Satisfied"
-            )
-
-        feedback_text = st.text_area(
-            "Your feedback:",
-            placeholder="Tell us what you think...",
-            height=100,
-            key="feedback_text"
-        )
-
-        current_page = st.selectbox(
-            "Related to:",
-            ["General", "PDF Extraction", "Consolidation", "UI/Design", "Performance", "Other"],
-            key="feedback_page"
-        )
-
-        contact = st.text_input(
-            "Email (optional):",
-            placeholder="your.email@company.com",
-            key="feedback_email"
-        )
-
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button("📤 Send Feedback", type="primary", use_container_width=True):
-                if feedback_text.strip():
-                    feedback_data = {
-                        "timestamp": _dt.now().isoformat(),
-                        "type": feedback_type,
-                        "page": current_page,
-                        "text": feedback_text,
-                        "email": contact if contact else "anonymous",
-                        "rating": rating,
-                        "session_id": st.session_state.get('session_id', 'unknown')
-                    }
-                    try:
-                        with open('feedback.jsonl', 'a', encoding='utf-8') as f:
-                            import json as _json
-                            f.write(_json.dumps(feedback_data, ensure_ascii=False) + '\n')
-                        st.success("✅ Thank you! Your feedback has been sent.")
-                        st.balloons()
-                        st.session_state.feedback_text = ""
-                        st.session_state.feedback_email = ""
-                    except Exception as e:
-                        st.error(f"Failed to save feedback: {e}")
-                else:
-                    st.warning("Please enter some feedback first!")
-        with col2:
-            if st.button("❌ Cancel", use_container_width=True):
-                st.session_state.feedback_text = ""
-                st.rerun()
-
 def main():
     st.title("🚴 E-Bike Standards Requirement Extractor")
 
@@ -113,73 +39,39 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
 
-        # Sources: session override > st.secrets > .env
-        session_override = st.session_state.get('session_api_key')
-        secret_key = None
-        try:
-            # st.secrets is available locally (empty) and on Streamlit Cloud
-            secret_key = st.secrets.get('ANTHROPIC_API_KEY', None)
-        except Exception:
-            secret_key = None
+        # Initialize API key in session state if not exists
+        # Try to load from environment variable first
+        if 'anthropic_api_key' not in st.session_state:
+            env_key = os.getenv('ANTHROPIC_API_KEY', '')
+            st.session_state.anthropic_api_key = env_key
+
+        # Only show input if no API key is loaded from env
         env_key = os.getenv('ANTHROPIC_API_KEY')
-
-        active_key = None
-        active_source = None
-        if session_override:
-            active_key = session_override
-            active_source = "Session override"
-        elif secret_key:
-            active_key = secret_key
-            active_source = "st.secrets"
-        elif env_key:
-            active_key = env_key
-            active_source = ".env"
-
-        # Display current source and allow override
-        if active_key:
-            st.success(f"✅ API key detected from {active_source}")
-            if st.checkbox("Override Anthropic key for this session"):
-                new_key = st.text_input(
+        if env_key:
+            st.success("✅ API key loaded from .env file")
+            st.session_state.anthropic_api_key = env_key
+            # Show option to override
+            if st.checkbox("Use different API key"):
+                api_key = st.text_input(
                     "Anthropic API Key",
                     value="",
                     type="password",
-                    help="Use a different key without changing your .env or st.secrets"
+                    help="Enter a different Anthropic API key"
                 )
-                if new_key:
-                    st.session_state['session_api_key'] = new_key
-                    active_key = new_key
-                    active_source = "Session override"
-                    st.success("✅ Using session override")
+                if api_key:
+                    st.session_state.anthropic_api_key = api_key
+                    st.success("✅ Using custom API key for this session")
         else:
-            st.warning("No Anthropic API key detected.")
-            new_key = st.text_input(
+            api_key = st.text_input(
                 "Anthropic API Key",
-                value="",
+                value=st.session_state.anthropic_api_key,
                 type="password",
-                help="Set a key for this session (recommended for first run)"
+                help="Enter your Anthropic API key for AI-powered features"
             )
-            if new_key:
-                st.session_state['session_api_key'] = new_key
-                active_key = new_key
-                active_source = "Session override"
-                st.success("✅ API key saved for this session")
 
-        # Persist back to legacy session key name for downstream functions
-        if active_key:
-            st.session_state['anthropic_api_key'] = active_key
-
-        # .env helper note
-        if os.path.exists('.env'):
-            st.caption("Using .env file if present. You can also configure secrets in Streamlit Cloud.")
-        else:
-            with st.expander("How to set up a local .env", expanded=False):
-                st.code("""# .env
-ANTHROPIC_API_KEY=sk-ant-...""", language="bash")
-
-        # Advanced network settings note
-        with st.expander("Advanced network settings", expanded=False):
-            st.markdown("If you're behind a corporate proxy, you may need to bypass for Anthropic:")
-            st.code("os.environ['NO_PROXY'] = '*.anthropic.com'", language="python")
+            if api_key:
+                st.session_state.anthropic_api_key = api_key
+                st.success("✅ API key saved for session")
 
         # ========================================
         # PROJECT MANAGEMENT SECTION
@@ -249,9 +141,6 @@ ANTHROPIC_API_KEY=sk-ant-...""", language="bash")
             )
             if st.button("💾 Save New Project", use_container_width=True, type="primary"):
                 save_project(new_project_name)
-
-        # Feedback widget at end of sidebar
-        render_feedback_widget()
 
     # Create tabs with dynamic selection
     if 'switch_to_consolidation' in st.session_state and st.session_state.switch_to_consolidation:
