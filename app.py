@@ -32,6 +32,80 @@ load_dotenv()
 API_BASE_URL = "http://localhost:8000"
 
 
+def render_feedback_widget():
+    """Render feedback collection widget in sidebar."""
+    import json  # noqa: F401 (used via alias in write)
+    from datetime import datetime as _dt
+    import streamlit as st
+
+    st.divider()
+    st.markdown("### 💬 Feedback")
+
+    with st.expander("📝 Send Feedback", expanded=False):
+        feedback_type = st.selectbox(
+            "Type",
+            ["🐛 Bug Report", "💡 Feature Request", "💬 General Feedback", "⭐ Rating"],
+            key="feedback_type"
+        )
+
+        rating = None
+        if feedback_type == "⭐ Rating":
+            rating = st.slider(
+                "How satisfied are you?",
+                1, 5, 3,
+                key="rating",
+                help="1 = Very Unsatisfied, 5 = Very Satisfied"
+            )
+
+        feedback_text = st.text_area(
+            "Your feedback:",
+            placeholder="Tell us what you think...",
+            height=100,
+            key="feedback_text"
+        )
+
+        current_page = st.selectbox(
+            "Related to:",
+            ["General", "PDF Extraction", "Consolidation", "UI/Design", "Performance", "Other"],
+            key="feedback_page"
+        )
+
+        contact = st.text_input(
+            "Email (optional):",
+            placeholder="your.email@company.com",
+            key="feedback_email"
+        )
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("📤 Send Feedback", type="primary", use_container_width=True):
+                if feedback_text.strip():
+                    feedback_data = {
+                        "timestamp": _dt.now().isoformat(),
+                        "type": feedback_type,
+                        "page": current_page,
+                        "text": feedback_text,
+                        "email": contact if contact else "anonymous",
+                        "rating": rating,
+                        "session_id": st.session_state.get('session_id', 'unknown')
+                    }
+                    try:
+                        with open('feedback.jsonl', 'a', encoding='utf-8') as f:
+                            import json as _json
+                            f.write(_json.dumps(feedback_data, ensure_ascii=False) + '\n')
+                        st.success("✅ Thank you! Your feedback has been sent.")
+                        st.balloons()
+                        st.session_state.feedback_text = ""
+                        st.session_state.feedback_email = ""
+                    except Exception as e:
+                        st.error(f"Failed to save feedback: {e}")
+                else:
+                    st.warning("Please enter some feedback first!")
+        with col2:
+            if st.button("❌ Cancel", use_container_width=True):
+                st.session_state.feedback_text = ""
+                st.rerun()
+
 def main():
     st.title("🚴 E-Bike Standards Requirement Extractor")
 
@@ -39,39 +113,73 @@ def main():
     with st.sidebar:
         st.header("⚙️ Configuration")
 
-        # Initialize API key in session state if not exists
-        # Try to load from environment variable first
-        if 'anthropic_api_key' not in st.session_state:
-            env_key = os.getenv('ANTHROPIC_API_KEY', '')
-            st.session_state.anthropic_api_key = env_key
-
-        # Only show input if no API key is loaded from env
+        # Sources: session override > st.secrets > .env
+        session_override = st.session_state.get('session_api_key')
+        secret_key = None
+        try:
+            # st.secrets is available locally (empty) and on Streamlit Cloud
+            secret_key = st.secrets.get('ANTHROPIC_API_KEY', None)
+        except Exception:
+            secret_key = None
         env_key = os.getenv('ANTHROPIC_API_KEY')
-        if env_key:
-            st.success("✅ API key loaded from .env file")
-            st.session_state.anthropic_api_key = env_key
-            # Show option to override
-            if st.checkbox("Use different API key"):
-                api_key = st.text_input(
+
+        active_key = None
+        active_source = None
+        if session_override:
+            active_key = session_override
+            active_source = "Session override"
+        elif secret_key:
+            active_key = secret_key
+            active_source = "st.secrets"
+        elif env_key:
+            active_key = env_key
+            active_source = ".env"
+
+        # Display current source and allow override
+        if active_key:
+            st.success(f"✅ API key detected from {active_source}")
+            if st.checkbox("Override Anthropic key for this session"):
+                new_key = st.text_input(
                     "Anthropic API Key",
                     value="",
                     type="password",
-                    help="Enter a different Anthropic API key"
+                    help="Use a different key without changing your .env or st.secrets"
                 )
-                if api_key:
-                    st.session_state.anthropic_api_key = api_key
-                    st.success("✅ Using custom API key for this session")
+                if new_key:
+                    st.session_state['session_api_key'] = new_key
+                    active_key = new_key
+                    active_source = "Session override"
+                    st.success("✅ Using session override")
         else:
-            api_key = st.text_input(
+            st.warning("No Anthropic API key detected.")
+            new_key = st.text_input(
                 "Anthropic API Key",
-                value=st.session_state.anthropic_api_key,
+                value="",
                 type="password",
-                help="Enter your Anthropic API key for AI-powered features"
+                help="Set a key for this session (recommended for first run)"
             )
+            if new_key:
+                st.session_state['session_api_key'] = new_key
+                active_key = new_key
+                active_source = "Session override"
+                st.success("✅ API key saved for this session")
 
-            if api_key:
-                st.session_state.anthropic_api_key = api_key
-                st.success("✅ API key saved for session")
+        # Persist back to legacy session key name for downstream functions
+        if active_key:
+            st.session_state['anthropic_api_key'] = active_key
+
+        # .env helper note
+        if os.path.exists('.env'):
+            st.caption("Using .env file if present. You can also configure secrets in Streamlit Cloud.")
+        else:
+            with st.expander("How to set up a local .env", expanded=False):
+                st.code("""# .env
+ANTHROPIC_API_KEY=sk-ant-...""", language="bash")
+
+        # Advanced network settings note
+        with st.expander("Advanced network settings", expanded=False):
+            st.markdown("If you're behind a corporate proxy, you may need to bypass for Anthropic:")
+            st.code("os.environ['NO_PROXY'] = '*.anthropic.com'", language="python")
 
         # ========================================
         # PROJECT MANAGEMENT SECTION
@@ -142,18 +250,28 @@ def main():
             if st.button("💾 Save New Project", use_container_width=True, type="primary"):
                 save_project(new_project_name)
 
-    # Create tabs
-    tab1, tab2 = st.tabs(["📄 Extract from PDFs", "🔗 Consolidate Requirements"])
+        # Feedback widget at end of sidebar
+        render_feedback_widget()
 
-    with tab1:
+    # Create tabs with dynamic selection
+    if 'switch_to_consolidation' in st.session_state and st.session_state.switch_to_consolidation:
+        default_tab = 1
+        st.session_state.switch_to_consolidation = False
+    else:
+        default_tab = 0
+    
+    tabs = st.tabs(["📄 Extract from PDFs", "🔗 Consolidate Requirements"])
+    
+    # Render tabs
+    with tabs[0]:
         render_extraction_tab()
-
-    with tab2:
+    
+    with tabs[1]:
         render_consolidation_tab()
 
 
 def render_extraction_tab():
-    """Tab 1: PDF extraction (original functionality)"""
+    """Tab 1: PDF extraction - upload in main area"""
     st.markdown("""
     Extract instruction/manual requirements from e-bike standards and regulations.
     Upload a PDF to analyze its manual/instruction requirements.
@@ -165,18 +283,17 @@ def render_extraction_tab():
         st.code("python main.py", language="bash")
         return
 
-    # Sidebar for file upload
-    with st.sidebar:
-        st.divider()
-        st.header("📁 Upload Document")
+    # File upload in main area (like consolidation tab)
+    st.divider()
+    
+    uploaded_file = st.file_uploader(
+        "Upload PDF Standard",
+        type=['pdf'],
+        help="Upload a PDF containing e-bike standards or regulations",
+        key="pdf_uploader"
+    )
 
-        uploaded_file = st.file_uploader(
-            "Choose a PDF file",
-            type=['pdf'],
-            help="Upload a PDF containing e-bike standards or regulations",
-            key="pdf_uploader"
-        )
-
+    if uploaded_file:
         standard_name = st.text_input(
             "Standard Name (optional)",
             placeholder="e.g., EN 15194, 16 CFR Part 1512",
@@ -187,11 +304,10 @@ def render_extraction_tab():
         mode_value = "ai"
         custom_section_name = None
 
-        process_button = st.button("🔍 Process Document", type="primary", use_container_width=True)
+        process_button = st.button("🔍 Process Document", type="primary")
 
-    # Main content area
-    if process_button and uploaded_file:
-        process_document(uploaded_file, standard_name, None, "ai")
+        if process_button:
+            process_document(uploaded_file, standard_name, None, "ai")
 
     # Show existing results if available
     if 'job_id' in st.session_state:
@@ -457,6 +573,23 @@ def render_consolidation_tab():
         help="Upload a CSV or Excel file containing requirements",
         key="consolidation_uploader"
     )
+    
+    # Check if data was passed from extraction tab (only if no file uploaded)
+    if 'consolidation_df' in st.session_state and uploaded_file is None:
+        st.info("📊 Using data from extraction. You can also upload a different file above.")
+        df = st.session_state.consolidation_df
+        
+        st.success(f"✅ Loaded {len(df)} requirements from extraction")
+        
+        # Show preview
+        with st.expander(f"📋 Data Preview (first 10 rows)"):
+            st.dataframe(df.head(10))
+        
+        # Add clear button to allow fresh upload
+        if st.button("🗑️ Clear Data (Upload Different File)", use_container_width=True):
+            if 'consolidation_df' in st.session_state:
+                del st.session_state.consolidation_df
+            st.rerun()
 
     if uploaded_file:
         # Read the file
@@ -497,12 +630,40 @@ def render_consolidation_tab():
 
             st.success(f"✅ Loaded {len(df)} rows")
 
-            # Show preview
-            with st.expander(f"📋 Data Preview (first 10 rows)"):
-                st.dataframe(df.head(10))
+            # ADD SEARCH FOR CONSOLIDATION DATA
+            search_term = st.text_input(
+                "🔍 Search Requirements",
+                placeholder="Search before consolidating...",
+                help="Filter requirements by keyword",
+                key="consolidation_search"
+            )
+            
+            if search_term:
+                # Determine which columns to search
+                search_cols = ['Requirement (Clause)', 'Description', 'Standard/ Regulation', 'Standard/Reg']
+                available_cols = [col for col in search_cols if col in df.columns]
+                
+                # Build search mask
+                mask = pd.Series([False] * len(df))
+                for col in available_cols:
+                    mask = mask | df[col].astype(str).str.contains(search_term, case=False, na=False)
+                
+                df_filtered = df[mask]
+                
+                if len(df_filtered) == 0:
+                    st.warning(f"No results found for '{search_term}'")
+                    df_filtered = df
+                else:
+                    st.info(f"Found {len(df_filtered)} of {len(df)} requirements")
+            else:
+                df_filtered = df
 
-            # Store in session state
-            st.session_state.consolidation_df = df
+            # Show preview with filtered data
+            with st.expander(f"📋 Data Preview (first 10 rows)"):
+                st.dataframe(df_filtered.head(10))
+
+            # Store FILTERED data in session state
+            st.session_state.consolidation_df = df_filtered
 
         except Exception as e:
             st.error(f"❌ Error reading file: {e}")
@@ -570,8 +731,9 @@ def render_consolidation_tab():
                         
                         st.success(f"✅ Loaded {len(new_df)} new requirements")
                         
-                        # Preview
-                        with st.expander("Preview New Data"):
+                        # Preview using checkbox instead of expander (can't nest expanders)
+                        show_preview = st.checkbox("Show Preview", value=False, key="show_add_data_preview")
+                        if show_preview:
                             st.dataframe(new_df.head(10))
                         
                         col1, col2 = st.columns(2)
@@ -708,7 +870,7 @@ def render_consolidation_tab():
         st.info(f"⏱️ Estimated processing time: {estimate}{batches_info}")
         
         # Run consolidation button
-        if st.button("🧠 Analyze with Smart AI", type="primary", use_container_width=True):
+        if st.button("🧠 Analyze with Smart AI", type="primary"):
             with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
                 try:
                     from consolidate_smart_ai import consolidate_with_smart_ai
@@ -1288,9 +1450,39 @@ def display_results(job_id):
             'Safety Notice Type'    # NEW - marks WARNING/DANGER/CAUTION
         ]
 
+        # ADD SEARCH FUNCTIONALITY HERE
+        st.divider()
+        
+        # Search box
+        search_term = st.text_input(
+            "🔍 Search Requirements",
+            placeholder="Search in Description, Comments, Clause, Standard...",
+            help="Filter results by keyword (searches across multiple columns)",
+            key="extraction_search"
+        )
+        
+        # Filter dataframe if search term provided
+        if search_term:
+            # Search across multiple columns
+            mask = (
+                df['Description'].astype(str).str.contains(search_term, case=False, na=False) |
+                df['Comments'].astype(str).str.contains(search_term, case=False, na=False) |
+                df['Clause/Requirement'].astype(str).str.contains(search_term, case=False, na=False) |
+                df['Standard/Reg'].astype(str).str.contains(search_term, case=False, na=False)
+            )
+            df_filtered = df[mask]
+            
+            if len(df_filtered) == 0:
+                st.warning(f"No results found for '{search_term}'")
+                df_filtered = df  # Show all if no matches
+            else:
+                st.success(f"Found {len(df_filtered)} of {len(df)} requirements")
+        else:
+            df_filtered = df
+
         # Initialize edited data in session state if not exists
         if 'edited_data' not in st.session_state or st.session_state.get('current_job_id') != st.session_state.job_id:
-            st.session_state.edited_data = df[display_columns].copy()
+            st.session_state.edited_data = df_filtered[display_columns].copy()
             st.session_state.current_job_id = st.session_state.job_id
 
         # Instructions
@@ -1357,13 +1549,35 @@ def display_results(job_id):
                     if st.button("❌ Cancel"):
                         st.rerun()
 
-        # Editable DataFrame
+        # Editable DataFrame with text wrapping
         edited_df = st.data_editor(
             st.session_state.edited_data,
             use_container_width=True,
             hide_index=False,
             height=500,
-            num_rows="dynamic",  # Allow adding/deleting rows
+            num_rows="dynamic",
+            column_config={
+                # Main content columns with wrapping
+                "Description": st.column_config.TextColumn(
+                    "Description",
+                    width="large",
+                    help="Full requirement text - click to edit"
+                ),
+                "Comments": st.column_config.TextColumn(
+                    "Comments",
+                    width="medium",
+                    help="AI notes and context"
+                ),
+                # Reference columns - compact
+                "Standard/Reg": st.column_config.TextColumn(
+                    "Standard/Reg",
+                    width="small"
+                ),
+                "Clause/Requirement": st.column_config.TextColumn(
+                    "Clause/Requirement",
+                    width="small"
+                ),
+            },
             key="data_editor"
         )
 
@@ -1378,13 +1592,40 @@ def display_results(job_id):
         # Convert edited DataFrame to CSV
         csv_data = edited_df.to_csv(index=False)
 
-        st.download_button(
-            label="📥 Download CSV",
-            data=csv_data,
-            file_name=f"{result['filename']}_requirements.csv",
-            mime="text/csv",
-            type="primary"
-        )
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.download_button(
+                label="📥 Download CSV",
+                data=csv_data,
+                file_name=f"{result['filename']}_requirements.csv",
+                mime="text/csv",
+                type="secondary",
+                use_container_width=True
+            )
+        
+        with col2:
+            if st.button("➡️ Continue to Consolidation", type="primary", use_container_width=True):
+                # Store edited data for consolidation
+                st.session_state.consolidation_df = edited_df.copy()
+                
+                # Clear any previous consolidation results
+                if 'smart_consolidation' in st.session_state:
+                    del st.session_state.smart_consolidation
+                
+                # Reset consolidation tracking
+                st.session_state.accepted_groups = set()
+                st.session_state.rejected_groups = set()
+                st.session_state.edited_groups = {}
+                st.session_state.removed_requirements = {}
+                st.session_state.modified_groups = set()
+                st.session_state.show_all_groups = False
+                
+                # Set flag to switch tabs
+                st.session_state.switch_to_consolidation = True
+                
+                st.success("✅ Data loaded into consolidation tab!")
+                st.rerun()
 
     except Exception as e:
         st.error(f"Error displaying results: {str(e)}")
