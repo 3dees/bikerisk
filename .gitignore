@@ -56,3 +56,7 @@ test_data/
 # Environment variables
 .env
 .env.local
+
+# User feedback artifacts
+feedback.jsonl
+feedback_export.csv
