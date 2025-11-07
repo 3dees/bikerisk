@@ -57,5 +57,6 @@ test_data/
 .env
 .env.local
 
-# Local editor history
-.history/
+# User feedback artifacts
+feedback.jsonl
+feedback_export.csv

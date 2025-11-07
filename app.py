@@ -32,6 +32,80 @@ load_dotenv()
 API_BASE_URL = "http://localhost:8000"
 
 
+def render_feedback_widget():
+    """Render feedback collection widget in sidebar."""
+    from datetime import datetime as _dt
+    import streamlit as st
+
+    st.divider()
+    st.markdown("### 💬 Feedback")
+
+    with st.expander("📝 Send Feedback", expanded=False):
+        feedback_type = st.selectbox(
+            "Type",
+            ["🐛 Bug Report", "💡 Feature Request", "💬 General Feedback", "⭐ Rating"],
+            key="feedback_type"
+        )
+
+        rating = None
+        if feedback_type == "⭐ Rating":
+            rating = st.slider(
+                "How satisfied are you?",
+                1, 5, 3,
+                key="rating",
+                help="1 = Very Unsatisfied, 5 = Very Satisfied"
+            )
+
+        feedback_text = st.text_area(
+            "Your feedback:",
+            placeholder="Tell us what you think...",
+            height=100,
+            key="feedback_text"
+        )
+
+        current_page = st.selectbox(
+            "Related to:",
+            ["General", "PDF Extraction", "Consolidation", "UI/Design", "Performance", "Other"],
+            key="feedback_page"
+        )
+
+        contact = st.text_input(
+            "Email (optional):",
+            placeholder="your.email@company.com",
+            key="feedback_email"
+        )
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
+            if st.button("📤 Send Feedback", type="primary", use_container_width=True):
+                if feedback_text.strip():
+                    feedback_data = {
+                        "timestamp": _dt.now().isoformat(),
+                        "type": feedback_type,
+                        "page": current_page,
+                        "text": feedback_text,
+                        "email": contact if contact else "anonymous",
+                        "rating": rating,
+                        "session_id": st.session_state.get('session_id', 'unknown')
+                    }
+                    try:
+                        import json as _json
+                        with open('feedback.jsonl', 'a', encoding='utf-8') as f:
+                            f.write(_json.dumps(feedback_data, ensure_ascii=False) + '\n')
+                        st.success("✅ Thank you! Your feedback has been sent.")
+                        st.balloons()
+                        st.session_state.feedback_text = ""
+                        st.session_state.feedback_email = ""
+                    except Exception as e:
+                        st.error(f"Failed to save feedback: {e}")
+                else:
+                    st.warning("Please enter some feedback first!")
+        with col2:
+            if st.button("❌ Cancel", use_container_width=True):
+                st.session_state.feedback_text = ""
+                st.rerun()
+
+
 def main():
     st.title("🚴 E-Bike Standards Requirement Extractor")
 
@@ -142,6 +216,9 @@ def main():
             if st.button("💾 Save New Project", use_container_width=True, type="primary"):
                 save_project(new_project_name)
 
+        # Feedback widget at bottom of sidebar
+        render_feedback_widget()
+
     # Create tabs with dynamic selection
     if 'switch_to_consolidation' in st.session_state and st.session_state.switch_to_consolidation:
         default_tab = 1
@@ -188,10 +265,6 @@ def render_extraction_tab():
             placeholder="e.g., EN 15194, 16 CFR Part 1512",
             help="Name of the standard/regulation being analyzed"
         )
-
-        # Always use AI mode
-        mode_value = "ai"
-        custom_section_name = None
 
         process_button = st.button("🔍 Process Document", type="primary")
 
@@ -493,14 +566,15 @@ def render_consolidation_tab():
                 else:
                     sheet_name = excel_file.sheet_names[0]
 
-                # Read with header detection
-                df = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=None)
+                # Read with header detection (initial raw read)
+                raw_df = pd.read_excel(uploaded_file, sheet_name=sheet_name, header=None)
 
-                # Find the header row
+                # Detect header row heuristically (look for key column names in early rows)
                 header_row = 0
-                for i in range(min(5, len(df))):
-                    row_str = ' '.join([str(x).lower() for x in df.iloc[i] if pd.notna(x)])
-                    if 'requirement' in row_str or 'description' in row_str:
+                for i in range(min(10, len(raw_df))):
+                    row_values = [str(x).lower() for x in raw_df.iloc[i] if pd.notna(x)]
+                    joined = ' '.join(row_values)
+                    if any(key in joined for key in ["requirement", "description", "standard", "clause"]):
                         header_row = i
                         break
 
@@ -603,16 +677,13 @@ def render_consolidation_tab():
                             else:
                                 sheet_name = excel_file.sheet_names[0]
                             
-                            new_df = pd.read_excel(add_file, sheet_name=sheet_name, header=None)
-                            
-                            # Find header
+                            raw_add_df = pd.read_excel(add_file, sheet_name=sheet_name, header=None)
                             header_row = 0
-                            for i in range(min(5, len(new_df))):
-                                row_str = ' '.join([str(x).lower() for x in new_df.iloc[i] if pd.notna(x)])
-                                if 'requirement' in row_str or 'description' in row_str:
+                            for i in range(min(10, len(raw_add_df))):
+                                vals = [str(x).lower() for x in raw_add_df.iloc[i] if pd.notna(x)]
+                                if any(k in ' '.join(vals) for k in ["requirement", "description", "standard", "clause"]):
                                     header_row = i
                                     break
-                            
                             new_df = pd.read_excel(add_file, sheet_name=sheet_name, header=header_row)
                         
                         # Normalize columns
@@ -674,8 +745,6 @@ def render_consolidation_tab():
                         standard_counts = df[standard_col].value_counts().to_dict()
                         
                         # Format options with counts
-                        standard_options = [f"{std} ({standard_counts.get(std, 0)} requirements)" for std in standards]
-                        
                         to_remove = st.multiselect(
                             "Select Standards to Remove:",
                             options=standards,
@@ -843,13 +912,10 @@ def render_consolidation_tab():
                 # Color code by consolidation potential
                 if group.consolidation_potential >= 0.85:
                     status_emoji = "🟢"
-                    status_text = "High Confidence"
                 elif group.consolidation_potential >= 0.7:
                     status_emoji = "🟡"
-                    status_text = "Medium Confidence"
                 else:
                     status_emoji = "🟠"
-                    status_text = "Review Needed"
                 
                 # Check if this group has been accepted/rejected
                 is_accepted = group.group_id in st.session_state.accepted_groups
@@ -976,7 +1042,7 @@ def render_consolidation_tab():
 
                             st.markdown("")  # spacing
                     
-                    # Show removed requirements (FIXED: using checkbox instead of nested expander)
+                    # Show removed requirements
                     removed_indices = st.session_state.removed_requirements[group.group_id]
                     if removed_indices:
                         show_removed = st.checkbox(
