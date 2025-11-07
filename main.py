@@ -18,7 +18,7 @@ from detect import (
     detect_manual_clauses,
     combine_detections
 )
-from classify import classify_detected_items, rows_to_csv_dicts
+from classify import rows_to_csv_dicts
 
 load_dotenv()
 
