@@ -56,3 +56,6 @@ test_data/
 # Environment variables
 .env
 .env.local
+
+# Local editor history
+.history/
