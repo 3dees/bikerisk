@@ -62,5 +62,7 @@ test_data/
 feedback.jsonl
 feedback_export.csv
 
-#doc folder
-files/*.*   
+# Doc folder - ignore all files in files/
+files/
+files/*
+files/*.*

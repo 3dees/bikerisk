@@ -32,6 +32,78 @@ load_dotenv()
 API_BASE_URL = "http://localhost:8000"
 
 
+def send_feedback_email(feedback_data):
+    """Send feedback via email using Gmail SMTP."""
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+
+    # Get email credentials from environment
+    smtp_user = os.getenv('FEEDBACK_EMAIL_USER')
+    smtp_password = os.getenv('FEEDBACK_EMAIL_PASSWORD')
+    recipient = os.getenv('FEEDBACK_RECIPIENT_EMAIL', 'vanessajambois@gmail.com')
+
+    # Skip if no credentials configured
+    if not smtp_user or not smtp_password:
+        return False, "Email not configured (missing SMTP credentials in .env)"
+
+    try:
+        # Create email
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"BikeRisk Feedback: {feedback_data['type']} - {feedback_data['page']}"
+        msg['From'] = smtp_user
+        msg['To'] = recipient
+
+        # Create HTML body
+        rating_stars = "⭐" * feedback_data.get('rating', 0) if feedback_data.get('rating') else "N/A"
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2 style="color: #0d6efd;">BikeRisk Feedback Received</h2>
+            <table style="border-collapse: collapse; width: 100%;">
+                <tr style="background-color: #f8f9fa;">
+                    <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Type:</strong></td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['type']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Page:</strong></td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['page']}</td>
+                </tr>
+                <tr style="background-color: #f8f9fa;">
+                    <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>From:</strong></td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['email']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Rating:</strong></td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{rating_stars}</td>
+                </tr>
+                <tr style="background-color: #f8f9fa;">
+                    <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Timestamp:</strong></td>
+                    <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['timestamp']}</td>
+                </tr>
+            </table>
+            <h3 style="color: #495057; margin-top: 20px;">Feedback Message:</h3>
+            <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #0d6efd; margin: 10px 0;">
+                {feedback_data['text']}
+            </div>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(html, 'html'))
+
+        # Send email
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+
+        return True, "Email sent successfully"
+
+    except Exception as e:
+        return False, f"Email error: {str(e)}"
+
+
 def render_feedback_widget():
     """Render feedback collection widget in sidebar."""
     from datetime import datetime as _dt
@@ -90,9 +162,20 @@ def render_feedback_widget():
                     }
                     try:
                         import json as _json
+                        # Save to local file
                         with open('feedback.jsonl', 'a', encoding='utf-8') as f:
                             f.write(_json.dumps(feedback_data, ensure_ascii=False) + '\n')
-                        st.success("✅ Thank you! Your feedback has been sent.")
+
+                        # Send email notification
+                        email_sent, email_msg = send_feedback_email(feedback_data)
+
+                        if email_sent:
+                            st.success("✅ Thank you! Your feedback has been sent via email.")
+                        else:
+                            st.success("✅ Thank you! Your feedback has been saved locally.")
+                            if "Email not configured" not in email_msg:
+                                st.warning(f"⚠️ Email notification failed: {email_msg}")
+
                         st.balloons()
                         # Clear feedback by triggering rerun (can't modify widget state after creation)
                         time.sleep(1)  # Brief pause to show success message
