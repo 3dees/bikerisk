@@ -62,6 +62,9 @@ test_data/
 feedback.jsonl
 feedback_export.csv
 
+# User saved projects (app data)
+saved_projects/
+
 # Doc folder - ignore all files in files/
 files/
 files/*
