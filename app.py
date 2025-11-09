@@ -1779,7 +1779,7 @@ def display_results(job_id):
         with col2:
             if st.button("➡️ Continue to Consolidation", type="primary", use_container_width=True):
                 # Store edited data for consolidation
-                st.session_state.consolidation_df = edited_df.copy()
+                st.session_state.consolidation_df = st.session_state.edited_data.copy()
                 
                 # Clear any previous consolidation results
                 if 'smart_consolidation' in st.session_state:
