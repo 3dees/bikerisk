@@ -106,6 +106,70 @@ def render_feedback_widget():
                 st.rerun()
 
 
+def render_progress_indicator():
+    """
+    Render progress indicator showing current step in workflow.
+    Steps: 1) Get Data → 2) Consolidate → 3) Export
+    """
+    # Determine current step based on session state
+    current_step = 1  # Default
+
+    # Step 2 if we have consolidation data
+    if 'consolidation_df' in st.session_state or 'smart_consolidation' in st.session_state:
+        current_step = 2
+
+    # Step 3 if user has accepted/rejected groups
+    if 'accepted_groups' in st.session_state and len(st.session_state.accepted_groups) > 0:
+        current_step = 3
+
+    # Create three-step indicator
+    step1_status = "●" if current_step >= 1 else "○"
+    step2_status = "●" if current_step >= 2 else "○"
+    step3_status = "●" if current_step >= 3 else "○"
+
+    # Build progress bar
+    progress_html = f"""
+    <div style="text-align: center; padding: 20px 0; margin-bottom: 20px;
+                background: linear-gradient(to right, #f8f9fa, #ffffff);
+                border-radius: 10px; border: 1px solid #dee2e6;">
+        <div style="font-size: 14px; color: #6c757d; margin-bottom: 10px;
+                    font-weight: 500; letter-spacing: 0.5px;">
+            YOUR PROGRESS
+        </div>
+        <div style="display: flex; justify-content: center; align-items: center;
+                    font-size: 16px; gap: 5px; font-family: monospace;">
+            <span style="color: {'#0d6efd' if current_step >= 1 else '#adb5bd'};
+                         font-size: 24px;">{step1_status}</span>
+            <span style="color: {'#0d6efd' if current_step >= 2 else '#dee2e6'};
+                         padding: 0 10px;">━━━━━━━━━━</span>
+            <span style="color: {'#0d6efd' if current_step >= 2 else '#adb5bd'};
+                         font-size: 24px;">{step2_status}</span>
+            <span style="color: {'#0d6efd' if current_step >= 3 else '#dee2e6'};
+                         padding: 0 10px;">━━━━━━━━━━</span>
+            <span style="color: {'#0d6efd' if current_step >= 3 else '#adb5bd'};
+                         font-size: 24px;">{step3_status}</span>
+        </div>
+        <div style="display: flex; justify-content: space-around; margin-top: 12px;
+                    font-size: 13px;">
+            <span style="color: {'#0d6efd' if current_step == 1 else '#6c757d'};
+                         font-weight: {'600' if current_step == 1 else '400'};">
+                Get Requirements
+            </span>
+            <span style="color: {'#0d6efd' if current_step == 2 else '#6c757d'};
+                         font-weight: {'600' if current_step == 2 else '400'};">
+                Consolidate
+            </span>
+            <span style="color: {'#0d6efd' if current_step == 3 else '#6c757d'};
+                         font-weight: {'600' if current_step == 3 else '400'};">
+                Export
+            </span>
+        </div>
+    </div>
+    """
+
+    st.markdown(progress_html, unsafe_allow_html=True)
+
+
 def main():
     st.title("🚴 E-Bike Standards Requirement Extractor")
 
@@ -219,13 +283,16 @@ def main():
         # Feedback widget at bottom of sidebar
         render_feedback_widget()
 
+    # Progress indicator
+    render_progress_indicator()
+
     # Create tabs with dynamic selection
     if 'switch_to_consolidation' in st.session_state and st.session_state.switch_to_consolidation:
         default_tab = 1
         st.session_state.switch_to_consolidation = False
     else:
         default_tab = 0
-    
+
     tabs = st.tabs(["📄 Extract from PDFs", "🔗 Consolidate Requirements"])
     
     # Render tabs
