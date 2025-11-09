@@ -113,6 +113,7 @@ def render_progress_indicator():
     """
     # Determine current step based on session state
     current_step = 1  # Default
+    is_processing = False  # Track if actively processing
 
     # Step 2 if we have consolidation data
     if 'consolidation_df' in st.session_state or 'smart_consolidation' in st.session_state:
@@ -122,19 +123,42 @@ def render_progress_indicator():
     if 'accepted_groups' in st.session_state and len(st.session_state.accepted_groups) > 0:
         current_step = 3
 
+    # Check if processing (spinner is active)
+    # We can detect this by checking if a process just started
+    if 'processing_active' in st.session_state and st.session_state.processing_active:
+        is_processing = True
+
     # Create three-step indicator
     step1_status = "●" if current_step >= 1 else "○"
     step2_status = "●" if current_step >= 2 else "○"
     step3_status = "●" if current_step >= 3 else "○"
 
+    # Add animated processing indicator CSS
+    animation_css = """
+    <style>
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+    }
+    .processing {
+        animation: pulse 1.5s ease-in-out infinite;
+    }
+    </style>
+    """ if is_processing else ""
+
+    # Processing status text
+    status_text = "PROCESSING..." if is_processing else "YOUR PROGRESS"
+    processing_class = "processing" if is_processing else ""
+
     # Build progress bar
     progress_html = f"""
-    <div style="text-align: center; padding: 20px 0; margin-bottom: 20px;
+    {animation_css}
+    <div class="{processing_class}" style="text-align: center; padding: 20px 0; margin-bottom: 20px;
                 background: linear-gradient(to right, #f8f9fa, #ffffff);
                 border-radius: 10px; border: 1px solid #dee2e6;">
-        <div style="font-size: 14px; color: #6c757d; margin-bottom: 10px;
+        <div style="font-size: 14px; color: {'#0d6efd' if is_processing else '#6c757d'}; margin-bottom: 10px;
                     font-weight: 500; letter-spacing: 0.5px;">
-            YOUR PROGRESS
+            {status_text}
         </div>
         <div style="display: flex; justify-content: center; align-items: center;
                     font-size: 16px; gap: 5px; font-family: monospace;">
@@ -336,7 +360,9 @@ def render_extraction_tab():
         process_button = st.button("🔍 Process Document", type="primary")
 
         if process_button:
+            st.session_state.processing_active = True
             process_document(uploaded_file, standard_name, None, "ai")
+            st.session_state.processing_active = False
 
     # Show existing results if available
     if 'job_id' in st.session_state:
@@ -1402,6 +1428,9 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
                     st.metric("Total Detected", result['stats'].get('total_detected', 0))
                 with col4:
                     st.metric("Classified Rows", result['stats'].get('classified_rows', 0))
+
+                # Rerun to display results immediately
+                st.rerun()
 
             elif response.status_code == 422:
                 error_detail = response.json()['detail']
