@@ -9,15 +9,10 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
-import pandas as pd
 
 from extract import extract_from_file
 from extract_ai import extract_requirements_with_ai, extract_from_detected_sections
-from detect import (
-    detect_manual_sections,
-    detect_manual_clauses,
-    combine_detections
-)
+from detect import detect_manual_sections
 from classify import rows_to_csv_dicts
 
 load_dotenv()
@@ -150,7 +145,7 @@ async def upload_file(
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
             confidence = ai_result['confidence']
-            consolidations = []  # TODO: Add AI consolidation later
+            consolidations = []  # Consolidation happens separately in the frontend (Tab 2)
 
             # Convert to CSV-friendly format
             csv_rows = rows_to_csv_dicts(classified_rows)
@@ -301,61 +296,6 @@ def list_jobs():
         })
 
     return {'jobs': jobs}
-
-@app.post("/consolidate_improved")
-async def consolidate_improved(
-    file: UploadFile = File(...),
-    similarity_threshold: float = 0.75
-):
-    """
-    Improved consolidation endpoint using Core + Deltas approach
-    
-    Args:
-        file: CSV or Excel file with requirements
-        similarity_threshold: Minimum similarity for grouping (0.0-1.0)
-    
-    Returns:
-        Consolidation results with groups and statistics
-    """
-    import io
-    
-    # Read file bytes
-    file_bytes = await file.read()
-    
-    try:
-        # Load file into DataFrame
-        if file.filename.endswith('.csv'):
-            df = pd.read_csv(io.BytesIO(file_bytes))
-        else:
-            # For Excel files
-            df = pd.read_excel(io.BytesIO(file_bytes))
-        
-        # Import and use improved consolidator
-        from consolidate_improved import ImprovedConsolidator
-        
-        consolidator = ImprovedConsolidator()
-        consolidator.MIN_SIMILARITY = similarity_threshold
-        
-        result = consolidator.consolidate_from_dataframe(df)
-        
-        # Convert DataFrame to dict for JSON response
-        groups_list = result['consolidation_groups'].to_dict('records')
-        
-        return {
-            'success': True,
-            'groups': groups_list,
-            'statistics': result['statistics']
-        }
-        
-    except Exception as e:
-        import traceback
-        raise HTTPException(
-            status_code=500, 
-            detail={
-                'error': str(e),
-                'traceback': traceback.format_exc()
-            }
-        )
 
 if __name__ == "__main__":
     import uvicorn

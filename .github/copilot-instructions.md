@@ -111,8 +111,8 @@ except:
 
 **Legacy/experimental files** (don't modify unless instructed):
 - `app_consolidation_tab_new.py` - Experimental UI iteration
-- `consolidate_improved.py` - Older consolidation approach
 - `render_consolidation_tab_FIXED.py` - UI component experiment
+- `archive/consolidate_improved.py` - Archived: replaced by consolidate_smart_ai.py
 
 ## Domain-Specific Context
 

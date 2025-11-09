@@ -167,7 +167,7 @@ def extract_from_file(file_bytes: bytes, filename: str) -> Dict:
     Main entry point for file extraction. Routes to appropriate handler.
 
     Currently supports: PDF
-    Future: DOC, DOCX, XLS, HTML
+    TODO: Add support for DOC, DOCX, XLS, HTML
 
     Args:
         file_bytes: File content as bytes
