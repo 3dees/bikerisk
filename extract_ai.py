@@ -65,7 +65,7 @@ def extract_from_detected_sections(sections: List[Dict], standard_name: str = No
         os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
 
     try:
-        http_client = httpx.Client(proxies=None, timeout=120.0)
+        http_client = httpx.Client(timeout=120.0)
         client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
     except Exception as e:
         print(f"[AI EXTRACTION] Client init error: {e}")
@@ -222,7 +222,7 @@ def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, api_k
         os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
 
     try:
-        http_client = httpx.Client(proxies=None, timeout=180.0)
+        http_client = httpx.Client(timeout=180.0)
         client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
     except Exception as e:
         print(f"[AI EXTRACTION] Error: {e}")
