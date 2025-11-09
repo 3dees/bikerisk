@@ -61,6 +61,3 @@ test_data/
 # User feedback artifacts
 feedback.jsonl
 feedback_export.csv
-
-#doc folder
-files/*.*   
