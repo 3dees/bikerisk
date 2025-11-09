@@ -94,15 +94,16 @@ def render_feedback_widget():
                             f.write(_json.dumps(feedback_data, ensure_ascii=False) + '\n')
                         st.success("✅ Thank you! Your feedback has been sent.")
                         st.balloons()
-                        st.session_state.feedback_text = ""
-                        st.session_state.feedback_email = ""
+                        # Clear feedback by triggering rerun (can't modify widget state after creation)
+                        time.sleep(1)  # Brief pause to show success message
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Failed to save feedback: {e}")
                 else:
                     st.warning("Please enter some feedback first!")
         with col2:
             if st.button("❌ Cancel", use_container_width=True):
-                st.session_state.feedback_text = ""
+                # Just rerun to reset the form (widgets will clear on their own)
                 st.rerun()
 
 
