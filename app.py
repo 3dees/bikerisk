@@ -1405,6 +1405,17 @@ def display_results(job_id):
             'Safety Notice Type'    # NEW - marks WARNING/DANGER/CAUTION
         ]
 
+        # Ensure all required columns exist (defensive programming)
+        for col in display_columns:
+            if col not in df.columns:
+                # Add missing column with appropriate default
+                if col == 'Contains Image?':
+                    df[col] = 'N'
+                elif col == 'Safety Notice Type':
+                    df[col] = 'None'
+                else:
+                    df[col] = ''
+
         # ADD SEARCH FUNCTIONALITY HERE
         st.divider()
         
@@ -1418,13 +1429,12 @@ def display_results(job_id):
         
         # Filter dataframe if search term provided
         if search_term:
-            # Search across multiple columns
-            mask = (
-                df['Description'].astype(str).str.contains(search_term, case=False, na=False) |
-                df['Comments'].astype(str).str.contains(search_term, case=False, na=False) |
-                df['Clause/Requirement'].astype(str).str.contains(search_term, case=False, na=False) |
-                df['Standard/Reg'].astype(str).str.contains(search_term, case=False, na=False)
-            )
+            # Search across multiple columns (safely)
+            mask = pd.Series([False] * len(df))
+            searchable_cols = ['Description', 'Comments', 'Clause/Requirement', 'Standard/Reg']
+            for col in searchable_cols:
+                if col in df.columns:
+                    mask |= df[col].astype(str).str.contains(search_term, case=False, na=False)
             df_filtered = df[mask]
             
             if len(df_filtered) == 0:
