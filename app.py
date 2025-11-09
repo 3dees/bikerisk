@@ -1430,21 +1430,26 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
                 with col4:
                     st.metric("Classified Rows", result['stats'].get('classified_rows', 0))
 
-                # Rerun to display results immediately
+                # Clear processing flag and rerun to display results immediately
+                st.session_state.processing_active = False
                 st.rerun()
 
             elif response.status_code == 422:
                 error_detail = response.json()['detail']
                 st.error(f"❌ Extraction failed: {error_detail['message']}")
                 st.info(f"💡 Suggestion: {error_detail['suggestion']}")
+                st.session_state.processing_active = False
 
             else:
                 st.error(f"❌ Error: {response.status_code} - {response.text}")
+                st.session_state.processing_active = False
 
         except requests.exceptions.Timeout:
             st.error("⏱️ Request timed out. The document may be too large or complex.")
+            st.session_state.processing_active = False
         except Exception as e:
             st.error(f"❌ Error processing document: {str(e)}")
+            st.session_state.processing_active = False
 
 
 def display_results(job_id):
