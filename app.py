@@ -281,6 +281,33 @@ def render_progress_indicator():
 def main():
     st.title("🚴 E-Bike Standards Requirement Extractor")
 
+    # Global CSS for better table display
+    st.markdown("""
+    <style>
+        /* Hide data editor toolbar icons */
+        [data-testid="stDataFrameToolbar"] {
+            display: none !important;
+        }
+
+        /* Better text wrapping in table cells */
+        .stDataFrame td {
+            white-space: normal !important;
+            word-wrap: break-word !important;
+            max-width: 300px;
+        }
+
+        /* Make description column wider */
+        .stDataFrame td:first-child {
+            max-width: 500px !important;
+        }
+
+        /* Improve readability */
+        .stDataFrame {
+            font-size: 14px;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
     # API Key configuration in sidebar (persistent across tabs)
     with st.sidebar:
         st.header("⚙️ Configuration")
@@ -1699,19 +1726,18 @@ def display_results(job_id):
                     if st.button("❌ Cancel"):
                         st.rerun()
 
-        # Editable DataFrame with text wrapping
-        edited_df = st.data_editor(
+        # Display DataFrame with text wrapping (read-only, cleaner)
+        st.dataframe(
             st.session_state.edited_data,
             use_container_width=True,
-            hide_index=False,
             height=500,
-            num_rows="dynamic",
+            hide_index=False,
             column_config={
                 # Main content columns with wrapping
                 "Description": st.column_config.TextColumn(
                     "Description",
                     width="large",
-                    help="Full requirement text - click to edit"
+                    help="Full requirement text"
                 ),
                 "Comments": st.column_config.TextColumn(
                     "Comments",
@@ -1727,20 +1753,16 @@ def display_results(job_id):
                     "Clause/Requirement",
                     width="small"
                 ),
-            },
-            key="data_editor"
+            }
         )
 
-        # Update session state with edited data
-        st.session_state.edited_data = edited_df
+        st.caption(f"Total requirements: {len(st.session_state.edited_data)}")
 
-        st.caption(f"Total requirements: {len(edited_df)}")
-
-        # Export button - one-click download using edited data
+        # Export button - one-click download using data
         st.divider()
 
-        # Convert edited DataFrame to CSV
-        csv_data = edited_df.to_csv(index=False)
+        # Convert DataFrame to CSV
+        csv_data = st.session_state.edited_data.to_csv(index=False)
 
         col1, col2 = st.columns(2)
         
