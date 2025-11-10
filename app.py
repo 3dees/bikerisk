@@ -92,14 +92,16 @@ def send_feedback_email(feedback_data):
 
         msg.attach(MIMEText(html, 'html'))
 
-        # Send email
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+        # Send email with timeout
+        with smtplib.SMTP('smtp.gmail.com', 587, timeout=10) as server:
             server.starttls()
             server.login(smtp_user, smtp_password)
             server.send_message(msg)
 
         return True, "Email sent successfully"
 
+    except smtplib.SMTPException as e:
+        return False, f"SMTP error: {str(e)}"
     except Exception as e:
         return False, f"Email error: {str(e)}"
 
@@ -1902,7 +1904,6 @@ def render_footer():
                             st.success("✅ Thank you!")
                         else:
                             st.success("✅ Thank you! Feedback saved.")
-                        time.sleep(1)
                         st.rerun()
                     except Exception as e:
                         st.error(f"Failed: {e}")
