@@ -539,26 +539,30 @@ def render_extraction_tab():
 
     # File upload in main area (like consolidation tab)
     st.divider()
-    
-    uploaded_file = st.file_uploader(
-        "Upload PDF Standard",
+
+    uploaded_files = st.file_uploader(
+        "Upload PDF Standard(s)",
         type=['pdf'],
-        help="Upload a PDF containing e-bike standards or regulations",
-        key="pdf_uploader"
+        help="Upload one or more PDFs containing e-bike standards or regulations",
+        key="pdf_uploader",
+        accept_multiple_files=True
     )
 
-    if uploaded_file:
+    if uploaded_files:
         standard_name = st.text_input(
             "Standard Name (optional)",
             placeholder="e.g., EN 15194, 16 CFR Part 1512",
-            help="Name of the standard/regulation being analyzed"
+            help="Name of the standard/regulation being analyzed (applies to all files if multiple)"
         )
 
-        process_button = st.button("🔍 Process Document", type="primary")
+        process_button = st.button(
+            f"🔍 Process {len(uploaded_files)} Document{'s' if len(uploaded_files) > 1 else ''}",
+            type="primary"
+        )
 
         if process_button:
             st.session_state.processing_active = True
-            process_document(uploaded_file, standard_name, None, "ai")
+            process_multiple_documents(uploaded_files, standard_name)
             st.session_state.processing_active = False
 
     # Show existing results if available
@@ -1580,6 +1584,79 @@ def check_api_health():
         return False
 
 
+def process_multiple_documents(uploaded_files, standard_name, extraction_mode="ai"):
+    """Process multiple uploaded documents and combine results."""
+
+    all_job_ids = []
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    for idx, uploaded_file in enumerate(uploaded_files):
+        # Update progress
+        progress = (idx + 1) / len(uploaded_files)
+        progress_bar.progress(progress)
+        status_text.text(f"Processing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
+
+        # Process each file
+        try:
+            files = {
+                'file': (uploaded_file.name, uploaded_file.getvalue(), 'application/pdf')
+            }
+
+            params = {
+                'extraction_mode': extraction_mode
+            }
+
+            if standard_name:
+                params['standard_name'] = standard_name
+
+            if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
+                params['api_key'] = st.session_state.anthropic_api_key
+
+            # Call upload API
+            response = requests.post(
+                f"{API_BASE_URL}/upload",
+                files=files,
+                params=params,
+                timeout=120
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                job_id = result.get('job_id')
+                if job_id:
+                    all_job_ids.append(job_id)
+                    st.session_state[f'job_id_{idx}'] = job_id
+            else:
+                st.error(f"❌ Failed to process {uploaded_file.name}: {response.status_code}")
+
+        except Exception as e:
+            st.error(f"❌ Error processing {uploaded_file.name}: {str(e)}")
+
+    progress_bar.empty()
+    status_text.empty()
+
+    if all_job_ids:
+        # Store all job IDs and use the first one as primary
+        st.session_state.job_id = all_job_ids[0]
+        st.session_state.all_job_ids = all_job_ids
+        st.session_state.processing_active = False
+
+        st.success(f"✅ Successfully processed {len(all_job_ids)} document{'s' if len(all_job_ids) > 1 else ''}!")
+
+        # Show combined metrics
+        col1, col2 = st.columns(2)
+        with col1:
+            st.metric("📄 Documents Processed", len(all_job_ids))
+        with col2:
+            st.metric("⏱️ Processing Complete", "Ready for review")
+
+        st.rerun()
+    else:
+        st.error("❌ No documents were successfully processed")
+        st.session_state.processing_active = False
+
+
 def process_document(uploaded_file, standard_name, custom_section_name, extraction_mode="ai"):
     """Process uploaded document through the API."""
 
@@ -1680,46 +1757,92 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
 
 
 def display_results(job_id):
-    """Display results for a job."""
+    """Display results for a job (or multiple jobs if all_job_ids exists)."""
     try:
-        response = requests.get(f"{API_BASE_URL}/results/{job_id}")
-        if response.status_code != 200:
-            st.error(f"Failed to load results: {response.status_code}")
-            return
+        # Check if we have multiple job IDs to combine
+        all_job_ids = st.session_state.get('all_job_ids', [job_id])
 
-        result = response.json()
+        if len(all_job_ids) == 1:
+            # Single document - original behavior
+            response = requests.get(f"{API_BASE_URL}/results/{job_id}")
+            if response.status_code != 200:
+                st.error(f"Failed to load results: {response.status_code}")
+                return
 
-        st.divider()
+            result = response.json()
 
-        # Header with metadata
-        col1, col2 = st.columns([3, 1])
-        with col1:
-            st.subheader(f"📄 Results: {result['filename']}")
-            st.caption(f"Standard: {result['standard_name']}")
-        with col2:
-            if st.button("🗑️ Clear Results"):
-                del st.session_state.job_id
-                st.rerun()
+            st.divider()
 
-        # Display extraction info
-        if result.get('extraction_method'):
-            with st.expander("ℹ️ Extraction Information"):
-                st.write(f"**Method:** {result['extraction_method']}")
-                st.write(f"**Confidence:** {result.get('extraction_confidence', 'unknown').upper()}")
-                st.write(f"**Stats:**")
-                stats = result.get('stats', {})
-                st.json(stats)
+            # Header with metadata
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.subheader(f"📄 Results: {result['filename']}")
+                st.caption(f"Standard: {result['standard_name']}")
+            with col2:
+                if st.button("🗑️ Clear Results"):
+                    del st.session_state.job_id
+                    if 'all_job_ids' in st.session_state:
+                        del st.session_state.all_job_ids
+                    st.rerun()
+
+            # Display extraction info
+            if result.get('extraction_method'):
+                with st.expander("ℹ️ Extraction Information"):
+                    st.write(f"**Method:** {result['extraction_method']}")
+                    st.write(f"**Confidence:** {result.get('extraction_confidence', 'unknown').upper()}")
+                    st.write(f"**Stats:**")
+                    stats = result.get('stats', {})
+                    st.json(stats)
+
+            rows = result.get('rows', [])
+            df = pd.DataFrame(rows) if rows else pd.DataFrame()
+
+        else:
+            # Multiple documents - combine results
+            st.divider()
+
+            # Header
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.subheader(f"📄 Combined Results: {len(all_job_ids)} Documents")
+            with col2:
+                if st.button("🗑️ Clear Results"):
+                    del st.session_state.job_id
+                    del st.session_state.all_job_ids
+                    st.rerun()
+
+            # Fetch and combine all results
+            all_rows = []
+            all_filenames = []
+            progress = st.progress(0)
+
+            for idx, jid in enumerate(all_job_ids):
+                progress.progress((idx + 1) / len(all_job_ids))
+                try:
+                    response = requests.get(f"{API_BASE_URL}/results/{jid}")
+                    if response.status_code == 200:
+                        result = response.json()
+                        rows = result.get('rows', [])
+                        all_rows.extend(rows)
+                        all_filenames.append(result.get('filename', 'Unknown'))
+                except Exception as e:
+                    st.warning(f"⚠️ Failed to load results for job {jid}: {str(e)}")
+
+            progress.empty()
+
+            # Show document list
+            with st.expander(f"📚 Processed Documents ({len(all_filenames)})"):
+                for idx, filename in enumerate(all_filenames, 1):
+                    st.write(f"{idx}. {filename}")
+
+            df = pd.DataFrame(all_rows) if all_rows else pd.DataFrame()
 
         # Main results table
         st.subheader("📋 Extracted Requirements")
 
-        rows = result.get('rows', [])
-        if not rows:
-            st.info("No requirements found in this document.")
+        if df.empty:
+            st.info("No requirements found in the document(s).")
             return
-
-        # Convert to DataFrame
-        df = pd.DataFrame(rows)
 
         # Keep only the 9 schema columns
         display_columns = [
