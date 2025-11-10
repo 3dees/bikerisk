@@ -812,14 +812,10 @@ def generate_export_data(result, session_state):
             'Core Requirement': core_req,
             'Applies To Standards': ', '.join(group.applies_to_standards),
             'Critical Differences': '; '.join(group.critical_differences),
-            'Consolidation Potential': f"{group.consolidation_potential:.0%}",
             'Requirement Count': len(active_reqs),
-            'Original Indices': ', '.join(map(str, active_reqs)),
             'Original Requirements': original_requirements_text,
             'Contains Image?': 'YES' if has_image else 'NO',
-            'Required in Print?': 'YES' if requires_print else 'NO',
-            'Removed Indices': ', '.join(map(str, removed)) if removed else 'None',
-            'Modified': 'Yes' if group.group_id in session_state.modified_groups else 'No'
+            'Required in Print?': 'YES' if requires_print else 'NO'
         })
 
     export_df = pd.DataFrame(export_data)
@@ -1523,8 +1519,8 @@ def render_consolidation_tab():
             export_df = generate_export_data(result, st.session_state)
             csv = export_df.to_csv(index=False)
 
-            # Generate HTML report
-            html_content = generate_html_report(result, st.session_state, df)
+            # Generate PDF report
+            pdf_content = generate_pdf_report(result, st.session_state, df)
 
             # Combined Export/Print buttons - DIRECT download (no nested buttons!)
             col1, col2 = st.columns(2)
@@ -1541,10 +1537,10 @@ def render_consolidation_tab():
 
             with col2:
                 st.download_button(
-                    label="🖨️ Print-Friendly Report (HTML)",
-                    data=html_content,
-                    file_name="consolidation_report.html",
-                    mime="text/html",
+                    label="📄 Download PDF Report",
+                    data=pdf_content,
+                    file_name="consolidation_report.pdf",
+                    mime="application/pdf",
                     type="secondary",
                     use_container_width=True
                 )
@@ -1648,6 +1644,28 @@ def generate_html_report(result, session_state, df):
     """
     
     return html
+
+
+def generate_pdf_report(result, session_state, df):
+    """Generate a PDF report from consolidation results."""
+    try:
+        from weasyprint import HTML
+
+        # Generate HTML content first
+        html_content = generate_html_report(result, session_state, df)
+
+        # Convert HTML to PDF
+        pdf_bytes = HTML(string=html_content).write_pdf()
+
+        return pdf_bytes
+    except ImportError:
+        # Fallback: if weasyprint not available, return HTML as fallback
+        st.warning("⚠️ PDF generation library not available. Downloading HTML instead.")
+        return generate_html_report(result, session_state, df).encode('utf-8')
+    except Exception as e:
+        st.error(f"❌ Error generating PDF: {str(e)}")
+        # Return HTML as fallback
+        return generate_html_report(result, session_state, df).encode('utf-8')
 
 
 def check_api_health():
