@@ -1876,6 +1876,12 @@ def render_footer():
                 key="feedback_text_footer"
             )
 
+            user_email = st.text_input(
+                "Your email (optional)",
+                placeholder="your.email@example.com",
+                key="user_email_footer"
+            )
+
             if st.button("📤 Send", use_container_width=True, key="send_feedback_footer"):
                 if feedback_text.strip():
                     # Save feedback logic
@@ -1887,7 +1893,7 @@ def render_footer():
                         "type": feedback_type,
                         "page": "Footer",
                         "text": feedback_text,
-                        "email": "anonymous",
+                        "email": user_email if user_email else "anonymous",
                         "rating": None,
                         "session_id": st.session_state.get('session_id', 'unknown')
                     }
@@ -1901,9 +1907,9 @@ def render_footer():
                         email_sent, email_msg = send_feedback_email(feedback_data)
 
                         if email_sent:
-                            st.success("✅ Thank you!")
+                            st.success("✅ Thank you! Feedback sent via email.")
                         else:
-                            st.success("✅ Thank you! Feedback saved.")
+                            st.warning(f"✅ Feedback saved locally. Email failed: {email_msg}")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Failed: {e}")
