@@ -761,6 +761,9 @@ def generate_export_data(result, session_state):
     Returns:
         pandas DataFrame ready for export
     """
+    # Get the original dataframe if available
+    df = session_state.get('consolidation_df', pd.DataFrame())
+
     export_data = []
     for group in result['groups']:
         # Determine status
@@ -778,6 +781,29 @@ def generate_export_data(result, session_state):
         removed = session_state.removed_requirements.get(group.group_id, set())
         active_reqs = [idx for idx in group.requirement_indices if idx not in removed]
 
+        # Build original requirements text list
+        original_texts = []
+        has_image = False
+        requires_print = False
+
+        for idx in active_reqs:
+            if idx < len(df):
+                req = df.iloc[idx]
+                # Get the description/requirement text
+                text = req.get('Description', req.get('Requirement (Clause)', ''))
+                standard = req.get('Standard/Reg', req.get('Standard/ Regulation', ''))
+                clause = req.get('Clause/Requirement', req.get('Clause ID', ''))
+
+                # Check flags
+                if req.get('Contains Image?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                    has_image = True
+                if req.get('Required in Print?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                    requires_print = True
+
+                original_texts.append(f"[{standard} - {clause}] {text}")
+
+        original_requirements_text = "\n\n".join(original_texts) if original_texts else "N/A"
+
         export_data.append({
             'Status': status,
             'Group ID': group.group_id + 1,
@@ -789,6 +815,9 @@ def generate_export_data(result, session_state):
             'Consolidation Potential': f"{group.consolidation_potential:.0%}",
             'Requirement Count': len(active_reqs),
             'Original Indices': ', '.join(map(str, active_reqs)),
+            'Original Requirements': original_requirements_text,
+            'Contains Image?': 'YES' if has_image else 'NO',
+            'Required in Print?': 'YES' if requires_print else 'NO',
             'Removed Indices': ', '.join(map(str, removed)) if removed else 'None',
             'Modified': 'Yes' if group.group_id in session_state.modified_groups else 'No'
         })
