@@ -33,15 +33,87 @@ API_BASE_URL = "http://localhost:8000"
 
 
 def send_feedback_email(feedback_data):
-    """Send feedback via email using Gmail SMTP."""
+    """Send feedback via email using SendGrid (production) or Gmail SMTP (local)."""
+
+    recipient = os.getenv('FEEDBACK_RECIPIENT_EMAIL', 'vanessajambois@gmail.com')
+
+    # Try SendGrid first (works on Railway)
+    sendgrid_api_key = os.getenv('SENDGRID_API_KEY')
+
+    if sendgrid_api_key:
+        # Use SendGrid API
+        try:
+            import requests
+
+            from_email = os.getenv('FEEDBACK_EMAIL_USER', 'noreply@bikerisk.app')
+            rating_stars = "⭐" * feedback_data.get('rating', 0) if feedback_data.get('rating') else "N/A"
+
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2 style="color: #0d6efd;">BikeRisk Feedback Received</h2>
+                <table style="border-collapse: collapse; width: 100%;">
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Type:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['type']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Page:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['page']}</td>
+                    </tr>
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>From:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['email']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Rating:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{rating_stars}</td>
+                    </tr>
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Timestamp:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['timestamp']}</td>
+                    </tr>
+                </table>
+                <h3 style="color: #495057; margin-top: 20px;">Feedback Message:</h3>
+                <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #0d6efd; margin: 10px 0;">
+                    {feedback_data['text']}
+                </div>
+            </body>
+            </html>
+            """
+
+            payload = {
+                "personalizations": [{"to": [{"email": recipient}]}],
+                "from": {"email": from_email, "name": "BikeRisk App"},
+                "subject": f"BikeRisk Feedback: {feedback_data['type']} - {feedback_data['page']}",
+                "content": [{"type": "text/html", "value": html_content}]
+            }
+
+            response = requests.post(
+                "https://api.sendgrid.com/v3/mail/send",
+                headers={
+                    "Authorization": f"Bearer {sendgrid_api_key}",
+                    "Content-Type": "application/json"
+                },
+                json=payload,
+                timeout=10
+            )
+
+            if response.status_code == 202:
+                return True, "Email sent via SendGrid"
+            else:
+                return False, f"SendGrid error: {response.status_code}"
+
+        except Exception as e:
+            return False, f"SendGrid error: {str(e)}"
+
+    # Fallback to Gmail SMTP (for local development)
     import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
 
-    # Get email credentials from environment
     smtp_user = os.getenv('FEEDBACK_EMAIL_USER')
     smtp_password = os.getenv('FEEDBACK_EMAIL_PASSWORD')
-    recipient = os.getenv('FEEDBACK_RECIPIENT_EMAIL', 'vanessajambois@gmail.com')
 
     # Skip if no credentials configured
     if not smtp_user or not smtp_password:
