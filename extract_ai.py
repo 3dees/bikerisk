@@ -273,7 +273,12 @@ Respond with JSON."""
             json_str = response_text.strip()
 
         result = json.loads(json_str)
-        requirements = result.get('requirements', [])
+
+        # Handle both formats: {"requirements": [...]} and [...]
+        if isinstance(result, list):
+            requirements = result
+        else:
+            requirements = result.get('requirements', [])
 
         # Add standard and validate
         for req in requirements:
@@ -294,7 +299,7 @@ Respond with JSON."""
                 'total_detected': len(requirements),
                 'classified_rows': len(requirements)
             },
-            'confidence': result.get('confidence', 'medium')
+            'confidence': result.get('confidence', 'medium') if isinstance(result, dict) else 'medium'
         }
 
     except Exception as e:
