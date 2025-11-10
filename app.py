@@ -1910,6 +1910,6 @@ def render_footer():
                     st.error("Please enter feedback")
 
 
-if __name__ == "__main__":
-    main()
-    render_footer()
+# Run the app
+main()
+render_footer()
