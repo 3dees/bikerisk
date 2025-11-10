@@ -450,16 +450,31 @@ def main():
             display: none !important;
         }
 
-        /* Better text wrapping in cells */
-        .stDataFrame td {
+        /* Better text wrapping in ALL table types */
+        .stDataFrame td,
+        .stDataFrame th,
+        [data-testid="stDataFrame"] td,
+        [data-testid="stDataFrame"] th,
+        .dataframe td,
+        .dataframe th {
             white-space: normal !important;
             word-wrap: break-word !important;
+            word-break: break-word !important;
             max-width: 300px;
+            overflow-wrap: break-word !important;
         }
 
-        /* Make description column wider */
-        .stDataFrame td:first-child {
+        /* Make description/requirement columns wider */
+        .stDataFrame td:first-child,
+        [data-testid="stDataFrame"] td:first-child,
+        .dataframe td:first-child {
             max-width: 500px !important;
+        }
+
+        /* Force wrapping in data editor cells */
+        [data-testid="stDataFrameCell"] {
+            white-space: normal !important;
+            word-wrap: break-word !important;
         }
 
         /* Compact popover styling */
@@ -473,7 +488,9 @@ def main():
         }
 
         /* Improve readability */
-        .stDataFrame {
+        .stDataFrame,
+        [data-testid="stDataFrame"],
+        .dataframe {
             font-size: 14px;
         }
     </style>
@@ -1261,10 +1278,32 @@ def render_consolidation_tab():
                     f"({len(group.requirement_indices)} requirements) - "
                     f"{group.consolidation_potential:.0%} match{status_badge}"
                 ):
+                    # Check for special flags in this group's requirements
+                    has_image = False
+                    requires_print = False
+
+                    for idx in group.requirement_indices:
+                        if idx < len(df):
+                            req_row = df.iloc[idx]
+                            if req_row.get('Contains Image?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                                has_image = True
+                            if req_row.get('Required in Print?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                                requires_print = True
+
+                    # Display special requirement badges at top
+                    if has_image or requires_print:
+                        badge_html = '<div style="margin-bottom: 15px;">'
+                        if requires_print:
+                            badge_html += '<span style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 5px; margin-right: 10px; font-weight: bold;">🖨️ REQUIRED IN PRINT</span>'
+                        if has_image:
+                            badge_html += '<span style="background-color: #0d6efd; color: white; padding: 5px 10px; border-radius: 5px; font-weight: bold;">📷 CONTAINS IMAGE</span>'
+                        badge_html += '</div>'
+                        st.markdown(badge_html, unsafe_allow_html=True)
+
                     # Regulatory Intent
                     st.markdown("### 🎯 Regulatory Intent")
                     st.info(group.regulatory_intent)
-                    
+
                     # Core Requirement (enhanced display with editing capability)
                     st.markdown("### 📌 Consolidated Requirement (Ready to Use)")
                     st.caption("💡 This detailed requirement can be used directly in your product manual")
@@ -1348,6 +1387,13 @@ def render_consolidation_tab():
                             req_row = df.iloc[idx]
                             req_info = format_requirement_display(req_row)
 
+                            # Check for special flags on this individual requirement
+                            req_badges = ""
+                            if req_row.get('Required in Print?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                                req_badges += " 🖨️"
+                            if req_row.get('Contains Image?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                                req_badges += " 📷"
+
                             if removal_mode:
                                 # Show checkbox when in removal mode
                                 col_check, col_req = st.columns([1, 20])
@@ -1358,11 +1404,11 @@ def render_consolidation_tab():
                                         auto_save_project()
                                         st.rerun()
                                 with col_req:
-                                    st.markdown(f"**{req_info['standard']}** (Clause {req_info['clause']})")
+                                    st.markdown(f"**{req_info['standard']}** (Clause {req_info['clause']}){req_badges}")
                                     st.caption(req_info['text'])
                             else:
                                 # Normal display
-                                st.markdown(f"**{req_info['standard']}** (Clause {req_info['clause']})")
+                                st.markdown(f"**{req_info['standard']}** (Clause {req_info['clause']}){req_badges}")
                                 st.caption(req_info['text'])
 
                             st.markdown("")  # spacing
