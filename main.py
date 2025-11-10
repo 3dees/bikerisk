@@ -105,7 +105,7 @@ async def upload_file(
             status_code=422,
             detail={
                 'message': extraction_result['error'],
-                'suggestion': 'Please try converting the PDF to a different format or ensure it is not image-based.',
+                'suggestion': 'All extraction methods failed including OCR. PDF may be corrupted, heavily encrypted, or contain no readable content.',
                 'job_id': job_id
             }
         )

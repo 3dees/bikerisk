@@ -5,6 +5,7 @@ import io
 from typing import Dict, List, Optional
 import pdfplumber
 import pypdf
+from extract_ocr import extract_with_ocr
 
 
 def extract_text_blocks(text: str) -> List[Dict]:
@@ -126,12 +127,30 @@ def extract_from_pdf(file_bytes: bytes, filename: str) -> Dict:
         }
 
     # If we got here, extraction produced no meaningful content
+    # Try OCR as last resort for image-based PDFs
+    print(f"[EXTRACTION] Text extraction failed for {filename}, attempting OCR...")
+
+    try:
+        ocr_result = extract_with_ocr(file_bytes, filename)
+
+        if ocr_result['success']:
+            # OCR succeeded, add blocks
+            blocks = extract_text_blocks(ocr_result['raw_text'])
+            ocr_result['blocks'] = blocks
+            print(f"[EXTRACTION] OCR successful using {ocr_result['method']}")
+            return ocr_result
+        else:
+            print(f"[EXTRACTION] OCR failed: {ocr_result.get('error', 'Unknown error')}")
+    except Exception as e:
+        print(f"[EXTRACTION] OCR exception: {str(e)}")
+
+    # All methods failed
     return {
         'raw_text': text if 'text' in locals() else '',
         'blocks': [],
-        'method': 'partial',
+        'method': 'all_failed',
         'success': False,
-        'error': 'Extraction produced insufficient content (< 100 chars). PDF may be image-based or corrupted.',
+        'error': 'All extraction methods failed (pdfplumber, pypdf, and OCR). PDF may be corrupted or heavily encrypted.',
         'confidence': 'low'
     }
 

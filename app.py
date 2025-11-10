@@ -1880,8 +1880,24 @@ def display_results(job_id):
 
             # Display extraction info
             if result.get('extraction_method'):
+                extraction_method = result['extraction_method']
+
+                # Show OCR notice if OCR was used
+                if extraction_method in ['google_vision', 'claude_vision']:
+                    st.info("📷 **Image-based PDF detected** - OCR extraction was used")
+
                 with st.expander("ℹ️ Extraction Information"):
-                    st.write(f"**Method:** {result['extraction_method']}")
+                    method_display = extraction_method
+                    if extraction_method == 'google_vision':
+                        method_display = "Google Cloud Vision OCR"
+                    elif extraction_method == 'claude_vision':
+                        method_display = "Claude PDF Vision OCR"
+                    elif extraction_method == 'pdfplumber':
+                        method_display = "PDFPlumber (Text-based)"
+                    elif extraction_method == 'pypdf':
+                        method_display = "PyPDF (Text-based)"
+
+                    st.write(f"**Method:** {method_display}")
                     st.write(f"**Confidence:** {result.get('extraction_confidence', 'unknown').upper()}")
                     st.write(f"**Stats:**")
                     stats = result.get('stats', {})
