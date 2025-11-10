@@ -1845,7 +1845,11 @@ def display_results(job_id):
     except Exception as e:
         st.error(f"Error displaying results: {str(e)}")
 
-    # === FOOTER ===
+
+# === FOOTER (at main level, outside tabs) ===
+# This must be at the end of main() function, after all tabs
+def render_footer():
+    """Render footer with feedback menu"""
     st.divider()
 
     footer_col1, footer_col2 = st.columns([10, 1])
@@ -1872,7 +1876,7 @@ def display_results(job_id):
 
             if st.button("📤 Send", use_container_width=True, key="send_feedback_footer"):
                 if feedback_text.strip():
-                    # Save feedback logic (reuse existing send_feedback_email)
+                    # Save feedback logic
                     from datetime import datetime as _dt
                     import json
 
@@ -1908,3 +1912,4 @@ def display_results(job_id):
 
 if __name__ == "__main__":
     main()
+    render_footer()
