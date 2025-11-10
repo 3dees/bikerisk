@@ -1908,9 +1908,11 @@ def render_footer():
 
                         if email_sent:
                             st.success("✅ Thank you! Feedback sent via email.")
+                            time.sleep(2)
+                            st.rerun()
                         else:
                             st.warning(f"✅ Feedback saved locally. Email failed: {email_msg}")
-                        st.rerun()
+                            st.info("ℹ️ Check Railway environment variables are set correctly.")
                     except Exception as e:
                         st.error(f"Failed: {e}")
                 else:
