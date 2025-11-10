@@ -244,13 +244,34 @@ Standard: {standard_name or 'Unknown'}
 PDF Text:
 {pdf_text}
 
-[Use same rules as section-based extraction]
-
-Extract requirements that obligate manufacturers to communicate with users.
+Extract requirements that obligate manufacturers to communicate with users in manuals/documentation.
 BE AGGRESSIVE - include anything that might be user communication.
-Extract 9 fields per requirement including "Contains Image?" and "Safety Notice Type".
 
-Respond with JSON."""
+For each requirement, extract these fields:
+- Description
+- Clause/Requirement
+- Requirement scope
+- Formatting required?
+- Required in Print?
+- Comments
+- Contains Image?
+- Safety Notice Type
+
+Respond with JSON in this format:
+{{
+  "requirements": [
+    {{
+      "Description": "...",
+      "Clause/Requirement": "...",
+      "Requirement scope": "...",
+      "Formatting required?": "...",
+      "Required in Print?": "...",
+      "Comments": "...",
+      "Contains Image?": "...",
+      "Safety Notice Type": "..."
+    }}
+  ]
+}}"""
 
     try:
         with client.messages.stream(
