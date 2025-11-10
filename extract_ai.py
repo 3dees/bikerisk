@@ -123,12 +123,14 @@ For EACH requirement, extract:
 3. Requirement scope: Keywords (ebike, battery, charger, etc.)
 4. Formatting required?: "Y" if specific formatting specified, else "N/A"
 5. Required in Print?: "y" if print required, "n" if digital OK, "N/A" if unclear
-6. Comments: Note if vague language, ambiguous, etc.
+6. Comments: Note if vague language, ambiguous, etc. USE THIS FIELD for any additional context that doesn't fit elsewhere
 7. Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
 8. Safety Notice Type: "WARNING" | "DANGER" | "CAUTION" | "HAZARD" | "None"
 
 SPLIT numbered/lettered subsections into SEPARATE requirements.
 PRESERVE full clause hierarchy.
+
+FLEXIBILITY: If document format is unusual, put core requirement in Description and use Comments for additional context. Set unclear fields to "N/A".
 
 Respond with JSON:
 {{
@@ -247,15 +249,21 @@ PDF Text:
 Extract requirements that obligate manufacturers to communicate with users in manuals/documentation.
 BE AGGRESSIVE - include anything that might be user communication.
 
-For each requirement, extract these fields:
-- Description
-- Clause/Requirement
-- Requirement scope
-- Formatting required?
-- Required in Print?
-- Comments
-- Contains Image?
-- Safety Notice Type
+For each requirement, try to extract these fields:
+- Description: Main requirement text
+- Clause/Requirement: Section/clause number if available
+- Requirement scope: Keywords like "ebike", "battery", "charger"
+- Formatting required?: "Y" if specific format mentioned, else "N/A"
+- Required in Print?: "y" if must be printed, "n" if digital OK, "N/A" if unclear
+- Comments: Any notes about vague language, ambiguity, or context
+- Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
+- Safety Notice Type: "WARNING", "DANGER", "CAUTION", "HAZARD", or "None"
+
+IMPORTANT: If the document format doesn't fit these fields well, you can:
+1. Put the core requirement text in "Description"
+2. Use "Comments" field to add any additional context or information that doesn't fit elsewhere
+3. Set unclear fields to "N/A" rather than leaving empty
+4. Adapt flexibly - these fields are guidelines, not strict rules
 
 Respond with JSON in this format:
 {{
