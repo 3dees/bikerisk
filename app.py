@@ -1814,6 +1814,7 @@ def display_results(job_id):
             # Fetch and combine all results
             all_rows = []
             all_filenames = []
+            doc_row_counts = []
             progress = st.progress(0)
 
             for idx, jid in enumerate(all_job_ids):
@@ -1825,15 +1826,19 @@ def display_results(job_id):
                         rows = result.get('rows', [])
                         all_rows.extend(rows)
                         all_filenames.append(result.get('filename', 'Unknown'))
+                        doc_row_counts.append(len(rows))
+                    else:
+                        st.warning(f"⚠️ Failed to fetch job {jid}: Status {response.status_code}")
                 except Exception as e:
                     st.warning(f"⚠️ Failed to load results for job {jid}: {str(e)}")
 
             progress.empty()
 
-            # Show document list
-            with st.expander(f"📚 Processed Documents ({len(all_filenames)})"):
-                for idx, filename in enumerate(all_filenames, 1):
-                    st.write(f"{idx}. {filename}")
+            # Show document list with row counts
+            with st.expander(f"📚 Processed Documents ({len(all_filenames)})", expanded=True):
+                for idx, (filename, row_count) in enumerate(zip(all_filenames, doc_row_counts), 1):
+                    st.write(f"{idx}. **{filename}** → {row_count} requirements")
+                st.info(f"**Total requirements from all documents: {len(all_rows)}**")
 
             df = pd.DataFrame(all_rows) if all_rows else pd.DataFrame()
 
