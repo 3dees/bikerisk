@@ -190,6 +190,95 @@ def render_feedback_widget():
                 st.rerun()
 
 
+def render_settings_menu():
+    """Render all settings in a compact menu"""
+
+    st.markdown("### ⚙️ Settings")
+
+    # API Configuration
+    st.markdown("#### 🔑 API Key")
+
+    # Check if API key exists in session state or env
+    if 'anthropic_api_key' not in st.session_state:
+        st.session_state.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY', '')
+
+    use_different_key = st.checkbox(
+        "Use different API key",
+        value=False,
+        key="use_different_key_menu"
+    )
+
+    if use_different_key:
+        api_key = st.text_input(
+            "Enter API Key",
+            type="password",
+            value=st.session_state.anthropic_api_key,
+            key="api_key_input_menu"
+        )
+        if api_key:
+            st.session_state.anthropic_api_key = api_key
+            st.success("✅ API key updated")
+    else:
+        if st.session_state.anthropic_api_key:
+            st.success("✅ API key loaded")
+        else:
+            st.warning("⚠️ No API key found")
+
+    st.divider()
+
+    # Project Management
+    st.markdown("#### 💾 Project Management")
+
+    # Save project
+    project_name = st.text_input(
+        "Project Name",
+        value=st.session_state.get('current_project', {}).get('name', ''),
+        key="project_name_menu"
+    )
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("💾 Save", use_container_width=True, key="save_menu"):
+            if project_name:
+                save_project(project_name)
+                st.success("Saved!")
+            else:
+                st.error("Enter project name")
+
+    with col2:
+        # Load project
+        projects = list_saved_projects()
+        if projects:
+            selected = st.selectbox(
+                "Load",
+                options=[p['name'] for p in projects],
+                key="load_project_menu",
+                label_visibility="collapsed"
+            )
+            if st.button("📂 Load", use_container_width=True, key="load_menu_btn"):
+                # Find project ID
+                project_id = next(p['id'] for p in projects if p['name'] == selected)
+                if load_project(project_id):
+                    st.rerun()
+
+    st.divider()
+
+    # Advanced Settings
+    st.markdown("#### 🔧 Advanced")
+
+    if st.button("📖 View User Guide", use_container_width=True, key="user_guide_menu"):
+        st.info("User guide available in documentation")
+
+    if st.button("🗑️ Clear All Data", use_container_width=True, key="clear_data_menu"):
+        if 'confirm_clear' not in st.session_state:
+            st.session_state.confirm_clear = True
+            st.warning("Click again to confirm")
+        else:
+            st.session_state.clear()
+            st.session_state.confirm_clear = False
+            st.rerun()
+
+
 def render_progress_indicator():
     """
     Render progress indicator showing current step in workflow.
@@ -279,17 +368,15 @@ def render_progress_indicator():
 
 
 def main():
-    st.title("🚴 E-Bike Standards Requirement Extractor")
-
-    # Global CSS for better table display
+    # Global CSS for better table display and UI
     st.markdown("""
     <style>
-        /* Hide data editor toolbar icons */
+        /* Hide data editor toolbar */
         [data-testid="stDataFrameToolbar"] {
             display: none !important;
         }
 
-        /* Better text wrapping in table cells */
+        /* Better text wrapping in cells */
         .stDataFrame td {
             white-space: normal !important;
             word-wrap: break-word !important;
@@ -301,6 +388,16 @@ def main():
             max-width: 500px !important;
         }
 
+        /* Compact popover styling */
+        [data-testid="stPopover"] {
+            max-width: 400px;
+        }
+
+        /* Remove extra padding */
+        .block-container {
+            padding-top: 2rem;
+        }
+
         /* Improve readability */
         .stDataFrame {
             font-size: 14px;
@@ -308,115 +405,30 @@ def main():
     </style>
     """, unsafe_allow_html=True)
 
-    # API Key configuration in sidebar (persistent across tabs)
-    with st.sidebar:
-        st.header("⚙️ Configuration")
+    # Initialize API key in session state if not exists
+    # Try to load from environment variable first
+    if 'anthropic_api_key' not in st.session_state:
+        env_key = os.getenv('ANTHROPIC_API_KEY', '')
+        st.session_state.anthropic_api_key = env_key
 
-        # Initialize API key in session state if not exists
-        # Try to load from environment variable first
-        if 'anthropic_api_key' not in st.session_state:
-            env_key = os.getenv('ANTHROPIC_API_KEY', '')
-            st.session_state.anthropic_api_key = env_key
+    # Initialize session state defaults for group sizes
+    if 'min_group_size' not in st.session_state:
+        st.session_state.min_group_size = 3
+    if 'max_group_size' not in st.session_state:
+        st.session_state.max_group_size = 12
 
-        # Only show input if no API key is loaded from env
-        env_key = os.getenv('ANTHROPIC_API_KEY')
-        if env_key:
-            st.success("✅ API key loaded from .env file")
-            st.session_state.anthropic_api_key = env_key
-            # Show option to override
-            if st.checkbox("Use different API key"):
-                api_key = st.text_input(
-                    "Anthropic API Key",
-                    value="",
-                    type="password",
-                    help="Enter a different Anthropic API key"
-                )
-                if api_key:
-                    st.session_state.anthropic_api_key = api_key
-                    st.success("✅ Using custom API key for this session")
-        else:
-            api_key = st.text_input(
-                "Anthropic API Key",
-                value=st.session_state.anthropic_api_key,
-                type="password",
-                help="Enter your Anthropic API key for AI-powered features"
-            )
+    # === TOP BAR ===
+    header_col1, header_col2 = st.columns([11, 1])
 
-            if api_key:
-                st.session_state.anthropic_api_key = api_key
-                st.success("✅ API key saved for session")
+    with header_col1:
+        st.title("🚴 E-Bike Standards Requirement Extractor")
+        st.caption("Reduce Manual Size · Maintain Compliance")
 
-        # ========================================
-        # PROJECT MANAGEMENT SECTION
-        # ========================================
-        st.divider()
-        st.header("📂 Project Management")
+    with header_col2:
+        with st.popover("⚙️", use_container_width=True):
+            render_settings_menu()
 
-        # Load existing project dropdown
-        projects = list_saved_projects()
-        if projects:
-            project_options = ["-- New Project --"] + projects
-
-            selected_idx = st.selectbox(
-                "Load Project:",
-                options=range(len(project_options)),
-                format_func=lambda i: project_options[i]['name'] if i > 0 else "-- New Project --",
-                key="project_selector"
-            )
-
-            if selected_idx > 0:
-                selected_project = project_options[selected_idx]
-                if st.button("📂 Load Project", use_container_width=True):
-                    if load_project(selected_project['id']):
-                        st.rerun()
-
-        # Current project management
-        if 'current_project' in st.session_state:
-            st.divider()
-            st.markdown("### 💾 Current Project")
-
-            project_name = st.text_input(
-                "Project Name:",
-                value=st.session_state.current_project['name'],
-                key="project_name_input"
-            )
-
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("💾 Save", use_container_width=True, type="primary"):
-                    save_project(project_name)
-            with col2:
-                if st.button("💾 Save As...", use_container_width=True):
-                    new_name = st.text_input("New project name:", key="save_as_name")
-                    if new_name:
-                        save_project(new_name)
-
-            # Last saved indicator
-            if 'last_saved' in st.session_state:
-                st.caption(f"✓ Saved at {st.session_state.last_saved}")
-
-            # Delete project button
-            if st.button("🗑️ Delete Project", use_container_width=True):
-                if st.checkbox("⚠️ Confirm deletion", key="confirm_delete"):
-                    if delete_project(st.session_state.current_project['id']):
-                        del st.session_state.current_project
-                        st.success("Project deleted")
-                        st.rerun()
-
-        # Save button even if no current project (for first-time save)
-        elif 'smart_consolidation' in st.session_state:
-            st.divider()
-            st.markdown("### 💾 Save Results")
-            new_project_name = st.text_input(
-                "Project Name:",
-                value=f"Project_{datetime.now().strftime('%Y%m%d_%H%M')}",
-                key="new_project_name"
-            )
-            if st.button("💾 Save New Project", use_container_width=True, type="primary"):
-                save_project(new_project_name)
-
-        # Feedback widget at bottom of sidebar
-        render_feedback_widget()
+    st.divider()
 
     # Progress indicator
     render_progress_indicator()
@@ -997,28 +1009,10 @@ def render_consolidation_tab():
                     st.error("❌ Standard column not found in dataset")
 
         st.divider()
-        
-        # Settings
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            min_group_size = st.slider(
-                "Minimum Group Size",
-                min_value=2,
-                max_value=8,
-                value=3,
-                help="Minimum number of requirements per group"
-            )
-        
-        with col2:
-            max_group_size = st.slider(
-                "Maximum Group Size",
-                min_value=8,
-                max_value=20,
-                value=12,
-                help="Maximum number of requirements per group"
-            )
-        
+
+        # Main consolidation button (prominent) with Advanced Settings
+        col1, col2 = st.columns([3, 1])
+
         # Show estimated processing time
         total_reqs = len(df)
         if total_reqs <= 150:
@@ -1028,48 +1022,97 @@ def render_consolidation_tab():
             batches = (total_reqs + 149) // 150
             estimate = f"{batches * 3}-{batches * 8} minutes"
             batches_info = f" ({batches} batches)"
-        
+
         st.info(f"⏱️ Estimated processing time: {estimate}{batches_info}")
-        
-        # Run consolidation button
-        if st.button("🧠 Analyze with Smart AI", type="primary"):
-            with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
-                try:
-                    from consolidate_smart_ai import consolidate_with_smart_ai
-                    
-                    result = consolidate_with_smart_ai(
-                        df,
-                        st.session_state.anthropic_api_key,
-                        min_group_size=min_group_size,
-                        max_group_size=max_group_size
-                    )
-                    
-                    # Store results
-                    st.session_state.smart_consolidation = result
-                    
-                    # Reset tracking when new analysis is run
-                    st.session_state.accepted_groups = set()
-                    st.session_state.rejected_groups = set()
-                    st.session_state.edited_groups = {}
-                    st.session_state.removed_requirements = {}
-                    st.session_state.modified_groups = set()
-                    st.session_state.show_all_groups = False
-                    
-                    st.success(f"✅ Analysis complete!")
-                    
-                    # Show stats
-                    col1, col2, col3 = st.columns(3)
-                    with col1:
-                        st.metric("Total Requirements", result['total_requirements'])
-                    with col2:
-                        st.metric("Groups Created", len(result['groups']))
-                    with col3:
-                        st.metric("Ungrouped", result['ungrouped_count'])
-                    
-                except Exception as e:
-                    st.error(f"❌ Error during consolidation: {e}")
-                    import traceback
-                    st.code(traceback.format_exc())
+
+        with col1:
+            # Run consolidation button - use session state defaults
+            if st.button("🧠 Analyze with Smart AI", type="primary", use_container_width=True, key="analyze_main"):
+                # Use default values from session state
+                min_group_size = st.session_state.get('min_group_size', 3)
+                max_group_size = st.session_state.get('max_group_size', 12)
+
+                with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
+                    try:
+                        from consolidate_smart_ai import consolidate_with_smart_ai
+
+                        result = consolidate_with_smart_ai(
+                            df,
+                            st.session_state.anthropic_api_key,
+                            min_group_size=min_group_size,
+                            max_group_size=max_group_size
+                        )
+
+                        # Store results
+                        st.session_state.smart_consolidation = result
+
+                        # Reset tracking when new analysis is run
+                        st.session_state.accepted_groups = set()
+                        st.session_state.rejected_groups = set()
+                        st.session_state.edited_groups = {}
+                        st.session_state.removed_requirements = {}
+                        st.session_state.modified_groups = set()
+                        st.session_state.show_all_groups = False
+
+                        st.success(f"✅ Analysis complete!")
+
+                        # Show stats
+                        stat_col1, stat_col2, stat_col3 = st.columns(3)
+                        with stat_col1:
+                            st.metric("Total Requirements", result['total_requirements'])
+                        with stat_col2:
+                            st.metric("Groups Created", len(result['groups']))
+                        with stat_col3:
+                            st.metric("Ungrouped", result['ungrouped_count'])
+
+                    except Exception as e:
+                        st.error(f"❌ Error during consolidation: {e}")
+                        import traceback
+                        st.code(traceback.format_exc())
+
+        with col2:
+            # Advanced settings in popover
+            with st.popover("⚙️ Advanced", use_container_width=True):
+                st.markdown("#### Group Size Settings")
+
+                min_group_size = st.slider(
+                    "Minimum Group Size",
+                    min_value=2,
+                    max_value=8,
+                    value=st.session_state.get('min_group_size', 3),
+                    help="Minimum requirements per group",
+                    key="min_slider_advanced"
+                )
+                st.session_state.min_group_size = min_group_size
+
+                max_group_size = st.slider(
+                    "Maximum Group Size",
+                    min_value=8,
+                    max_value=20,
+                    value=st.session_state.get('max_group_size', 12),
+                    help="Maximum requirements per group",
+                    key="max_slider_advanced"
+                )
+                st.session_state.max_group_size = max_group_size
+
+                st.divider()
+
+                st.markdown("#### Processing Options")
+                batch_size = st.number_input(
+                    "Batch Size",
+                    min_value=50,
+                    max_value=200,
+                    value=150,
+                    help="Requirements per batch for large datasets"
+                )
+
+                if st.button("Reset to Defaults", use_container_width=True, key="reset_defaults"):
+                    st.session_state.min_group_size = 3
+                    st.session_state.max_group_size = 12
+                    st.rerun()
+
+        # Show current settings (small text)
+        st.caption(f"Current settings: Min={st.session_state.get('min_group_size', 3)}, Max={st.session_state.get('max_group_size', 12)}")
         
         # Display results
         if 'smart_consolidation' in st.session_state:
@@ -1801,6 +1844,66 @@ def display_results(job_id):
 
     except Exception as e:
         st.error(f"Error displaying results: {str(e)}")
+
+    # === FOOTER ===
+    st.divider()
+
+    footer_col1, footer_col2 = st.columns([10, 1])
+
+    with footer_col1:
+        st.caption("BikeRisk v1.0 · Phase 3 Beta · Powered by Claude Sonnet 4.5")
+
+    with footer_col2:
+        with st.popover("💬", use_container_width=True):
+            st.markdown("### Send Feedback")
+
+            feedback_type = st.selectbox(
+                "Type",
+                ["🐛 Bug Report", "💡 Feature Request", "⭐ General Feedback"],
+                key="feedback_type_footer"
+            )
+
+            feedback_text = st.text_area(
+                "Your feedback",
+                placeholder="Tell us what you think...",
+                height=100,
+                key="feedback_text_footer"
+            )
+
+            if st.button("📤 Send", use_container_width=True, key="send_feedback_footer"):
+                if feedback_text.strip():
+                    # Save feedback logic (reuse existing send_feedback_email)
+                    from datetime import datetime as _dt
+                    import json
+
+                    feedback_data = {
+                        "timestamp": _dt.now().isoformat(),
+                        "type": feedback_type,
+                        "page": "Footer",
+                        "text": feedback_text,
+                        "email": "anonymous",
+                        "rating": None,
+                        "session_id": st.session_state.get('session_id', 'unknown')
+                    }
+
+                    try:
+                        # Save to local file
+                        with open('feedback.jsonl', 'a', encoding='utf-8') as f:
+                            f.write(json.dumps(feedback_data, ensure_ascii=False) + '\n')
+
+                        # Send email notification
+                        email_sent, email_msg = send_feedback_email(feedback_data)
+
+                        if email_sent:
+                            st.success("✅ Thank you!")
+                        else:
+                            st.success("✅ Thank you! Feedback saved.")
+                        time.sleep(1)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Failed: {e}")
+                else:
+                    st.error("Please enter feedback")
 
 
 if __name__ == "__main__":
