@@ -35,6 +35,7 @@ ENV/
 *.swo
 *~
 *.code-workspace
+.history/
 
 # OS
 .DS_Store

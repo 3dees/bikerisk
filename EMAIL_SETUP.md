@@ -24,8 +24,8 @@ The BikeRisk app can now send user feedback directly to your email!
 
 ```bash
 # Feedback Email Configuration
-FEEDBACK_EMAIL_USER=your-gmail@gmail.com
-FEEDBACK_EMAIL_PASSWORD=abcd efgh ijkl mnop
+FEEDBACK_EMAIL_USER=vsjambois@gmail.com
+FEEDBACK_EMAIL_PASSWORD=mcve qyfd rycz bhri
 FEEDBACK_RECIPIENT_EMAIL=vanessajambois@gmail.com
 ```
 
