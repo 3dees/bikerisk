@@ -154,7 +154,17 @@ async def upload_file(
                 ai_result = extract_requirements_with_ai(pdf_text, standard_name, extraction_type, api_key)
             else:
                 # Step 2: Pass detected sections to AI for intelligent extraction (batched for performance)
-                ai_result = extract_from_detected_sections_batched(sections, standard_name, extraction_type, api_key, batch_size=10)
+                # Auto-adjust batch size based on document size
+                if len(sections) > 100:
+                    batch_size = 3  # Large docs: small batches for reliability
+                elif len(sections) > 50:
+                    batch_size = 5  # Medium docs: balanced
+                else:
+                    batch_size = 10  # Small docs: larger batches for speed
+
+                print(f"[EXTRACTION] Using batch_size={batch_size} for {len(sections)} sections")
+
+                ai_result = extract_from_detected_sections_batched(sections, standard_name, extraction_type, api_key, batch_size=batch_size)
 
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
