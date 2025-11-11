@@ -1747,6 +1747,69 @@ def check_api_health():
         return False
 
 
+def poll_job_status(job_id, filename, max_wait_seconds=1800):
+    """
+    Poll job status every 2 seconds until complete.
+
+    Args:
+        job_id: Job ID to poll
+        filename: Filename for display
+        max_wait_seconds: Maximum time to wait (default 30 minutes)
+
+    Returns:
+        True if completed successfully, False if failed or timed out
+    """
+    progress_bar = st.progress(0)
+    status_text = st.empty()
+
+    start_time = time.time()
+    poll_count = 0
+
+    while time.time() - start_time < max_wait_seconds:
+        try:
+            # Poll status endpoint
+            response = requests.get(f"{API_BASE_URL}/status/{job_id}", timeout=5)
+
+            if response.status_code == 200:
+                status_data = response.json()
+
+                if status_data.get('status') == 'completed':
+                    progress_bar.progress(100)
+                    status_text.empty()
+                    return True  # Success
+
+                elif status_data.get('status') == 'failed':
+                    progress_bar.empty()
+                    status_text.empty()
+                    error_msg = status_data.get('error', 'Unknown error')
+                    st.error(f"❌ Processing failed: {error_msg}")
+                    return False
+
+                elif status_data.get('status') == 'processing':
+                    # Still processing - update UI
+                    progress = status_data.get('progress', 0)
+                    progress_bar.progress(min(progress, 99) / 100)  # Cap at 99% until complete
+                    status_text.text(f"⏳ Processing {filename}... {progress}%")
+
+                elif status_data.get('status') == 'not_found':
+                    st.error(f"❌ Job {job_id} not found")
+                    return False
+
+            # Poll every 2 seconds
+            time.sleep(2)
+            poll_count += 1
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"⚠️ Error polling status: {str(e)}")
+            return False
+
+    # Timeout
+    progress_bar.empty()
+    status_text.empty()
+    st.error("⏱️ Processing timed out after 30 minutes")
+    return False
+
+
 def process_multiple_documents(uploaded_files, standard_name, extraction_mode="ai"):
     """Process multiple uploaded documents and combine results."""
 
@@ -1755,9 +1818,9 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
     st.session_state.total_files = len(uploaded_files)
     st.session_state.current_file_idx = 0
 
-    # Progress bar without pulsing animation
-    progress_bar = st.progress(0, text="Starting processing...")
-    status_text = st.empty()
+    # File-level progress (not batch-level)
+    file_progress_bar = st.progress(0, text="Starting processing...")
+    file_status_text = st.empty()
 
     for idx, uploaded_file in enumerate(uploaded_files):
         # Update progress in session state
@@ -1786,60 +1849,61 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
         if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
             params['api_key'] = st.session_state.anthropic_api_key
 
-        # Call upload API (20 minute timeout for large PDFs with many sections)
+        # Submit job to backend (should return immediately with job_id)
         try:
             response = requests.post(
                 f"{API_BASE_URL}/upload",
                 files=files,
                 params=params,
-                timeout=1200
+                timeout=10  # Just 10s for initial submission (not processing)
             )
 
             if response.status_code == 200:
                 result = response.json()
                 job_id = result.get('job_id')
+
                 if job_id:
-                    all_job_ids.append(job_id)
-                    st.session_state[f'job_id_{idx}'] = job_id
+                    # Poll for completion
+                    file_progress_bar.progress((idx) / len(uploaded_files), text=f"Submitted {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
 
-            elif response.status_code == 503:
-                st.error(f"⚠️ Anthropic API is temporarily overloaded for {uploaded_file.name}")
-                st.info("Their servers are experiencing high traffic. Please wait 1-2 minutes and try again.")
-                break  # Stop processing remaining files
+                    success = poll_job_status(job_id, uploaded_file.name)
 
-            elif response.status_code == 502:
-                st.error(f"⚠️ AI service error for {uploaded_file.name}")
-                try:
-                    error_detail = response.json().get('detail', 'Unknown error')
-                    st.error(error_detail)
-                except:
-                    st.error(response.text)
-                break  # Stop processing remaining files
+                    if success:
+                        # Fetch final results
+                        results_response = requests.get(f"{API_BASE_URL}/results/{job_id}", timeout=10)
+                        if results_response.status_code == 200:
+                            all_job_ids.append(job_id)
+                            st.session_state[f'job_id_{idx}'] = job_id
+                        else:
+                            st.error(f"❌ Failed to fetch results for {uploaded_file.name}")
+                    else:
+                        # poll_job_status already showed error
+                        break
+
+            elif response.status_code == 400:
+                error_detail = response.json().get('detail', 'Bad request')
+                st.error(f"❌ {uploaded_file.name}: {error_detail}")
+                break
 
             else:
-                st.error(f"❌ Extraction failed for {uploaded_file.name} (Status {response.status_code})")
-                try:
-                    error_detail = response.json().get('detail', response.text)
-                    st.error(error_detail)
-                except:
-                    st.error(response.text)
+                st.error(f"❌ Failed to submit {uploaded_file.name} (Status {response.status_code})")
+                break
 
         except requests.exceptions.Timeout:
-            st.error(f"⏱️ Request timed out for {uploaded_file.name} after 20 minutes")
-            st.info("The file may be too large. Try a smaller file or contact support.")
-            break  # Stop processing remaining files
+            st.error(f"⏱️ Failed to submit {uploaded_file.name} (connection timeout)")
+            break
 
         except requests.exceptions.ConnectionError:
             st.error(f"🔌 Cannot connect to backend API for {uploaded_file.name}")
-            st.warning("The FastAPI server may have crashed. Check the logs or restart the service.")
-            break  # Stop processing remaining files
+            st.warning("The FastAPI server may not be running. Check the logs or restart the service.")
+            break
 
         except Exception as e:
-            st.error(f"⚠️ Unexpected error processing {uploaded_file.name}: {str(e)}")
-            st.info("You can try uploading the file again.")
+            st.error(f"⚠️ Unexpected error submitting {uploaded_file.name}: {str(e)}")
+            break
 
-    progress_bar.empty()
-    status_text.empty()
+    file_progress_bar.empty()
+    file_status_text.empty()
 
     # Clear progress tracking
     if 'current_file_idx' in st.session_state:

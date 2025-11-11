@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 import anthropic
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from extract import extract_from_file
 from extract_ai import extract_requirements_with_ai, extract_from_detected_sections, extract_from_detected_sections_batched
@@ -21,6 +23,12 @@ load_dotenv()
 
 # In-memory storage for results
 RESULTS_STORE: Dict[str, Dict] = {}
+
+# Thread pool for background processing
+executor = ThreadPoolExecutor(max_workers=2)
+
+# Lock for thread-safe RESULTS_STORE updates
+results_lock = threading.Lock()
 
 app = FastAPI(
     title="E-Bike Standards Requirement Extractor",
@@ -48,83 +56,39 @@ def read_root():
     }
 
 
-@app.post("/upload")
-async def upload_file(
-    file: UploadFile = File(...),
-    standard_name: Optional[str] = None,
-    custom_section_name: Optional[str] = None,
-    extraction_mode: Optional[str] = "ai",  # "ai" or "rules"
-    extraction_type: Optional[str] = "manual",  # "manual" or "all"
-    api_key: Optional[str] = None
+def _process_upload_background(
+    job_id: str,
+    file_bytes: bytes,
+    filename: str,
+    standard_name: str,
+    custom_section_name: Optional[str],
+    extraction_mode: str,
+    extraction_type: str,
+    api_key: Optional[str]
 ):
     """
-    Upload a PDF and extract requirements.
-
-    Args:
-        file: PDF file
-        standard_name: Optional name of the standard (e.g., "EN 15194")
-        custom_section_name: Optional custom section name to search for (e.g., "Instruction for use")
-        extraction_mode: "ai" (default) or "rules" for extraction method
-        extraction_type: "manual" (default) for manual requirements only, "all" for all requirements
-        api_key: Anthropic API key (uses env var if not provided)
-
-    Returns:
-        Job ID and initial results
+    Background processing function for PDF extraction.
+    Updates RESULTS_STORE with progress and final results.
     """
-    # Generate job ID
-    job_id = str(uuid.uuid4())
-
-    # Read file bytes
     try:
-        file_bytes = await file.read()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
+        # Step 1: Extract text (always needed for both modes)
+        extraction_result = extract_from_file(file_bytes, filename)
 
-    # Use filename as standard name if not provided
-    if not standard_name:
-        standard_name = file.filename or "Unknown Standard"
+        if not extraction_result['success']:
+            # Partial failure - store error
+            with results_lock:
+                RESULTS_STORE[job_id].update({
+                    'status': 'failed',
+                    'error': extraction_result['error'],
+                    'extraction_method': extraction_result['method']
+                })
+            return
 
-    # Get API key from env if not provided
-    if not api_key:
-        api_key = os.getenv('ANTHROPIC_API_KEY')
+        # Branch based on extraction mode
+        if extraction_mode == "ai":
+            # HYBRID AI MODE: Rules find sections, AI extracts requirements
+            print(f"[EXTRACTION] Using HYBRID AI mode (rules + Claude Opus)")
 
-    # Step 1: Extract text (always needed for both modes)
-    extraction_result = extract_from_file(file_bytes, file.filename)
-
-    if not extraction_result['success']:
-        # Partial failure - return warning
-        RESULTS_STORE[job_id] = {
-            'job_id': job_id,
-            'filename': file.filename,
-            'standard_name': standard_name,
-            'status': 'failed',
-            'error': extraction_result['error'],
-            'extraction_method': extraction_result['method'],
-            'rows': [],
-            'consolidations': [],
-            'created_at': datetime.now().isoformat()
-        }
-        raise HTTPException(
-            status_code=422,
-            detail={
-                'message': extraction_result['error'],
-                'suggestion': 'All extraction methods failed including OCR. PDF may be corrupted, heavily encrypted, or contain no readable content.',
-                'job_id': job_id
-            }
-        )
-
-    # Branch based on extraction mode
-    if extraction_mode == "ai":
-        # HYBRID AI MODE: Rules find sections, AI extracts requirements
-        print(f"[EXTRACTION] Using HYBRID AI mode (rules + Claude Opus)")
-
-        if not api_key:
-            raise HTTPException(
-                status_code=400,
-                detail="API key required for AI extraction mode. Please provide it or set ANTHROPIC_API_KEY env var."
-            )
-
-        try:
             # Step 1: Use appropriate detection based on extraction_type
             blocks = extraction_result['blocks']
             custom_names = [custom_section_name] if custom_section_name else None
@@ -165,28 +129,13 @@ async def upload_file(
 
                 print(f"[EXTRACTION] Using batch_size={batch_size} for {len(sections)} sections")
 
-                try:
-                    ai_result = extract_from_detected_sections_batched(
-                        sections,
-                        standard_name,
-                        extraction_type,
-                        api_key,
-                        batch_size=batch_size
-                    )
-                except anthropic.APIStatusError as e:
-                    # Anthropic API error (overload, rate limit, etc)
-                    print(f"[API ERROR] Anthropic API error: {e}")
-                    raise HTTPException(
-                        status_code=503,
-                        detail=f"Anthropic API temporarily unavailable: {str(e)}. Please try again in a few moments."
-                    )
-                except anthropic.APIError as e:
-                    # Other Anthropic errors
-                    print(f"[API ERROR] Anthropic error: {e}")
-                    raise HTTPException(
-                        status_code=502,
-                        detail=f"AI service error: {str(e)}"
-                    )
+                ai_result = extract_from_detected_sections_batched(
+                    sections,
+                    standard_name,
+                    extraction_type,
+                    api_key,
+                    batch_size=batch_size
+                )
 
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
@@ -198,50 +147,155 @@ async def upload_file(
 
             extraction_method = "hybrid_ai_rules"
 
-        except anthropic.APIStatusError as e:
-            # Re-raise API status errors (already handled above)
-            raise
-        except anthropic.APIError as e:
-            # Re-raise API errors (already handled above)
-            raise
-        except HTTPException:
-            # Re-raise HTTP exceptions (from above error handling)
-            raise
-        except Exception as e:
-            # Catch-all for unexpected errors
-            print(f"[EXTRACTION ERROR] Unexpected error: {e}")
-            import traceback
-            traceback.print_exc()
-            raise HTTPException(
-                status_code=500,
-                detail=f"Extraction failed: {str(e)}"
-            )
+            # Store completed results
+            with results_lock:
+                RESULTS_STORE[job_id].update({
+                    'status': 'completed',
+                    'extraction_method': extraction_method,
+                    'extraction_confidence': confidence,
+                    'rows': classified_rows,
+                    'csv_rows': csv_rows,
+                    'consolidations': consolidations,
+                    'stats': stats,
+                    'progress': 100
+                })
 
-    # Store results
-    RESULTS_STORE[job_id] = {
-        'job_id': job_id,
-        'filename': file.filename,
-        'standard_name': standard_name,
-        'status': 'completed',
-        'extraction_method': extraction_method,
-        'extraction_confidence': confidence,
-        'extraction_mode': extraction_mode,  # NEW: track which mode was used
-        'rows': classified_rows,  # Keep internal fields for UI
-        'csv_rows': csv_rows,     # Clean version for export
-        'consolidations': consolidations,
-        'stats': stats,
-        'created_at': datetime.now().isoformat()
-    }
+    except anthropic.APIStatusError as e:
+        # Anthropic API error (overload, rate limit, etc)
+        print(f"[API ERROR] Anthropic API error: {e}")
+        with results_lock:
+            RESULTS_STORE[job_id].update({
+                'status': 'failed',
+                'error': f"Anthropic API temporarily unavailable: {str(e)}. Please try again in a few moments."
+            })
 
+    except anthropic.APIError as e:
+        # Other Anthropic errors
+        print(f"[API ERROR] Anthropic error: {e}")
+        with results_lock:
+            RESULTS_STORE[job_id].update({
+                'status': 'failed',
+                'error': f"AI service error: {str(e)}"
+            })
+
+    except Exception as e:
+        # Catch-all for unexpected errors
+        print(f"[EXTRACTION ERROR] Unexpected error: {e}")
+        import traceback
+        traceback.print_exc()
+        with results_lock:
+            RESULTS_STORE[job_id].update({
+                'status': 'failed',
+                'error': f"Extraction failed: {str(e)}"
+            })
+
+
+@app.post("/upload")
+async def upload_file(
+    file: UploadFile = File(...),
+    standard_name: Optional[str] = None,
+    custom_section_name: Optional[str] = None,
+    extraction_mode: Optional[str] = "ai",  # "ai" or "rules"
+    extraction_type: Optional[str] = "manual",  # "manual" or "all"
+    api_key: Optional[str] = None
+):
+    """
+    Upload a PDF and start background extraction. Returns immediately with job_id.
+
+    Args:
+        file: PDF file
+        standard_name: Optional name of the standard (e.g., "EN 15194")
+        custom_section_name: Optional custom section name to search for (e.g., "Instruction for use")
+        extraction_mode: "ai" (default) or "rules" for extraction method
+        extraction_type: "manual" (default) for manual requirements only, "all" for all requirements
+        api_key: Anthropic API key (uses env var if not provided)
+
+    Returns:
+        Job ID and status='processing' (use /status/{job_id} to poll for completion)
+    """
+    # Generate job ID
+    job_id = str(uuid.uuid4())
+
+    # Read file bytes
+    try:
+        file_bytes = await file.read()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read file: {str(e)}")
+
+    # Use filename as standard name if not provided
+    if not standard_name:
+        standard_name = file.filename or "Unknown Standard"
+
+    # Get API key from env if not provided
+    if not api_key:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+
+    # Validate API key for AI mode
+    if extraction_mode == "ai" and not api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="API key required for AI extraction mode. Please provide it or set ANTHROPIC_API_KEY env var."
+        )
+
+    # Initialize job in RESULTS_STORE with status='processing'
+    with results_lock:
+        RESULTS_STORE[job_id] = {
+            'job_id': job_id,
+            'filename': file.filename,
+            'standard_name': standard_name,
+            'status': 'processing',
+            'progress': 0,
+            'extraction_mode': extraction_mode,
+            'extraction_type': extraction_type,
+            'created_at': datetime.now().isoformat()
+        }
+
+    # Submit background task
+    executor.submit(
+        _process_upload_background,
+        job_id,
+        file_bytes,
+        file.filename,
+        standard_name,
+        custom_section_name,
+        extraction_mode,
+        extraction_type,
+        api_key
+    )
+
+    print(f"[UPLOAD] Job {job_id} submitted for background processing")
+
+    # Return immediately with job_id and status='processing'
     return {
         'job_id': job_id,
-        'status': 'completed',
+        'status': 'processing',
         'filename': file.filename,
         'standard_name': standard_name,
-        'extraction_method': extraction_method,
-        'extraction_confidence': confidence,
-        'extraction_mode': extraction_mode,
-        'stats': stats
+        'message': 'Processing started. Use /status/{job_id} to check progress.'
+    }
+
+
+@app.get("/status/{job_id}")
+def get_status(job_id: str):
+    """
+    Get processing status for a job (lightweight endpoint for polling).
+
+    Args:
+        job_id: Job ID from upload
+
+    Returns:
+        Status information: {status, progress, filename, error (if failed)}
+    """
+    if job_id not in RESULTS_STORE:
+        return {"status": "not_found", "job_id": job_id}
+
+    job = RESULTS_STORE[job_id]
+    return {
+        "job_id": job_id,
+        "status": job.get("status"),
+        "progress": job.get("progress", 0),
+        "filename": job.get("filename"),
+        "error": job.get("error")
     }
 
 
