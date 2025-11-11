@@ -70,6 +70,35 @@ def _is_likely_heading(line: str) -> bool:
     return False
 
 
+def _is_image_based_pdf(file_bytes: bytes) -> bool:
+    """
+    Quick check to determine if PDF is image-based (scanned) or text-based.
+
+    Returns True if PDF appears to be image-based (should use OCR).
+    """
+    try:
+        pdf_reader = pypdf.PdfReader(io.BytesIO(file_bytes))
+
+        # Sample first 3 pages (or fewer if PDF is shorter)
+        pages_to_check = min(3, len(pdf_reader.pages))
+
+        for i in range(pages_to_check):
+            page = pdf_reader.pages[i]
+            text = page.extract_text()
+
+            # If we find meaningful text (>50 chars), it's likely text-based
+            if text and len(text.strip()) > 50:
+                return False
+
+        # No meaningful text found = likely image-based
+        print(f"[EXTRACTION] PDF appears to be image-based (scanned), will use OCR")
+        return True
+
+    except Exception:
+        # If we can't determine, assume text-based and try normal extraction
+        return False
+
+
 def extract_from_pdf(file_bytes: bytes, filename: str) -> Dict:
     """
     Extract text from PDF using pdfplumber, falling back to pypdf if needed.
@@ -87,6 +116,32 @@ def extract_from_pdf(file_bytes: bytes, filename: str) -> Dict:
         - 'error': error message if failed
         - 'confidence': extraction confidence ('high', 'medium', 'low')
     """
+    # Quick check: is this an image-based PDF?
+    if _is_image_based_pdf(file_bytes):
+        print(f"[EXTRACTION] Detected image-based PDF, skipping text extraction and going straight to OCR")
+        try:
+            ocr_result = extract_with_ocr(file_bytes, filename)
+
+            if ocr_result['success']:
+                # OCR succeeded, add blocks
+                blocks = extract_text_blocks(ocr_result['raw_text'])
+                ocr_result['blocks'] = blocks
+                print(f"[EXTRACTION] OCR successful using {ocr_result['method']}")
+                return ocr_result
+            else:
+                print(f"[EXTRACTION] OCR failed: {ocr_result.get('error', 'Unknown error')}")
+                return ocr_result
+        except Exception as e:
+            print(f"[EXTRACTION] OCR exception: {str(e)}")
+            return {
+                'raw_text': '',
+                'blocks': [],
+                'method': 'ocr_failed',
+                'success': False,
+                'error': f'OCR extraction failed: {str(e)}',
+                'confidence': 'low'
+            }
+
     # Try pdfplumber first
     try:
         text, method = _extract_with_pdfplumber(file_bytes)
