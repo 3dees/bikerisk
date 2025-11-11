@@ -167,6 +167,154 @@ def detect_manual_sections(blocks: List[Dict], custom_section_names: List[str] =
     return sections
 
 
+def detect_all_sections(blocks: List[Dict], custom_section_names: List[str] = None) -> List[Dict]:
+    """
+    Detect ALL numbered sections regardless of content type.
+    Used for "All Requirements" extraction mode.
+
+    Handles various numbering schemes:
+    - Numeric: 4.1.2, 7.3.1.1
+    - Letters: A.2.3, B.1.a
+    - Roman: II.a, VII.4
+    - Mixed: 4.1.a, A.2(b), 7.1(i)
+    - Lists: A), (1), (a)
+
+    Args:
+        blocks: List of text blocks from extract_text_blocks()
+        custom_section_names: Optional list of custom patterns
+
+    Returns:
+        List of detected sections with keys:
+        - 'start_line': line number where section starts
+        - 'end_line': line number where section ends
+        - 'heading': the heading text
+        - 'clause_number': extracted clause number
+        - 'content': all text in this section
+    """
+    sections = []
+
+    # Broad patterns to catch any numbered heading
+    GENERIC_HEADING_PATTERNS = [
+        r'^\d+(\.\d+)+\s+[A-Z]',          # 4.1.2 Requirements
+        r'^\d+(\.\d+)*\.[a-z]\s',          # 4.1.a or 7.2.b.3
+        r'^\d+\.\d+\([a-z]\)\s',           # 4.1(a) Format
+        r'^[A-Z](\.\d+)+\s',               # A.2.3 or B.1.a
+        r'^[IVX]+\.[a-z]',                 # II.a or VII.4.b
+        r'^[IVX]+\.\d+',                   # II.1 or VII.4
+        r'^[A-Z]\)\s+[A-Z]',               # A) Requirements
+        r'^\d+\)\s+[A-Z]',                 # 1) General
+        r'^\([a-z]\)\s+[A-Z]',             # (a) Specific
+        r'^\(\d+\)\s+[A-Z]',               # (1) Introduction
+        r'^[A-Z\s]{10,80}$',               # ALL CAPS HEADINGS (short lines only)
+    ]
+
+    # Add custom patterns if provided
+    search_patterns = GENERIC_HEADING_PATTERNS.copy()
+    if custom_section_names:
+        for name in custom_section_names:
+            escaped_name = re.escape(name.lower())
+            search_patterns.append(escaped_name)
+
+    for i, block in enumerate(blocks):
+        line_text = block['raw'].strip()
+
+        # Check if this line matches any heading pattern
+        is_heading = False
+        for pattern in search_patterns:
+            if re.search(pattern, line_text, re.IGNORECASE):
+                is_heading = True
+                break
+
+        if not is_heading:
+            continue
+
+        # Extract clause number using existing patterns
+        clause_number = None
+        for clause_pattern in CLAUSE_NUMBER_PATTERNS:
+            match = re.match(clause_pattern, line_text)
+            if match:
+                clause_number = match.group(0)
+                break
+
+        # If no match from standard patterns, try to extract any leading number/letter combo
+        if not clause_number:
+            # Try to extract: 4.1.a, A.2, II.a, etc.
+            broad_match = re.match(r'^([A-Z0-9IVX]+[\.\(\)a-z0-9]*)', line_text)
+            if broad_match:
+                clause_number = broad_match.group(1).rstrip('.')
+
+        # Find where this section ends (next heading or end of document)
+        end_line = None
+        section_content = [line_text]
+
+        for j in range(i + 1, len(blocks)):
+            next_line = blocks[j]['raw'].strip()
+
+            # Check if next line is another heading
+            is_next_heading = False
+            for pattern in search_patterns:
+                if re.search(pattern, next_line, re.IGNORECASE):
+                    is_next_heading = True
+                    break
+
+            if is_next_heading:
+                end_line = blocks[j]['lineno'] - 1
+                break
+            else:
+                section_content.append(next_line)
+
+        # If we never found an ending, section goes to end of document
+        if end_line is None and i < len(blocks) - 1:
+            end_line = blocks[-1]['lineno']
+
+        heading_text = line_text
+
+        sections.append({
+            'start_line': block['lineno'],
+            'end_line': end_line,
+            'heading': heading_text,
+            'clause_number': clause_number or 'Unknown',
+            'content': '\n'.join(section_content)
+        })
+
+    # Fallback: If very few sections detected (< 5), split by pages instead
+    if len(sections) < 5:
+        print(f"[DETECT ALL] Only found {len(sections)} sections via patterns, using page-based fallback")
+        return _split_by_pages(blocks)
+
+    return sections
+
+
+def _split_by_pages(blocks: List[Dict], lines_per_page: int = 50) -> List[Dict]:
+    """
+    Fallback strategy: Split document into page-sized chunks.
+    Used when pattern-based detection finds very few sections.
+    """
+    sections = []
+    total_lines = len(blocks)
+    page_num = 1
+
+    for start_idx in range(0, total_lines, lines_per_page):
+        end_idx = min(start_idx + lines_per_page, total_lines)
+        page_content = []
+
+        for i in range(start_idx, end_idx):
+            page_content.append(blocks[i]['raw'])
+
+        sections.append({
+            'start_line': blocks[start_idx]['lineno'],
+            'end_line': blocks[end_idx - 1]['lineno'],
+            'heading': f'Page {page_num}',
+            'clause_number': f'Page {page_num}',
+            'content': '\n'.join(page_content)
+        })
+
+        page_num += 1
+
+    print(f"[DETECT ALL] Split into {len(sections)} page-based sections")
+    return sections
+
+
 def detect_manual_clauses(blocks: List[Dict], manual_sections: List[Dict]) -> List[Dict]:
     """
     Pass B: Find clauses anywhere in the document that mention manual/instructions.

@@ -557,6 +557,17 @@ def render_extraction_tab():
     # File upload in main area (like consolidation tab)
     st.divider()
 
+    # Extraction mode selector
+    extraction_mode = st.selectbox(
+        "📋 Extraction Mode",
+        ["Manual Requirements Only", "All Requirements"],
+        help="""
+        **Manual Requirements Only**: Extract only requirements about user manuals, instructions, and documentation.
+
+        **All Requirements**: Extract ALL requirements including design specs, test procedures, manufacturing requirements, and user documentation.
+        """
+    )
+
     uploaded_files = st.file_uploader(
         "Upload PDF Standard(s)",
         type=['pdf'],
@@ -572,6 +583,9 @@ def render_extraction_tab():
             help="Name of the standard/regulation being analyzed (applies to all files if multiple)"
         )
 
+        # Convert UI label to extraction_type parameter
+        extraction_type = "all" if extraction_mode == "All Requirements" else "manual"
+
         process_button = st.button(
             f"🔍 Process {len(uploaded_files)} Document{'s' if len(uploaded_files) > 1 else ''}",
             type="primary"
@@ -579,6 +593,7 @@ def render_extraction_tab():
 
         if process_button:
             st.session_state.processing_active = True
+            st.session_state.extraction_type = extraction_type  # Store for API call
             process_multiple_documents(uploaded_files, standard_name)
             st.session_state.processing_active = False
 
@@ -766,14 +781,6 @@ def generate_export_data(result, session_state):
 
     export_data = []
     for group in result['groups']:
-        # Determine status
-        if group.group_id in session_state.accepted_groups:
-            status = "ACCEPTED"
-        elif group.group_id in session_state.rejected_groups:
-            status = "REJECTED"
-        else:
-            status = "PENDING"
-
         # Get edited text if exists
         core_req = session_state.edited_groups.get(group.group_id, group.core_requirement)
 
@@ -805,7 +812,6 @@ def generate_export_data(result, session_state):
         original_requirements_text = "\n\n".join(original_texts) if original_texts else "N/A"
 
         export_data.append({
-            'Status': status,
             'Group ID': group.group_id + 1,
             'Topic': group.topic,
             'Regulatory Intent': group.regulatory_intent,
@@ -1520,7 +1526,7 @@ def render_consolidation_tab():
             csv = export_df.to_csv(index=False)
 
             # Generate PDF report
-            pdf_content = generate_pdf_report(result, st.session_state, df)
+            html_content = generate_html_report(result, st.session_state, df)
 
             # Combined Export/Print buttons - DIRECT download (no nested buttons!)
             col1, col2 = st.columns(2)
@@ -1537,10 +1543,10 @@ def render_consolidation_tab():
 
             with col2:
                 st.download_button(
-                    label="📄 Download PDF Report",
-                    data=pdf_content,
-                    file_name="consolidation_report.pdf",
-                    mime="application/pdf",
+                    label="🖨️ Download HTML Report",
+                    data=html_content.encode('utf-8'),
+                    file_name="consolidation_report.html",
+                    mime="text/html",
                     type="secondary",
                     use_container_width=True
                 )
@@ -1702,6 +1708,10 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
 
             if standard_name:
                 params['standard_name'] = standard_name
+
+            # Add extraction_type parameter
+            if st.session_state.get('extraction_type'):
+                params['extraction_type'] = st.session_state.extraction_type
 
             if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
                 params['api_key'] = st.session_state.anthropic_api_key

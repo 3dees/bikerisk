@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from extract import extract_from_file
 from extract_ai import extract_requirements_with_ai, extract_from_detected_sections
-from detect import detect_manual_sections
+from detect import detect_manual_sections, detect_all_sections
 from classify import rows_to_csv_dicts
 
 load_dotenv()
@@ -53,16 +53,18 @@ async def upload_file(
     standard_name: Optional[str] = None,
     custom_section_name: Optional[str] = None,
     extraction_mode: Optional[str] = "ai",  # "ai" or "rules"
+    extraction_type: Optional[str] = "manual",  # "manual" or "all"
     api_key: Optional[str] = None
 ):
     """
-    Upload a PDF and extract manual/instruction requirements.
+    Upload a PDF and extract requirements.
 
     Args:
         file: PDF file
         standard_name: Optional name of the standard (e.g., "EN 15194")
         custom_section_name: Optional custom section name to search for (e.g., "Instruction for use")
         extraction_mode: "ai" (default) or "rules" for extraction method
+        extraction_type: "manual" (default) for manual requirements only, "all" for all requirements
         api_key: Anthropic API key (uses env var if not provided)
 
     Returns:
@@ -122,25 +124,31 @@ async def upload_file(
             )
 
         try:
-            # Step 1: Use rule-based detection to find ALL relevant sections (scans entire document)
+            # Step 1: Use appropriate detection based on extraction_type
             blocks = extraction_result['blocks']
             custom_names = [custom_section_name] if custom_section_name else None
-            manual_sections = detect_manual_sections(blocks, custom_names)
 
-            print(f"[HYBRID AI] Rules found {len(manual_sections)} manual sections")
+            if extraction_type == "all":
+                # All Requirements mode: detect all numbered sections
+                sections = detect_all_sections(blocks, custom_names)
+                print(f"[ALL REQUIREMENTS] Detected {len(sections)} sections")
+            else:
+                # Manual Requirements mode: detect manual-specific sections
+                sections = detect_manual_sections(blocks, custom_names)
+                print(f"[MANUAL REQUIREMENTS] Detected {len(sections)} manual sections")
 
-            if not manual_sections:
+            if not sections:
                 # No sections found by rules - fallback to full AI extraction
-                print(f"[HYBRID AI] No sections found by rules, trying full AI extraction as fallback")
+                print(f"[EXTRACTION] No sections found, trying full AI extraction as fallback")
                 pdf_text = extraction_result.get('text', '')
                 if not pdf_text:
                     blocks = extraction_result['blocks']
                     pdf_text = '\n'.join([block['raw'] for block in blocks])
 
-                ai_result = extract_requirements_with_ai(pdf_text, standard_name, api_key)
+                ai_result = extract_requirements_with_ai(pdf_text, standard_name, extraction_type, api_key)
             else:
                 # Step 2: Pass detected sections to AI for intelligent extraction
-                ai_result = extract_from_detected_sections(manual_sections, standard_name, api_key)
+                ai_result = extract_from_detected_sections(sections, standard_name, extraction_type, api_key)
 
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
