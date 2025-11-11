@@ -11,7 +11,7 @@ import os
 from dotenv import load_dotenv
 
 from extract import extract_from_file
-from extract_ai import extract_requirements_with_ai, extract_from_detected_sections
+from extract_ai import extract_requirements_with_ai, extract_from_detected_sections, extract_from_detected_sections_batched
 from detect import detect_manual_sections, detect_all_sections, merge_small_sections
 from classify import rows_to_csv_dicts
 
@@ -155,8 +155,18 @@ async def upload_file(
 
                 ai_result = extract_requirements_with_ai(pdf_text, standard_name, extraction_type, api_key)
             else:
-                # Step 2: Pass detected sections to AI for intelligent extraction
-                ai_result = extract_from_detected_sections(sections, standard_name, extraction_type, api_key)
+                # Step 2: Pass detected sections to AI for intelligent extraction (batched for performance)
+                # Auto-adjust batch size based on document size
+                if len(sections) > 100:
+                    batch_size = 3  # Large docs: small batches for reliability
+                elif len(sections) > 50:
+                    batch_size = 5  # Medium docs: balanced
+                else:
+                    batch_size = 10  # Small docs: larger batches for speed
+
+                print(f"[EXTRACTION] Using batch_size={batch_size} for {len(sections)} sections")
+
+                ai_result = extract_from_detected_sections_batched(sections, standard_name, extraction_type, api_key, batch_size=batch_size)
 
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
