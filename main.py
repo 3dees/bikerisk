@@ -54,7 +54,8 @@ async def upload_file(
     custom_section_name: Optional[str] = None,
     extraction_mode: Optional[str] = "ai",  # "ai" or "rules"
     extraction_type: Optional[str] = "manual",  # "manual" or "all"
-    api_key: Optional[str] = None
+    api_key: Optional[str] = None,
+    use_ocr: Optional[bool] = False  # Force OCR for scanned/image-based PDFs
 ):
     """
     Upload a PDF and extract requirements.
@@ -66,6 +67,7 @@ async def upload_file(
         extraction_mode: "ai" (default) or "rules" for extraction method
         extraction_type: "manual" (default) for manual requirements only, "all" for all requirements
         api_key: Anthropic API key (uses env var if not provided)
+        use_ocr: Force OCR extraction for scanned/image-based PDFs (default: False)
 
     Returns:
         Job ID and initial results
@@ -88,7 +90,7 @@ async def upload_file(
         api_key = os.getenv('ANTHROPIC_API_KEY')
 
     # Step 1: Extract text (always needed for both modes)
-    extraction_result = extract_from_file(file_bytes, file.filename)
+    extraction_result = extract_from_file(file_bytes, file.filename, force_ocr=use_ocr)
 
     if not extraction_result['success']:
         # Partial failure - return warning

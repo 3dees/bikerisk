@@ -620,6 +620,14 @@ def render_extraction_tab():
         accept_multiple_files=True
     )
 
+    # OCR toggle for scanned/image-based PDFs
+    use_ocr = st.checkbox(
+        "📷 Use OCR (for scanned/image-based PDFs)",
+        value=False,
+        help="Check this box if your PDF is a scanned document or image-based. Leave unchecked for regular text-based PDFs (recommended for faster processing).",
+        key="use_ocr_checkbox"
+    )
+
     if uploaded_files:
         standard_name = st.text_input(
             "Standard Name (optional)",
@@ -638,6 +646,7 @@ def render_extraction_tab():
         if process_button:
             st.session_state.processing_active = True
             st.session_state.extraction_type = extraction_type  # Store for API call
+            st.session_state.use_ocr = use_ocr  # Store OCR flag for API call
             process_multiple_documents(uploaded_files, standard_name)
             st.session_state.processing_active = False
 
@@ -1756,6 +1765,10 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
             # Add extraction_type parameter
             if st.session_state.get('extraction_type'):
                 params['extraction_type'] = st.session_state.extraction_type
+
+            # Add use_ocr flag
+            if st.session_state.get('use_ocr'):
+                params['use_ocr'] = st.session_state.use_ocr
 
             if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
                 params['api_key'] = st.session_state.anthropic_api_key
