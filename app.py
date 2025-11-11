@@ -641,6 +641,14 @@ def render_extraction_tab():
                 disabled=True,
                 key="processing_button"
             )
+
+            # Show progress indicator
+            current_file = st.session_state.get('current_file_idx', 0)
+            total_files = st.session_state.get('total_files', len(uploaded_files))
+            if total_files > 0:
+                progress_pct = int((current_file / total_files) * 100)
+                st.caption(f"📊 Progress: {current_file}/{total_files} files ({progress_pct}%)")
+
             # Actually run the processing - use stored extraction_type from session state
             stored_extraction_type = st.session_state.get('extraction_type', 'manual')
             print(f"[DEBUG] Processing started - extraction_type in session state: {stored_extraction_type}")
@@ -1380,9 +1388,13 @@ def render_consolidation_tab():
                     for idx in group.requirement_indices:
                         if idx < len(df):
                             req_row = df.iloc[idx]
-                            if req_row.get('Contains Image?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                            # Convert to string to handle float values
+                            contains_image = str(req_row.get('Contains Image?', 'N')).upper()
+                            required_print = str(req_row.get('Required in Print?', 'N')).upper()
+
+                            if contains_image in ['Y', 'YES', 'TRUE', '1', '1.0']:
                                 has_image = True
-                            if req_row.get('Required in Print?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                            if required_print in ['Y', 'YES', 'TRUE', '1', '1.0']:
                                 requires_print = True
 
                     # Display special requirement badges at top
@@ -1751,14 +1763,20 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
     """Process multiple uploaded documents and combine results."""
 
     all_job_ids = []
-    progress_bar = st.progress(0)
+    # Store total files for progress display
+    st.session_state.total_files = len(uploaded_files)
+    st.session_state.current_file_idx = 0
+
+    # Progress bar without pulsing animation
+    progress_bar = st.progress(0, text="Starting processing...")
     status_text = st.empty()
 
     for idx, uploaded_file in enumerate(uploaded_files):
-        # Update progress
+        # Update progress in session state
+        st.session_state.current_file_idx = idx + 1
         progress = (idx + 1) / len(uploaded_files)
-        progress_bar.progress(progress)
-        status_text.text(f"Processing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
+        progress_bar.progress(progress, text=f"Processing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
+        status_text.text(f"📄 {uploaded_file.name}")
 
         # Process each file
         try:
@@ -1803,6 +1821,12 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
 
     progress_bar.empty()
     status_text.empty()
+
+    # Clear progress tracking
+    if 'current_file_idx' in st.session_state:
+        del st.session_state.current_file_idx
+    if 'total_files' in st.session_state:
+        del st.session_state.total_files
 
     if all_job_ids:
         # Store all job IDs and use the first one as primary
