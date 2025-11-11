@@ -1760,12 +1760,12 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
             if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
                 params['api_key'] = st.session_state.anthropic_api_key
 
-            # Call upload API
+            # Call upload API (10 minute timeout for large PDFs)
             response = requests.post(
                 f"{API_BASE_URL}/upload",
                 files=files,
                 params=params,
-                timeout=120
+                timeout=600
             )
 
             if response.status_code == 200:
