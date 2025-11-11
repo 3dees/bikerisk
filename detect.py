@@ -315,6 +315,94 @@ def _split_by_pages(blocks: List[Dict], lines_per_page: int = 50) -> List[Dict]:
     return sections
 
 
+def merge_small_sections(sections: List[Dict], min_chars: int = 200, max_chars: int = 5000) -> List[Dict]:
+    """
+    Merge small adjacent sections to reduce API calls while keeping content manageable.
+
+    This optimization reduces processing time by batching small sections together.
+    Example: 60 small sections → 20-25 merged sections = 2.5x faster processing
+
+    Args:
+        sections: List of detected sections
+        min_chars: Minimum characters per merged section (default 200)
+        max_chars: Maximum characters per merged section (default 5000)
+
+    Returns:
+        List of merged sections with combined content
+    """
+    if not sections:
+        return sections
+
+    merged = []
+    current_batch = []
+    current_size = 0
+
+    for section in sections:
+        content_size = len(section.get('content', ''))
+
+        # If adding this section exceeds max, save current batch first
+        if current_size + content_size > max_chars and current_batch:
+            merged.append(_merge_section_batch(current_batch))
+            current_batch = []
+            current_size = 0
+
+        current_batch.append(section)
+        current_size += content_size
+
+        # If batch reaches min size, save it
+        if current_size >= min_chars:
+            merged.append(_merge_section_batch(current_batch))
+            current_batch = []
+            current_size = 0
+
+    # Add any remaining sections
+    if current_batch:
+        merged.append(_merge_section_batch(current_batch))
+
+    reduction = len(sections) - len(merged)
+    print(f"[MERGE] Merged {len(sections)} sections into {len(merged)} (reduced by {reduction})")
+
+    return merged
+
+
+def _merge_section_batch(sections: List[Dict]) -> Dict:
+    """
+    Combine multiple sections into a single merged section.
+
+    Args:
+        sections: List of sections to merge
+
+    Returns:
+        Single merged section dict
+    """
+    if len(sections) == 1:
+        return sections[0]
+
+    # Combine all content with clear separators
+    combined_content = "\n\n---\n\n".join([s.get('content', '') for s in sections])
+
+    # Combine clause numbers
+    clause_numbers = [s.get('clause_number', '') for s in sections if s.get('clause_number')]
+    combined_clause = ", ".join(clause_numbers) if clause_numbers else "Merged"
+
+    # Create descriptive heading
+    first_heading = sections[0].get('heading', '')
+    last_heading = sections[-1].get('heading', '')
+    if first_heading == last_heading:
+        combined_heading = first_heading
+    else:
+        combined_heading = f"{first_heading} ... {last_heading}"
+
+    return {
+        'start_line': sections[0].get('start_line', 0),
+        'end_line': sections[-1].get('end_line', 0),
+        'heading': combined_heading,
+        'clause_number': combined_clause,
+        'content': combined_content,
+        'merged_count': len(sections)  # Track how many sections were merged
+    }
+
+
 def detect_manual_clauses(blocks: List[Dict], manual_sections: List[Dict]) -> List[Dict]:
     """
     Pass B: Find clauses anywhere in the document that mention manual/instructions.

@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 from extract import extract_from_file
 from extract_ai import extract_requirements_with_ai, extract_from_detected_sections
-from detect import detect_manual_sections, detect_all_sections
+from detect import detect_manual_sections, detect_all_sections, merge_small_sections
 from classify import rows_to_csv_dicts
 
 load_dotenv()
@@ -132,10 +132,16 @@ async def upload_file(
                 # All Requirements mode: detect all numbered sections
                 sections = detect_all_sections(blocks, custom_names)
                 print(f"[ALL REQUIREMENTS] Detected {len(sections)} sections")
+
+                # Merge small sections to reduce processing time
+                sections = merge_small_sections(sections)
             else:
                 # Manual Requirements mode: detect manual-specific sections
                 sections = detect_manual_sections(blocks, custom_names)
                 print(f"[MANUAL REQUIREMENTS] Detected {len(sections)} manual sections")
+
+                # Also merge manual sections for speed
+                sections = merge_small_sections(sections)
 
             if not sections:
                 # No sections found by rules - fallback to full AI extraction
