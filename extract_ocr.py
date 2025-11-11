@@ -55,8 +55,15 @@ def extract_text_with_google_vision(file_bytes: bytes, filename: str = "document
             from pdf2image import convert_from_bytes
 
             # Convert PDF to images (one per page)
-            print(f"[OCR] Converting PDF to images...")
-            images = convert_from_bytes(file_bytes, dpi=200)
+            print(f"[OCR] Converting PDF to images (this may take a moment)...")
+            try:
+                images = convert_from_bytes(file_bytes, dpi=200)
+                print(f"[OCR] Successfully converted to {len(images)} images")
+            except Exception as conversion_error:
+                print(f"[OCR] PDF to image conversion failed: {str(conversion_error)}")
+                print(f"[OCR] This usually means poppler-utils is not installed")
+                raise
+
             print(f"[OCR] Processing {len(images)} pages with Google Vision...")
 
             all_text = []
