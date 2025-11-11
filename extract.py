@@ -70,24 +70,51 @@ def _is_likely_heading(line: str) -> bool:
     return False
 
 
-def extract_from_pdf(file_bytes: bytes, filename: str) -> Dict:
+def extract_from_pdf(file_bytes: bytes, filename: str, force_ocr: bool = False) -> Dict:
     """
     Extract text from PDF using pdfplumber, falling back to pypdf if needed.
 
     Args:
         file_bytes: PDF file content as bytes
         filename: Original filename for logging
+        force_ocr: If True, skip text extraction and use OCR directly
 
     Returns:
         Dict with keys:
         - 'raw_text': extracted text
         - 'blocks': structured text blocks
-        - 'method': extraction method used ('pdfplumber' or 'pypdf')
+        - 'method': extraction method used ('pdfplumber', 'pypdf', or OCR method)
         - 'success': bool
         - 'error': error message if failed
         - 'confidence': extraction confidence ('high', 'medium', 'low')
     """
-    # Try pdfplumber first
+    # If user explicitly requested OCR, skip text extraction
+    if force_ocr:
+        print(f"[EXTRACTION] User requested OCR mode for {filename}")
+        try:
+            ocr_result = extract_with_ocr(file_bytes, filename)
+
+            if ocr_result['success']:
+                # OCR succeeded, add blocks
+                blocks = extract_text_blocks(ocr_result['raw_text'])
+                ocr_result['blocks'] = blocks
+                print(f"[EXTRACTION] OCR successful using {ocr_result['method']}")
+                return ocr_result
+            else:
+                print(f"[EXTRACTION] OCR failed: {ocr_result.get('error', 'Unknown error')}")
+                return ocr_result
+        except Exception as e:
+            print(f"[EXTRACTION] OCR exception: {str(e)}")
+            return {
+                'raw_text': '',
+                'blocks': [],
+                'method': 'ocr_failed',
+                'success': False,
+                'error': f'OCR extraction failed: {str(e)}',
+                'confidence': 'low'
+            }
+
+    # Try pdfplumber first (for text-based PDFs)
     try:
         text, method = _extract_with_pdfplumber(file_bytes)
         if text and len(text.strip()) > 100:  # Meaningful content
@@ -181,7 +208,7 @@ def _extract_with_pypdf(file_bytes: bytes) -> tuple[str, str]:
     return '\n'.join(text_parts), 'pypdf'
 
 
-def extract_from_file(file_bytes: bytes, filename: str) -> Dict:
+def extract_from_file(file_bytes: bytes, filename: str, force_ocr: bool = False) -> Dict:
     """
     Main entry point for file extraction. Routes to appropriate handler.
 
@@ -191,6 +218,7 @@ def extract_from_file(file_bytes: bytes, filename: str) -> Dict:
     Args:
         file_bytes: File content as bytes
         filename: Original filename
+        force_ocr: If True, skip text extraction and use OCR directly
 
     Returns:
         Extraction result dict
@@ -198,7 +226,7 @@ def extract_from_file(file_bytes: bytes, filename: str) -> Dict:
     filename_lower = filename.lower()
 
     if filename_lower.endswith('.pdf'):
-        return extract_from_pdf(file_bytes, filename)
+        return extract_from_pdf(file_bytes, filename, force_ocr=force_ocr)
     else:
         return {
             'raw_text': '',

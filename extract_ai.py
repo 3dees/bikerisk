@@ -50,8 +50,15 @@ def detect_safety_notice(text: str) -> str:
     return "None"
 
 
-def extract_from_detected_sections(sections: List[Dict], standard_name: str = None, api_key: str = None) -> Dict:
-    """Extract requirements from detected sections using AI."""
+def extract_from_detected_sections(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None) -> Dict:
+    """Extract requirements from detected sections using AI.
+
+    Args:
+        sections: List of detected sections
+        standard_name: Name of the standard being processed
+        extraction_type: "manual" for manual requirements only, "all" for all requirements
+        api_key: Anthropic API key
+    """
 
     if not api_key:
         api_key = os.getenv('ANTHROPIC_API_KEY')
@@ -72,28 +79,38 @@ def extract_from_detected_sections(sections: List[Dict], standard_name: str = No
         client = anthropic.Anthropic(api_key=api_key)
 
     all_requirements = []
-    print(f"[HYBRID AI] Processing {len(sections)} sections...")
+    mode_label = "ALL REQUIREMENTS" if extraction_type == "all" else "MANUAL REQUIREMENTS"
+    print(f"[{mode_label}] Processing {len(sections)} sections...")
 
     for i, section in enumerate(sections, 1):
         section_text = section.get('content', '')
         heading = section.get('heading', '')
         clause = section.get('clause_number', '')
 
-        print(f"[HYBRID AI] Section {i}/{len(sections)}: {heading}")
+        print(f"[{mode_label}] Section {i}/{len(sections)}: {heading}")
 
-        # THE IMPROVED PROMPT
-        prompt = f"""You are an expert at analyzing e-bike safety standards to identify what manufacturers must communicate to users.
+        # Build prompt based on extraction type
+        if extraction_type == "all":
+            focus_instructions = """Extract ALL requirements from this standard, including:
+• Design specifications and technical requirements
+• Test procedures and quality requirements
+• Manufacturing and production requirements
+• User documentation and manual requirements
+• Safety requirements and warnings
+• Installation and maintenance requirements
+• Performance standards and measurements
 
-Standard: {standard_name or 'Unknown'}
-Section: {heading}
-Clause: {clause}
+IMPORTANT: This document may use various numbering schemes:
+- Numeric: 4.1.2, 7.3.1.1
+- Letters: A.2.3, B.1.a
+- Roman: II.a, VII.4
+- Mixed: 4.1.a, A.2(b), 7.1(i)
+- Lists: A), (1), (a)
 
-Section Content:
-{section_text}
-
-EXTRACTION RULES:
-
-Extract ANY requirement that obligates the manufacturer to COMMUNICATE something to users in manuals/documentation.
+Adapt to whatever numbering scheme this document uses.
+Preserve the original clause number EXACTLY as written in the document."""
+        else:
+            focus_instructions = """Extract ANY requirement that obligates the manufacturer to COMMUNICATE something to users in manuals/documentation.
 
 ✅ INCLUDE if it says or implies:
 • "shall be stated/included in the manual"
@@ -115,7 +132,21 @@ Extract ANY requirement that obligates the manufacturer to COMMUNICATE something
 • Internal manufacturing processes
 • Testing procedures users don't need to know
 
-WHEN IN DOUBT → INCLUDE IT.
+WHEN IN DOUBT → INCLUDE IT."""
+
+        # Build the complete prompt
+        prompt = f"""You are an expert at analyzing e-bike safety standards.
+
+Standard: {standard_name or 'Unknown'}
+Section: {heading}
+Clause: {clause}
+
+Section Content:
+{section_text}
+
+EXTRACTION RULES:
+
+{focus_instructions}
 
 For EACH requirement, extract:
 1. Description: Full requirement text
@@ -123,12 +154,14 @@ For EACH requirement, extract:
 3. Requirement scope: Keywords (ebike, battery, charger, etc.)
 4. Formatting required?: "Y" if specific formatting specified, else "N/A"
 5. Required in Print?: "y" if print required, "n" if digital OK, "N/A" if unclear
-6. Comments: Note if vague language, ambiguous, etc.
+6. Comments: Note if vague language, ambiguous, etc. USE THIS FIELD for any additional context that doesn't fit elsewhere
 7. Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
 8. Safety Notice Type: "WARNING" | "DANGER" | "CAUTION" | "HAZARD" | "None"
 
 SPLIT numbered/lettered subsections into SEPARATE requirements.
 PRESERVE full clause hierarchy.
+
+FLEXIBILITY: If document format is unusual, put core requirement in Description and use Comments for additional context. Set unclear fields to "N/A".
 
 Respond with JSON:
 {{
@@ -207,8 +240,15 @@ Respond with JSON:
     }
 
 
-def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, api_key: str = None) -> Dict:
-    """Fallback: Extract from full PDF text when no sections found."""
+def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, extraction_type: str = "manual", api_key: str = None) -> Dict:
+    """Fallback: Extract from full PDF text when no sections found.
+
+    Args:
+        pdf_text: Full text of PDF
+        standard_name: Name of the standard
+        extraction_type: "manual" for manual requirements only, "all" for all requirements
+        api_key: Anthropic API key
+    """
 
     if not api_key:
         api_key = os.getenv('ANTHROPIC_API_KEY')
@@ -236,21 +276,63 @@ def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, api_k
         print(f"[AI EXTRACTION] Truncating to {max_chars} chars")
         pdf_text = pdf_text[:max_chars] + "\n\n[Document truncated]"
 
-    # Use same prompt as section-based extraction
-    prompt = f"""Extract manual requirements from this e-bike standard.
+    # Build prompt based on extraction type
+    if extraction_type == "all":
+        focus = """Extract ALL requirements from this standard, including:
+• Design specifications and technical requirements
+• Test procedures and quality requirements
+• Manufacturing and production requirements
+• User documentation and manual requirements
+• Safety requirements and warnings
+• Installation and maintenance requirements
+
+The document may use various numbering schemes (4.1.2, A.2, II.a, etc).
+Preserve the exact clause number as written.
+BE AGGRESSIVE - include anything that looks like a requirement."""
+    else:
+        focus = """Extract requirements that obligate manufacturers to communicate with users in manuals/documentation.
+BE AGGRESSIVE - include anything that might be user communication."""
+
+    prompt = f"""Extract requirements from this e-bike standard.
 
 Standard: {standard_name or 'Unknown'}
 
 PDF Text:
 {pdf_text}
 
-[Use same rules as section-based extraction]
+{focus}
 
-Extract requirements that obligate manufacturers to communicate with users.
-BE AGGRESSIVE - include anything that might be user communication.
-Extract 9 fields per requirement including "Contains Image?" and "Safety Notice Type".
+For each requirement, try to extract these fields:
+- Description: Main requirement text
+- Clause/Requirement: Section/clause number if available
+- Requirement scope: Keywords like "ebike", "battery", "charger"
+- Formatting required?: "Y" if specific format mentioned, else "N/A"
+- Required in Print?: "y" if must be printed, "n" if digital OK, "N/A" if unclear
+- Comments: Any notes about vague language, ambiguity, or context
+- Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
+- Safety Notice Type: "WARNING", "DANGER", "CAUTION", "HAZARD", or "None"
 
-Respond with JSON."""
+IMPORTANT: If the document format doesn't fit these fields well, you can:
+1. Put the core requirement text in "Description"
+2. Use "Comments" field to add any additional context or information that doesn't fit elsewhere
+3. Set unclear fields to "N/A" rather than leaving empty
+4. Adapt flexibly - these fields are guidelines, not strict rules
+
+Respond with JSON in this format:
+{{
+  "requirements": [
+    {{
+      "Description": "...",
+      "Clause/Requirement": "...",
+      "Requirement scope": "...",
+      "Formatting required?": "...",
+      "Required in Print?": "...",
+      "Comments": "...",
+      "Contains Image?": "...",
+      "Safety Notice Type": "..."
+    }}
+  ]
+}}"""
 
     try:
         with client.messages.stream(

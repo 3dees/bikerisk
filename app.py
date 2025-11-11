@@ -550,12 +550,67 @@ def render_extraction_tab():
 
     # Check API health
     if not check_api_health():
-        st.error("⚠️ Cannot connect to backend API. Please ensure the FastAPI server is running on port 8000.")
-        st.code("python main.py", language="bash")
+        st.error("⚠️ Cannot connect to backend API. The FastAPI server is not running.")
+
+        col1, col2 = st.columns([1, 3])
+
+        with col1:
+            if st.button("🔄 Restart Backend", type="primary", use_container_width=True):
+                with st.spinner("Starting FastAPI server..."):
+                    import subprocess
+                    import sys
+                    import time
+
+                    try:
+                        # Start FastAPI server in background
+                        if sys.platform == "win32":
+                            # Windows: use START command to open new window
+                            subprocess.Popen(
+                                ["start", "cmd", "/k", "python", "main.py"],
+                                shell=True,
+                                cwd=os.getcwd()
+                            )
+                        else:
+                            # Mac/Linux: run in background
+                            subprocess.Popen(
+                                ["python", "main.py"],
+                                stdout=subprocess.DEVNULL,
+                                stderr=subprocess.DEVNULL,
+                                cwd=os.getcwd()
+                            )
+
+                        # Wait for server to start
+                        time.sleep(3)
+
+                        # Check if it's running
+                        if check_api_health():
+                            st.success("✅ Backend server started successfully!")
+                            st.rerun()
+                        else:
+                            st.warning("⚠️ Server started but not responding yet. Please wait a few seconds and refresh the page.")
+
+                    except Exception as e:
+                        st.error(f"❌ Failed to start server: {str(e)}")
+                        st.info("Please start it manually: `python main.py`")
+
+        with col2:
+            st.info("💡 **Manual start:** Open a terminal and run `python main.py`")
+
         return
 
     # File upload in main area (like consolidation tab)
     st.divider()
+
+    # Extraction mode selector
+    extraction_mode = st.selectbox(
+        "📋 Extraction Mode",
+        ["Manual Requirements Only", "All Requirements"],
+        help="""
+        **Manual Requirements Only**: Extract only requirements about user manuals, instructions, and documentation.
+
+        **All Requirements**: Extract ALL requirements including design specs, test procedures, manufacturing requirements, and user documentation.
+        """
+    )
 
     uploaded_files = st.file_uploader(
         "Upload PDF Standard(s)",
@@ -565,12 +620,23 @@ def render_extraction_tab():
         accept_multiple_files=True
     )
 
+    # OCR toggle for scanned/image-based PDFs
+    use_ocr = st.checkbox(
+        "📷 Use OCR (for scanned/image-based PDFs)",
+        value=False,
+        help="Check this box if your PDF is a scanned document or image-based. Leave unchecked for regular text-based PDFs (recommended for faster processing).",
+        key="use_ocr_checkbox"
+    )
+
     if uploaded_files:
         standard_name = st.text_input(
             "Standard Name (optional)",
             placeholder="e.g., EN 15194, 16 CFR Part 1512",
             help="Name of the standard/regulation being analyzed (applies to all files if multiple)"
         )
+
+        # Convert UI label to extraction_type parameter
+        extraction_type = "all" if extraction_mode == "All Requirements" else "manual"
 
         process_button = st.button(
             f"🔍 Process {len(uploaded_files)} Document{'s' if len(uploaded_files) > 1 else ''}",
@@ -579,6 +645,8 @@ def render_extraction_tab():
 
         if process_button:
             st.session_state.processing_active = True
+            st.session_state.extraction_type = extraction_type  # Store for API call
+            st.session_state.use_ocr = use_ocr  # Store OCR flag for API call
             process_multiple_documents(uploaded_files, standard_name)
             st.session_state.processing_active = False
 
@@ -766,14 +834,6 @@ def generate_export_data(result, session_state):
 
     export_data = []
     for group in result['groups']:
-        # Determine status
-        if group.group_id in session_state.accepted_groups:
-            status = "ACCEPTED"
-        elif group.group_id in session_state.rejected_groups:
-            status = "REJECTED"
-        else:
-            status = "PENDING"
-
         # Get edited text if exists
         core_req = session_state.edited_groups.get(group.group_id, group.core_requirement)
 
@@ -805,7 +865,6 @@ def generate_export_data(result, session_state):
         original_requirements_text = "\n\n".join(original_texts) if original_texts else "N/A"
 
         export_data.append({
-            'Status': status,
             'Group ID': group.group_id + 1,
             'Topic': group.topic,
             'Regulatory Intent': group.regulatory_intent,
@@ -1520,7 +1579,7 @@ def render_consolidation_tab():
             csv = export_df.to_csv(index=False)
 
             # Generate PDF report
-            pdf_content = generate_pdf_report(result, st.session_state, df)
+            html_content = generate_html_report(result, st.session_state, df)
 
             # Combined Export/Print buttons - DIRECT download (no nested buttons!)
             col1, col2 = st.columns(2)
@@ -1537,10 +1596,10 @@ def render_consolidation_tab():
 
             with col2:
                 st.download_button(
-                    label="📄 Download PDF Report",
-                    data=pdf_content,
-                    file_name="consolidation_report.pdf",
-                    mime="application/pdf",
+                    label="🖨️ Download HTML Report",
+                    data=html_content.encode('utf-8'),
+                    file_name="consolidation_report.html",
+                    mime="text/html",
                     type="secondary",
                     use_container_width=True
                 )
@@ -1703,15 +1762,23 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
             if standard_name:
                 params['standard_name'] = standard_name
 
+            # Add extraction_type parameter
+            if st.session_state.get('extraction_type'):
+                params['extraction_type'] = st.session_state.extraction_type
+
+            # Add use_ocr flag
+            if st.session_state.get('use_ocr'):
+                params['use_ocr'] = st.session_state.use_ocr
+
             if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
                 params['api_key'] = st.session_state.anthropic_api_key
 
-            # Call upload API
+            # Call upload API (20 minute timeout for large PDFs with many sections)
             response = requests.post(
                 f"{API_BASE_URL}/upload",
                 files=files,
                 params=params,
-                timeout=120
+                timeout=1200
             )
 
             if response.status_code == 200:

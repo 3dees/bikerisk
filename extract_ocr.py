@@ -50,20 +50,54 @@ def extract_text_with_google_vision(file_bytes: bytes, filename: str = "document
         # Initialize the client
         client = vision.ImageAnnotatorClient()
 
-        # For PDFs, we need to process page by page
-        # Convert PDF to images and process each page
-        all_text = []
+        # For multi-page PDFs, we need to use pdf2image to convert to images first
+        try:
+            from pdf2image import convert_from_bytes
 
-        # Use the document text detection for better accuracy
-        image = vision.Image(content=file_bytes)
-        response = client.document_text_detection(image=image)
+            # Convert PDF to images (one per page)
+            print(f"[OCR] Converting PDF to images (this may take a moment)...")
+            try:
+                images = convert_from_bytes(file_bytes, dpi=200)
+                print(f"[OCR] Successfully converted to {len(images)} images")
+            except Exception as conversion_error:
+                print(f"[OCR] PDF to image conversion failed: {str(conversion_error)}")
+                print(f"[OCR] This usually means poppler-utils is not installed")
+                raise
 
-        if response.error.message:
-            raise Exception(f"Google Vision API error: {response.error.message}")
+            print(f"[OCR] Processing {len(images)} pages with Google Vision...")
 
-        # Extract full text
-        if response.full_text_annotation:
-            all_text.append(response.full_text_annotation.text)
+            all_text = []
+            for i, img in enumerate(images, 1):
+                # Convert PIL Image to bytes
+                img_byte_arr = io.BytesIO()
+                img.save(img_byte_arr, format='PNG')
+                img_bytes = img_byte_arr.getvalue()
+
+                # Process with Google Vision
+                image = vision.Image(content=img_bytes)
+                response = client.document_text_detection(image=image)
+
+                if response.error.message:
+                    print(f"[OCR] Warning: Page {i} error: {response.error.message}")
+                    continue
+
+                # Extract text from this page
+                if response.full_text_annotation:
+                    all_text.append(response.full_text_annotation.text)
+                    print(f"[OCR] Page {i}/{len(images)}: {len(response.full_text_annotation.text)} chars")
+
+        except ImportError:
+            # pdf2image not available, try direct PDF processing (may only work for single page)
+            print(f"[OCR] pdf2image not available, trying direct PDF processing (may fail for multi-page)")
+            image = vision.Image(content=file_bytes)
+            response = client.document_text_detection(image=image)
+
+            if response.error.message:
+                raise Exception(f"Google Vision API error: {response.error.message}")
+
+            all_text = []
+            if response.full_text_annotation:
+                all_text.append(response.full_text_annotation.text)
 
         # Cleanup temp credentials file
         if credentials_json and os.path.exists(temp_cred_file):
@@ -78,11 +112,13 @@ def extract_text_with_google_vision(file_bytes: bytes, filename: str = "document
             print(f"[OCR] Google Vision extracted insufficient text")
             return extracted_text, "google_vision_insufficient", False
 
-    except ImportError:
-        print(f"[OCR] google-cloud-vision not installed")
-        return "", "google_vision_not_installed", False
+    except ImportError as e:
+        print(f"[OCR] Missing dependency: {str(e)}")
+        return "", "google_vision_missing_dependency", False
     except Exception as e:
-        print(f"[OCR] Google Vision failed: {str(e)}")
+        print(f"[OCR] Google Vision failed: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return "", f"google_vision_error", False
 
 
@@ -161,7 +197,9 @@ Return ONLY the extracted text, no additional commentary."""
             return extracted_text, "claude_vision_insufficient", False
 
     except Exception as e:
-        print(f"[OCR] Claude Vision failed: {str(e)}")
+        print(f"[OCR] Claude Vision failed: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return "", "claude_vision_error", False
 
 
