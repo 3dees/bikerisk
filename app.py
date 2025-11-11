@@ -634,24 +634,29 @@ def render_extraction_tab():
         is_processing = st.session_state.get('processing_active', False)
 
         if is_processing:
-            # Disabled button during processing
+            # Disabled button during processing - show progress
             st.button(
                 f"⏳ Processing {len(uploaded_files)} Document{'s' if len(uploaded_files) > 1 else ''}...",
                 type="secondary",
-                disabled=True
+                disabled=True,
+                key="processing_button"
             )
+            # Actually run the processing
+            process_multiple_documents(uploaded_files, standard_name)
+            st.session_state.processing_active = False
+            st.rerun()
         else:
             # Active button ready to process
             process_button = st.button(
                 f"🔍 Process {len(uploaded_files)} Document{'s' if len(uploaded_files) > 1 else ''}",
-                type="primary"
+                type="primary",
+                key="process_button"
             )
 
             if process_button:
                 st.session_state.processing_active = True
                 st.session_state.extraction_type = extraction_type  # Store for API call
-                process_multiple_documents(uploaded_files, standard_name)
-                st.session_state.processing_active = False
+                st.rerun()  # Trigger re-render to show loading state
 
     # Show existing results if available
     if 'job_id' in st.session_state:
