@@ -2,7 +2,7 @@
 Improved AI-powered PDF extraction for manual requirements.
 """
 import anthropic
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Callable, TypeVar
 import json
 import os
 from dotenv import load_dotenv
@@ -13,8 +13,61 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 from pathlib import Path
 from datetime import datetime
+import time
 
 load_dotenv()
+
+# Type variable for retry function
+T = TypeVar('T')
+
+
+def retry_with_backoff(
+    func: Callable[..., T],
+    max_retries: int = 3,
+    initial_delay: float = 1.0,
+    max_delay: float = 60.0,
+    backoff_factor: float = 2.0
+) -> T:
+    """Retry a function with exponential backoff.
+
+    Args:
+        func: Function to retry
+        max_retries: Maximum number of retry attempts
+        initial_delay: Initial delay between retries (seconds)
+        max_delay: Maximum delay between retries (seconds)
+        backoff_factor: Multiplier for delay after each retry
+
+    Returns:
+        Result from successful function call
+
+    Raises:
+        Last exception if all retries fail
+    """
+    delay = initial_delay
+    last_exception = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            return func()
+        except anthropic.APIStatusError as e:
+            last_exception = e
+            if e.status_code == 529:  # Overloaded
+                if attempt < max_retries:
+                    print(f"[RETRY] API overloaded, waiting {delay:.1f}s before retry {attempt+1}/{max_retries}")
+                    time.sleep(delay)
+                    delay = min(delay * backoff_factor, max_delay)
+                else:
+                    print(f"[RETRY] Max retries reached, giving up")
+                    raise
+            else:
+                # Don't retry other status codes
+                raise
+        except Exception as e:
+            # Don't retry unexpected errors
+            raise
+
+    # Should never reach here, but just in case
+    raise last_exception
 
 
 # Cache configuration
@@ -318,16 +371,21 @@ Respond with JSON:
 }}"""
 
     try:
-        with client.messages.stream(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=16000,
-            temperature=0,
-            timeout=300.0,
-            messages=[{"role": "user", "content": prompt}]
-        ) as stream:
-            response_text = ""
-            for text in stream.text_stream:
-                response_text += text
+        # Wrap the API call with retry logic
+        def make_api_call():
+            with client.messages.stream(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=16000,
+                temperature=0,
+                timeout=300.0,
+                messages=[{"role": "user", "content": prompt}]
+            ) as stream:
+                response_text = ""
+                for text in stream.text_stream:
+                    response_text += text
+            return response_text
+
+        response_text = retry_with_backoff(make_api_call, max_retries=3)
 
         # Parse JSON
         if "```json" in response_text:
@@ -380,7 +438,7 @@ Respond with JSON:
     return (batch_index, all_requirements, new_cache_entries)
 
 
-def extract_from_detected_sections_batched(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None, batch_size: int = 10) -> Dict:
+def extract_from_detected_sections_batched(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None, batch_size: int = 10, max_workers: int = 3) -> Dict:
     """Extract requirements from detected sections using AI with batch processing.
 
     This function processes multiple sections per API call for 10x efficiency improvement.
@@ -391,6 +449,7 @@ def extract_from_detected_sections_batched(sections: List[Dict], standard_name: 
         extraction_type: "manual" for manual requirements only, "all" for all requirements
         api_key: Anthropic API key
         batch_size: Number of sections to process per API call (default: 10)
+        max_workers: Number of parallel workers (default: 3, reduced from 5 to avoid API overload)
     """
 
     if not api_key:
@@ -428,10 +487,9 @@ def extract_from_detected_sections_batched(sections: List[Dict], standard_name: 
         batch_sections = sections[start_idx:end_idx]
         batches.append((batch_num, start_idx, batch_sections))
 
-    print(f"[PARALLEL] Processing {len(sections)} sections in {num_batches} batches (batch_size={batch_size}) with 5 parallel workers...")
+    print(f"[PARALLEL] Processing {len(sections)} sections in {num_batches} batches (batch_size={batch_size}) with {max_workers} parallel workers...")
 
-    # Process batches in parallel
-    max_workers = 5
+    # Process batches in parallel (using configurable max_workers parameter)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all batches
         future_to_batch = {

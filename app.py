@@ -380,27 +380,12 @@ def render_progress_indicator():
     step2_status = "●" if current_step >= 2 else "○"
     step3_status = "●" if current_step >= 3 else "○"
 
-    # Add animated processing indicator CSS
-    animation_css = """
-    <style>
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.4; }
-    }
-    .processing {
-        animation: pulse 1.5s ease-in-out infinite;
-    }
-    </style>
-    """ if is_processing else ""
-
-    # Processing status text
+    # Processing status text (no animation)
     status_text = "PROCESSING..." if is_processing else "YOUR PROGRESS"
-    processing_class = "processing" if is_processing else ""
 
     # Build progress bar
     progress_html = f"""
-    {animation_css}
-    <div class="{processing_class}" style="text-align: center; padding: 20px 0; margin-bottom: 20px;
+    <div style="text-align: center; padding: 20px 0; margin-bottom: 20px;
                 background: linear-gradient(to right, #f8f9fa, #ffffff);
                 border-radius: 10px; border: 1px solid #dee2e6;">
         <div style="font-size: 14px; color: {'#0d6efd' if is_processing else '#6c757d'}; margin-bottom: 10px;
@@ -1779,27 +1764,27 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
         status_text.text(f"📄 {uploaded_file.name}")
 
         # Process each file
+        files = {
+            'file': (uploaded_file.name, uploaded_file.getvalue(), 'application/pdf')
+        }
+
+        params = {
+            'extraction_mode': extraction_mode
+        }
+
+        if standard_name:
+            params['standard_name'] = standard_name
+
+        # Add extraction_type parameter - ALWAYS include it to avoid default of "manual"
+        extraction_type_param = st.session_state.get('extraction_type', 'manual')
+        params['extraction_type'] = extraction_type_param
+        print(f"[DEBUG] Sending extraction_type={extraction_type_param} to API")
+
+        if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
+            params['api_key'] = st.session_state.anthropic_api_key
+
+        # Call upload API (20 minute timeout for large PDFs with many sections)
         try:
-            files = {
-                'file': (uploaded_file.name, uploaded_file.getvalue(), 'application/pdf')
-            }
-
-            params = {
-                'extraction_mode': extraction_mode
-            }
-
-            if standard_name:
-                params['standard_name'] = standard_name
-
-            # Add extraction_type parameter - ALWAYS include it to avoid default of "manual"
-            extraction_type_param = st.session_state.get('extraction_type', 'manual')
-            params['extraction_type'] = extraction_type_param
-            print(f"[DEBUG] Sending extraction_type={extraction_type_param} to API")
-
-            if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
-                params['api_key'] = st.session_state.anthropic_api_key
-
-            # Call upload API (20 minute timeout for large PDFs with many sections)
             response = requests.post(
                 f"{API_BASE_URL}/upload",
                 files=files,
@@ -1813,11 +1798,42 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
                 if job_id:
                     all_job_ids.append(job_id)
                     st.session_state[f'job_id_{idx}'] = job_id
+
+            elif response.status_code == 503:
+                st.error(f"⚠️ Anthropic API is temporarily overloaded for {uploaded_file.name}")
+                st.info("Their servers are experiencing high traffic. Please wait 1-2 minutes and try again.")
+                break  # Stop processing remaining files
+
+            elif response.status_code == 502:
+                st.error(f"⚠️ AI service error for {uploaded_file.name}")
+                try:
+                    error_detail = response.json().get('detail', 'Unknown error')
+                    st.error(error_detail)
+                except:
+                    st.error(response.text)
+                break  # Stop processing remaining files
+
             else:
-                st.error(f"❌ Failed to process {uploaded_file.name}: {response.status_code}")
+                st.error(f"❌ Extraction failed for {uploaded_file.name} (Status {response.status_code})")
+                try:
+                    error_detail = response.json().get('detail', response.text)
+                    st.error(error_detail)
+                except:
+                    st.error(response.text)
+
+        except requests.exceptions.Timeout:
+            st.error(f"⏱️ Request timed out for {uploaded_file.name} after 20 minutes")
+            st.info("The file may be too large. Try a smaller file or contact support.")
+            break  # Stop processing remaining files
+
+        except requests.exceptions.ConnectionError:
+            st.error(f"🔌 Cannot connect to backend API for {uploaded_file.name}")
+            st.warning("The FastAPI server may have crashed. Check the logs or restart the service.")
+            break  # Stop processing remaining files
 
         except Exception as e:
-            st.error(f"❌ Error processing {uploaded_file.name}: {str(e)}")
+            st.error(f"⚠️ Unexpected error processing {uploaded_file.name}: {str(e)}")
+            st.info("You can try uploading the file again.")
 
     progress_bar.empty()
     status_text.empty()

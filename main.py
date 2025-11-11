@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+import anthropic
 
 from extract import extract_from_file
 from extract_ai import extract_requirements_with_ai, extract_from_detected_sections, extract_from_detected_sections_batched
@@ -164,7 +165,28 @@ async def upload_file(
 
                 print(f"[EXTRACTION] Using batch_size={batch_size} for {len(sections)} sections")
 
-                ai_result = extract_from_detected_sections_batched(sections, standard_name, extraction_type, api_key, batch_size=batch_size)
+                try:
+                    ai_result = extract_from_detected_sections_batched(
+                        sections,
+                        standard_name,
+                        extraction_type,
+                        api_key,
+                        batch_size=batch_size
+                    )
+                except anthropic.APIStatusError as e:
+                    # Anthropic API error (overload, rate limit, etc)
+                    print(f"[API ERROR] Anthropic API error: {e}")
+                    raise HTTPException(
+                        status_code=503,
+                        detail=f"Anthropic API temporarily unavailable: {str(e)}. Please try again in a few moments."
+                    )
+                except anthropic.APIError as e:
+                    # Other Anthropic errors
+                    print(f"[API ERROR] Anthropic error: {e}")
+                    raise HTTPException(
+                        status_code=502,
+                        detail=f"AI service error: {str(e)}"
+                    )
 
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
@@ -176,13 +198,23 @@ async def upload_file(
 
             extraction_method = "hybrid_ai_rules"
 
+        except anthropic.APIStatusError as e:
+            # Re-raise API status errors (already handled above)
+            raise
+        except anthropic.APIError as e:
+            # Re-raise API errors (already handled above)
+            raise
+        except HTTPException:
+            # Re-raise HTTP exceptions (from above error handling)
+            raise
         except Exception as e:
-            print(f"[HYBRID AI EXTRACTION FAILED] {e}")
+            # Catch-all for unexpected errors
+            print(f"[EXTRACTION ERROR] Unexpected error: {e}")
             import traceback
             traceback.print_exc()
             raise HTTPException(
                 status_code=500,
-                detail=f"AI extraction failed: {str(e)}."
+                detail=f"Extraction failed: {str(e)}"
             )
 
     # Store results
