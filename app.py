@@ -634,6 +634,9 @@ def render_extraction_tab():
                 progress_pct = int((current_file / total_files) * 100)
                 st.caption(f"📊 Progress: {current_file}/{total_files} files ({progress_pct}%)")
 
+            # Show connection warning for long processing
+            st.info("⏱️ **Large PDFs take 5-10 minutes.** Keep this tab open. If Streamlit asks to reconnect, click 'Always rerun' to see results when complete.")
+
             # Actually run the processing - use stored extraction_type from session state
             stored_extraction_type = st.session_state.get('extraction_type', 'manual')
             print(f"[DEBUG] Processing started - extraction_type in session state: {stored_extraction_type}")
