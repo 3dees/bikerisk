@@ -630,16 +630,28 @@ def render_extraction_tab():
         # Convert UI label to extraction_type parameter
         extraction_type = "all" if extraction_mode == "All Requirements" else "manual"
 
-        process_button = st.button(
-            f"🔍 Process {len(uploaded_files)} Document{'s' if len(uploaded_files) > 1 else ''}",
-            type="primary"
-        )
+        # Show different button state based on processing status
+        is_processing = st.session_state.get('processing_active', False)
 
-        if process_button:
-            st.session_state.processing_active = True
-            st.session_state.extraction_type = extraction_type  # Store for API call
-            process_multiple_documents(uploaded_files, standard_name)
-            st.session_state.processing_active = False
+        if is_processing:
+            # Disabled button during processing
+            st.button(
+                f"⏳ Processing {len(uploaded_files)} Document{'s' if len(uploaded_files) > 1 else ''}...",
+                type="secondary",
+                disabled=True
+            )
+        else:
+            # Active button ready to process
+            process_button = st.button(
+                f"🔍 Process {len(uploaded_files)} Document{'s' if len(uploaded_files) > 1 else ''}",
+                type="primary"
+            )
+
+            if process_button:
+                st.session_state.processing_active = True
+                st.session_state.extraction_type = extraction_type  # Store for API call
+                process_multiple_documents(uploaded_files, standard_name)
+                st.session_state.processing_active = False
 
     # Show existing results if available
     if 'job_id' in st.session_state:

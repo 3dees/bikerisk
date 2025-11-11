@@ -9,8 +9,59 @@ from dotenv import load_dotenv
 import httpx
 import re
 from difflib import SequenceMatcher
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
+from pathlib import Path
+from datetime import datetime
 
 load_dotenv()
+
+
+# Cache configuration
+CACHE_DIR = Path("cache")
+CACHE_FILE = CACHE_DIR / "section_extractions.json"
+
+
+def _get_section_hash(section_content: str, extraction_type: str) -> str:
+    """Create hash of section content + extraction type for caching.
+
+    Args:
+        section_content: The section text
+        extraction_type: "manual" or "all" (affects extraction, so part of cache key)
+
+    Returns:
+        MD5 hash string
+    """
+    cache_key = f"{extraction_type}:{section_content}"
+    return hashlib.md5(cache_key.encode()).hexdigest()
+
+
+def _load_cache() -> dict:
+    """Load cached extractions from disk.
+
+    Returns:
+        Dict mapping section hashes to cached extraction results
+    """
+    if CACHE_FILE.exists():
+        try:
+            return json.loads(CACHE_FILE.read_text(encoding='utf-8'))
+        except Exception as e:
+            print(f"[CACHE] Error loading cache: {e}, starting fresh")
+            return {}
+    return {}
+
+
+def _save_cache(cache: dict):
+    """Save cache to disk atomically.
+
+    Args:
+        cache: Dict mapping section hashes to extraction results
+    """
+    try:
+        CACHE_DIR.mkdir(exist_ok=True)
+        CACHE_FILE.write_text(json.dumps(cache, indent=2), encoding='utf-8')
+    except Exception as e:
+        print(f"[CACHE] Error saving cache: {e}")
 
 
 def detect_image_references(text: str) -> tuple[bool, str]:
@@ -108,54 +159,59 @@ def remove_duplicate_requirements(requirements: List[Dict], similarity_threshold
     return unique_requirements, duplicates_info
 
 
-def extract_from_detected_sections_batched(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None, batch_size: int = 10) -> Dict:
-    """Extract requirements from detected sections using AI with batch processing.
-
-    This function processes multiple sections per API call for 10x efficiency improvement.
+def _extract_single_batch(
+    batch_sections: List[Dict],
+    standard_name: str,
+    extraction_type: str,
+    client: anthropic.Anthropic,
+    batch_index: int,
+    total_batches: int,
+    start_section_idx: int,
+    cache: dict
+) -> tuple[int, List[Dict], Dict[str, Dict]]:
+    """Extract requirements from a single batch with cache checking.
 
     Args:
-        sections: List of detected sections
-        standard_name: Name of the standard being processed
-        extraction_type: "manual" for manual requirements only, "all" for all requirements
-        api_key: Anthropic API key
-        batch_size: Number of sections to process per API call (default: 10)
+        batch_sections: List of sections in this batch
+        standard_name: Name of the standard
+        extraction_type: "manual" or "all"
+        client: Anthropic client
+        batch_index: Index of this batch (for logging)
+        total_batches: Total number of batches
+        start_section_idx: Starting section index for this batch
+        cache: Cache dictionary
+
+    Returns:
+        (batch_index, requirements_list, new_cache_entries_dict)
     """
-
-    if not api_key:
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-
-    if not api_key:
-        raise ValueError("No Anthropic API key provided")
-
-    # Setup client
-    no_proxy = os.getenv('NO_PROXY', '')
-    if 'anthropic.com' not in no_proxy:
-        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
-
-    try:
-        http_client = httpx.Client(timeout=120.0)
-        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
-    except Exception as e:
-        print(f"[AI EXTRACTION] Client init error: {e}")
-        client = anthropic.Anthropic(api_key=api_key)
-
+    new_cache_entries = {}
     all_requirements = []
     mode_label = "ALL REQUIREMENTS" if extraction_type == "all" else "MANUAL REQUIREMENTS"
 
-    # Split sections into batches
-    num_batches = (len(sections) + batch_size - 1) // batch_size
-    print(f"[{mode_label}] Processing {len(sections)} sections in {num_batches} batches (batch_size={batch_size})...")
+    # Check cache for each section in batch
+    sections_to_process = []
+    for section in batch_sections:
+        section_content = section.get('content', '')
+        section_hash = _get_section_hash(section_content, extraction_type)
 
-    for batch_num in range(num_batches):
-        start_idx = batch_num * batch_size
-        end_idx = min(start_idx + batch_size, len(sections))
-        batch_sections = sections[start_idx:end_idx]
+        if section_hash in cache:
+            # Cache hit - use cached results
+            cached_requirements = cache[section_hash]['requirements']
+            all_requirements.extend(cached_requirements)
+        else:
+            # Cache miss - need to process
+            sections_to_process.append(section)
 
-        print(f"[{mode_label}] Batch {batch_num + 1}/{num_batches}: Processing sections {start_idx + 1}-{end_idx}...")
+    # If all sections were cached, return early
+    if not sections_to_process:
+        print(f"[CACHE] Batch {batch_index+1}/{total_batches}: All {len(batch_sections)} sections cached")
+        return (batch_index, all_requirements, new_cache_entries)
 
-        # Build focus instructions based on extraction type
-        if extraction_type == "all":
-            focus_instructions = """Extract ALL requirements from this standard, including:
+    print(f"[BATCH] {batch_index+1}/{total_batches}: Processing {len(sections_to_process)} sections (cached: {len(batch_sections) - len(sections_to_process)})")
+
+    # Build focus instructions based on extraction type
+    if extraction_type == "all":
+        focus_instructions = """Extract ALL requirements from this standard, including:
 • Design specifications and technical requirements
 • Test procedures and quality requirements
 • Manufacturing and production requirements
@@ -173,8 +229,8 @@ IMPORTANT: This document may use various numbering schemes:
 
 Adapt to whatever numbering scheme this document uses.
 Preserve the original clause number EXACTLY as written in the document."""
-        else:
-            focus_instructions = """Extract ANY requirement that obligates the manufacturer to COMMUNICATE something to users in manuals/documentation.
+    else:
+        focus_instructions = """Extract ANY requirement that obligates the manufacturer to COMMUNICATE something to users in manuals/documentation.
 
 ✅ INCLUDE if it says or implies:
 • "shall be stated/included in the manual"
@@ -198,15 +254,15 @@ Preserve the original clause number EXACTLY as written in the document."""
 
 WHEN IN DOUBT → INCLUDE IT."""
 
-        # Build combined sections content
-        sections_content = ""
-        for i, section in enumerate(batch_sections):
-            section_num = start_idx + i + 1
-            heading = section.get('heading', '')
-            clause = section.get('clause_number', '')
-            content = section.get('content', '')
+    # Build combined sections content
+    sections_content = ""
+    for i, section in enumerate(sections_to_process):
+        section_num = start_section_idx + i + 1
+        heading = section.get('heading', '')
+        clause = section.get('clause_number', '')
+        content = section.get('content', '')
 
-            sections_content += f"""
+        sections_content += f"""
 ---SECTION {section_num}---
 Heading: {heading}
 Clause: {clause}
@@ -215,8 +271,8 @@ Content:
 
 """
 
-        # Build the batch prompt
-        prompt = f"""You are an expert at analyzing e-bike safety standards.
+    # Build the batch prompt
+    prompt = f"""You are an expert at analyzing e-bike safety standards.
 
 Standard: {standard_name or 'Unknown'}
 
@@ -261,51 +317,156 @@ Respond with JSON:
   "confidence": "high|medium|low"
 }}"""
 
-        try:
-            with client.messages.stream(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=16000,  # Increased for batch processing
-                temperature=0,
-                timeout=300.0,
-                messages=[{"role": "user", "content": prompt}]
-            ) as stream:
-                response_text = ""
-                for text in stream.text_stream:
-                    response_text += text
+    try:
+        with client.messages.stream(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=16000,
+            temperature=0,
+            timeout=300.0,
+            messages=[{"role": "user", "content": prompt}]
+        ) as stream:
+            response_text = ""
+            for text in stream.text_stream:
+                response_text += text
 
-            # Parse JSON
-            if "```json" in response_text:
-                json_str = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                json_str = response_text.split("```")[1].split("```")[0].strip()
-            else:
-                json_str = response_text.strip()
+        # Parse JSON
+        if "```json" in response_text:
+            json_str = response_text.split("```json")[1].split("```")[0].strip()
+        elif "```" in response_text:
+            json_str = response_text.split("```")[1].split("```")[0].strip()
+        else:
+            json_str = response_text.strip()
 
-            result = json.loads(json_str)
-            batch_requirements = result.get('requirements', [])
+        result = json.loads(json_str)
+        batch_requirements = result.get('requirements', [])
 
-            # Add standard name and validate
-            for req in batch_requirements:
-                req['Standard/Reg'] = standard_name or 'Unknown'
+        # Add standard name and validate
+        for req in batch_requirements:
+            req['Standard/Reg'] = standard_name or 'Unknown'
 
-                desc = req.get('Description', '')
+            desc = req.get('Description', '')
 
-                # Double-check image detection
-                has_image, img_ref = detect_image_references(desc)
-                if has_image and req.get('Contains Image?', 'N') == 'N':
-                    req['Contains Image?'] = f"Y - {img_ref}"
+            # Double-check image detection
+            has_image, img_ref = detect_image_references(desc)
+            if has_image and req.get('Contains Image?', 'N') == 'N':
+                req['Contains Image?'] = f"Y - {img_ref}"
 
-                # Double-check safety notice
-                safety_type = detect_safety_notice(desc)
-                if safety_type != "None" and req.get('Safety Notice Type', 'None') == 'None':
-                    req['Safety Notice Type'] = safety_type
+            # Double-check safety notice
+            safety_type = detect_safety_notice(desc)
+            if safety_type != "None" and req.get('Safety Notice Type', 'None') == 'None':
+                req['Safety Notice Type'] = safety_type
 
-            all_requirements.extend(batch_requirements)
-            print(f"[{mode_label}] Batch {batch_num + 1}/{num_batches}: Extracted {len(batch_requirements)} requirements")
+        # Cache the results for each processed section
+        for section in sections_to_process:
+            section_content = section.get('content', '')
+            section_hash = _get_section_hash(section_content, extraction_type)
 
-        except Exception as e:
-            print(f"[{mode_label}] Error in batch {batch_num + 1}: {e}")
-            continue
+            # Store ALL requirements from this batch for this section
+            new_cache_entries[section_hash] = {
+                'requirements': batch_requirements,
+                'extraction_type': extraction_type,
+                'timestamp': datetime.now().isoformat(),
+                'standard': standard_name
+            }
+
+        all_requirements.extend(batch_requirements)
+        print(f"[{mode_label}] Batch {batch_index+1}/{total_batches}: Extracted {len(batch_requirements)} requirements")
+
+    except Exception as e:
+        print(f"[{mode_label}] Error in batch {batch_index+1}: {e}")
+        import traceback
+        traceback.print_exc()
+
+    return (batch_index, all_requirements, new_cache_entries)
+
+
+def extract_from_detected_sections_batched(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None, batch_size: int = 10) -> Dict:
+    """Extract requirements from detected sections using AI with batch processing.
+
+    This function processes multiple sections per API call for 10x efficiency improvement.
+
+    Args:
+        sections: List of detected sections
+        standard_name: Name of the standard being processed
+        extraction_type: "manual" for manual requirements only, "all" for all requirements
+        api_key: Anthropic API key
+        batch_size: Number of sections to process per API call (default: 10)
+    """
+
+    if not api_key:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+
+    if not api_key:
+        raise ValueError("No Anthropic API key provided")
+
+    # Setup client
+    no_proxy = os.getenv('NO_PROXY', '')
+    if 'anthropic.com' not in no_proxy:
+        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
+
+    try:
+        http_client = httpx.Client(timeout=120.0)
+        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
+    except Exception as e:
+        print(f"[AI EXTRACTION] Client init error: {e}")
+        client = anthropic.Anthropic(api_key=api_key)
+
+    all_requirements = []
+    all_new_cache_entries = {}
+    mode_label = "ALL REQUIREMENTS" if extraction_type == "all" else "MANUAL REQUIREMENTS"
+
+    # Load cache
+    cache = _load_cache()
+    print(f"[CACHE] Loaded {len(cache)} cached extractions")
+
+    # Split sections into batches
+    num_batches = (len(sections) + batch_size - 1) // batch_size
+    batches = []
+    for batch_num in range(num_batches):
+        start_idx = batch_num * batch_size
+        end_idx = min(start_idx + batch_size, len(sections))
+        batch_sections = sections[start_idx:end_idx]
+        batches.append((batch_num, start_idx, batch_sections))
+
+    print(f"[PARALLEL] Processing {len(sections)} sections in {num_batches} batches (batch_size={batch_size}) with 5 parallel workers...")
+
+    # Process batches in parallel
+    max_workers = 5
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all batches
+        future_to_batch = {
+            executor.submit(
+                _extract_single_batch,
+                batch_sections,
+                standard_name,
+                extraction_type,
+                client,
+                batch_idx,
+                num_batches,
+                start_idx,
+                cache
+            ): batch_idx
+            for batch_idx, start_idx, batch_sections in batches
+        }
+
+        # Collect results as they complete
+        for future in as_completed(future_to_batch):
+            batch_idx = future_to_batch[future]
+            try:
+                idx, requirements, new_cache_entries = future.result(timeout=120)
+                all_requirements.extend(requirements)
+                all_new_cache_entries.update(new_cache_entries)
+            except Exception as e:
+                print(f"[PARALLEL] Batch {batch_idx+1} failed: {e}")
+                import traceback
+                traceback.print_exc()
+                continue
+
+    # Save new cache entries
+    if all_new_cache_entries:
+        cache.update(all_new_cache_entries)
+        _save_cache(cache)
+        print(f"[CACHE] Saved {len(all_new_cache_entries)} new entries")
 
     print(f"[{mode_label}] Total: {len(all_requirements)} requirements from {len(sections)} sections (before deduplication)")
 
