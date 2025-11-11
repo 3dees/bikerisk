@@ -2,12 +2,13 @@
 Improved AI-powered PDF extraction for manual requirements.
 """
 import anthropic
-from typing import Dict, List
+from typing import Dict, List, Tuple
 import json
 import os
 from dotenv import load_dotenv
 import httpx
 import re
+from difflib import SequenceMatcher
 
 load_dotenv()
 
@@ -48,6 +49,282 @@ def detect_safety_notice(text: str) -> str:
         return "CAUTION"
 
     return "None"
+
+
+def remove_duplicate_requirements(requirements: List[Dict], similarity_threshold: float = 0.95) -> Tuple[List[Dict], List[Dict]]:
+    """Remove duplicate requirements based on text similarity.
+
+    Args:
+        requirements: List of requirement dictionaries
+        similarity_threshold: Similarity threshold (0.0-1.0) for considering duplicates (default: 0.95)
+
+    Returns:
+        Tuple of (unique_requirements, duplicate_info)
+        - unique_requirements: List of unique requirements
+        - duplicate_info: List of dicts with duplicate information
+    """
+    unique_requirements = []
+    duplicates_info = []
+
+    for req in requirements:
+        req_text = req.get('Description', '').strip().lower()
+
+        if not req_text:
+            # Empty description, keep it but flag
+            unique_requirements.append(req)
+            continue
+
+        is_duplicate = False
+
+        for existing in unique_requirements:
+            existing_text = existing.get('Description', '').strip().lower()
+
+            if not existing_text:
+                continue
+
+            # Calculate similarity using SequenceMatcher
+            similarity = SequenceMatcher(None, req_text, existing_text).ratio()
+
+            if similarity >= similarity_threshold:
+                # Found duplicate
+                duplicates_info.append({
+                    'duplicate_clause': req.get('Clause/Requirement', 'N/A'),
+                    'original_clause': existing.get('Clause/Requirement', 'N/A'),
+                    'similarity': round(similarity * 100, 1),
+                    'description': req_text[:100] + '...' if len(req_text) > 100 else req_text
+                })
+                is_duplicate = True
+                print(f"[DUPLICATE DETECTION] Removed: [{req.get('Clause/Requirement')}] matches [{existing.get('Clause/Requirement')}] (similarity: {similarity*100:.1f}%)")
+                break
+
+        if not is_duplicate:
+            unique_requirements.append(req)
+
+    if duplicates_info:
+        print(f"[DUPLICATE DETECTION] Removed {len(duplicates_info)} duplicate requirements ({len(unique_requirements)} unique remaining)")
+    else:
+        print(f"[DUPLICATE DETECTION] No duplicates found ({len(unique_requirements)} unique requirements)")
+
+    return unique_requirements, duplicates_info
+
+
+def extract_from_detected_sections_batched(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None, batch_size: int = 10) -> Dict:
+    """Extract requirements from detected sections using AI with batch processing.
+
+    This function processes multiple sections per API call for 10x efficiency improvement.
+
+    Args:
+        sections: List of detected sections
+        standard_name: Name of the standard being processed
+        extraction_type: "manual" for manual requirements only, "all" for all requirements
+        api_key: Anthropic API key
+        batch_size: Number of sections to process per API call (default: 10)
+    """
+
+    if not api_key:
+        api_key = os.getenv('ANTHROPIC_API_KEY')
+
+    if not api_key:
+        raise ValueError("No Anthropic API key provided")
+
+    # Setup client
+    no_proxy = os.getenv('NO_PROXY', '')
+    if 'anthropic.com' not in no_proxy:
+        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
+
+    try:
+        http_client = httpx.Client(timeout=120.0)
+        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
+    except Exception as e:
+        print(f"[AI EXTRACTION] Client init error: {e}")
+        client = anthropic.Anthropic(api_key=api_key)
+
+    all_requirements = []
+    mode_label = "ALL REQUIREMENTS" if extraction_type == "all" else "MANUAL REQUIREMENTS"
+
+    # Split sections into batches
+    num_batches = (len(sections) + batch_size - 1) // batch_size
+    print(f"[{mode_label}] Processing {len(sections)} sections in {num_batches} batches (batch_size={batch_size})...")
+
+    for batch_num in range(num_batches):
+        start_idx = batch_num * batch_size
+        end_idx = min(start_idx + batch_size, len(sections))
+        batch_sections = sections[start_idx:end_idx]
+
+        print(f"[{mode_label}] Batch {batch_num + 1}/{num_batches}: Processing sections {start_idx + 1}-{end_idx}...")
+
+        # Build focus instructions based on extraction type
+        if extraction_type == "all":
+            focus_instructions = """Extract ALL requirements from this standard, including:
+• Design specifications and technical requirements
+• Test procedures and quality requirements
+• Manufacturing and production requirements
+• User documentation and manual requirements
+• Safety requirements and warnings
+• Installation and maintenance requirements
+• Performance standards and measurements
+
+IMPORTANT: This document may use various numbering schemes:
+- Numeric: 4.1.2, 7.3.1.1
+- Letters: A.2.3, B.1.a
+- Roman: II.a, VII.4
+- Mixed: 4.1.a, A.2(b), 7.1(i)
+- Lists: A), (1), (a)
+
+Adapt to whatever numbering scheme this document uses.
+Preserve the original clause number EXACTLY as written in the document."""
+        else:
+            focus_instructions = """Extract ANY requirement that obligates the manufacturer to COMMUNICATE something to users in manuals/documentation.
+
+✅ INCLUDE if it says or implies:
+• "shall be stated/included in the manual"
+• "user shall be informed/warned"
+• "instructions must contain/include"
+• "information must be presented/made available"
+• "user must be made aware"
+• "shall be provided to the user" (even if doesn't say "in manual")
+
+✅ ALWAYS INCLUDE:
+• ANY text with WARNING, DANGER, CAUTION, HAZARD
+• Requirements about what users need to know (temperature, load limits, maintenance)
+• Assembly instructions
+• Safety information
+• Symbols/pictograms for documentation
+
+❌ EXCLUDE only if:
+• Pure physical product requirement with NO user communication mention
+• Internal manufacturing processes
+• Testing procedures users don't need to know
+
+WHEN IN DOUBT → INCLUDE IT."""
+
+        # Build combined sections content
+        sections_content = ""
+        for i, section in enumerate(batch_sections):
+            section_num = start_idx + i + 1
+            heading = section.get('heading', '')
+            clause = section.get('clause_number', '')
+            content = section.get('content', '')
+
+            sections_content += f"""
+---SECTION {section_num}---
+Heading: {heading}
+Clause: {clause}
+Content:
+{content}
+
+"""
+
+        # Build the batch prompt
+        prompt = f"""You are an expert at analyzing e-bike safety standards.
+
+Standard: {standard_name or 'Unknown'}
+
+EXTRACTION RULES:
+
+{focus_instructions}
+
+For EACH requirement, extract:
+1. Description: Full requirement text
+2. Clause/Requirement: Clause ID with full hierarchy (e.g., "7.1.1.a")
+3. Requirement scope: Keywords (ebike, battery, charger, etc.)
+4. Formatting required?: "Y" if specific formatting specified, else "N/A"
+5. Required in Print?: "y" if print required, "n" if digital OK, "N/A" if unclear
+6. Comments: Note if vague language, ambiguous, etc. USE THIS FIELD for any additional context that doesn't fit elsewhere
+7. Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
+8. Safety Notice Type: "WARNING" | "DANGER" | "CAUTION" | "HAZARD" | "None"
+
+SPLIT numbered/lettered subsections into SEPARATE requirements.
+PRESERVE full clause hierarchy.
+
+FLEXIBILITY: If document format is unusual, put core requirement in Description and use Comments for additional context. Set unclear fields to "N/A".
+
+Process ALL sections below. Each is marked ---SECTION N---:
+
+{sections_content}
+
+Respond with JSON:
+{{
+  "requirements": [
+    {{
+      "Description": "Full text",
+      "Clause/Requirement": "7.1.1.a",
+      "Requirement scope": "ebike, battery",
+      "Formatting required?": "Y",
+      "Required in Print?": "y",
+      "Comments": "vague language used",
+      "Contains Image?": "Y - Figure 7.2",
+      "Safety Notice Type": "WARNING"
+    }}
+  ],
+  "extraction_notes": "Observations",
+  "confidence": "high|medium|low"
+}}"""
+
+        try:
+            with client.messages.stream(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=16000,  # Increased for batch processing
+                temperature=0,
+                timeout=300.0,
+                messages=[{"role": "user", "content": prompt}]
+            ) as stream:
+                response_text = ""
+                for text in stream.text_stream:
+                    response_text += text
+
+            # Parse JSON
+            if "```json" in response_text:
+                json_str = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                json_str = response_text.split("```")[1].split("```")[0].strip()
+            else:
+                json_str = response_text.strip()
+
+            result = json.loads(json_str)
+            batch_requirements = result.get('requirements', [])
+
+            # Add standard name and validate
+            for req in batch_requirements:
+                req['Standard/Reg'] = standard_name or 'Unknown'
+
+                desc = req.get('Description', '')
+
+                # Double-check image detection
+                has_image, img_ref = detect_image_references(desc)
+                if has_image and req.get('Contains Image?', 'N') == 'N':
+                    req['Contains Image?'] = f"Y - {img_ref}"
+
+                # Double-check safety notice
+                safety_type = detect_safety_notice(desc)
+                if safety_type != "None" and req.get('Safety Notice Type', 'None') == 'None':
+                    req['Safety Notice Type'] = safety_type
+
+            all_requirements.extend(batch_requirements)
+            print(f"[{mode_label}] Batch {batch_num + 1}/{num_batches}: Extracted {len(batch_requirements)} requirements")
+
+        except Exception as e:
+            print(f"[{mode_label}] Error in batch {batch_num + 1}: {e}")
+            continue
+
+    print(f"[{mode_label}] Total: {len(all_requirements)} requirements from {len(sections)} sections (before deduplication)")
+
+    # Remove duplicates
+    unique_requirements, duplicates_info = remove_duplicate_requirements(all_requirements)
+
+    return {
+        'rows': unique_requirements,
+        'stats': {
+            'total_detected': len(unique_requirements),
+            'classified_rows': len(unique_requirements),
+            'sections_processed': len(sections),
+            'batches_processed': num_batches,
+            'duplicates_removed': len(duplicates_info),
+            'original_count': len(all_requirements)
+        },
+        'confidence': 'high',
+        'duplicates_info': duplicates_info
+    }
 
 
 def extract_from_detected_sections(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None) -> Dict:
