@@ -641,8 +641,10 @@ def render_extraction_tab():
                 disabled=True,
                 key="processing_button"
             )
-            # Actually run the processing
-            process_multiple_documents(uploaded_files, standard_name)
+            # Actually run the processing - use stored extraction_type from session state
+            stored_extraction_type = st.session_state.get('extraction_type', 'manual')
+            print(f"[DEBUG] Processing started - extraction_type in session state: {stored_extraction_type}")
+            process_multiple_documents(uploaded_files, standard_name, extraction_mode="ai")
             st.session_state.processing_active = False
             st.rerun()
         else:
@@ -656,6 +658,7 @@ def render_extraction_tab():
             if process_button:
                 st.session_state.processing_active = True
                 st.session_state.extraction_type = extraction_type  # Store for API call
+                print(f"[DEBUG] Button clicked - storing extraction_type={extraction_type} in session state")
                 st.rerun()  # Trigger re-render to show loading state
 
     # Show existing results if available
@@ -1770,9 +1773,10 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
             if standard_name:
                 params['standard_name'] = standard_name
 
-            # Add extraction_type parameter
-            if st.session_state.get('extraction_type'):
-                params['extraction_type'] = st.session_state.extraction_type
+            # Add extraction_type parameter - ALWAYS include it to avoid default of "manual"
+            extraction_type_param = st.session_state.get('extraction_type', 'manual')
+            params['extraction_type'] = extraction_type_param
+            print(f"[DEBUG] Sending extraction_type={extraction_type_param} to API")
 
             if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
                 params['api_key'] = st.session_state.anthropic_api_key
