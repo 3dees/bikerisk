@@ -1826,8 +1826,8 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
         # Update progress in session state
         st.session_state.current_file_idx = idx + 1
         progress = (idx + 1) / len(uploaded_files)
-        progress_bar.progress(progress, text=f"Processing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
-        status_text.text(f"📄 {uploaded_file.name}")
+        file_progress_bar.progress(progress, text=f"Processing {idx + 1}/{len(uploaded_files)}: {uploaded_file.name}")
+        file_status_text.text(f"📄 {uploaded_file.name}")
 
         # Process each file
         files = {
