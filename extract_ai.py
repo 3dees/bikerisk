@@ -14,6 +14,7 @@ import hashlib
 from pathlib import Path
 from datetime import datetime
 import time
+from extract import fix_encoding
 
 load_dotenv()
 
@@ -401,6 +402,11 @@ Respond with JSON:
         # Add standard name and validate
         for req in batch_requirements:
             req['Standard/Reg'] = standard_name or 'Unknown'
+
+            # Fix UTF-8 encoding in all text fields
+            for key, value in req.items():
+                if isinstance(value, str):
+                    req[key] = fix_encoding(value)
 
             desc = req.get('Description', '')
 

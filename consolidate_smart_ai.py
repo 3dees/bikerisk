@@ -117,10 +117,29 @@ REQUIREMENTS:
 
 CRITICAL INSTRUCTIONS:
 
-1. **Group by Regulatory Intent:** Group requirements that achieve the SAME compliance goal:
-   - "Provide assembly instructions" (regardless of exact wording)
-   - "Specify battery charging temperature" (even if different standards use different formats)
-   - "Label which brake controls which wheel" (same intent across standards)
+**PRIMARY GOAL: Create CROSS-STANDARD consolidation groups ONLY.**
+
+ONLY create consolidation groups where requirements come from 2 OR MORE DIFFERENT standards.
+DO NOT create groups where all requirements are from the same standard.
+
+Example of GOOD group (create this):
+Group: "Battery charging temperature"
+  - EN 50604: "Charge between 0-45°C"
+  - UL 2849: "Charge between 5-40°C"
+  - 16 CFR: "Charge between 0-50°C"
+✅ 3 different standards - CREATE THIS GROUP
+
+Example of BAD group (skip this):
+Group: "Battery storage requirements"
+  - EN 50604: "Store at -10°C to 30°C"
+  - EN 50604: "Store away from heat"
+  - EN 50604: "Store in dry place"
+❌ All same standard - DO NOT CREATE THIS GROUP
+
+1. **Group by Regulatory Intent:** Group requirements that achieve the SAME compliance goal ACROSS different standards:
+   - "Provide assembly instructions" (from EN + UL + CFR)
+   - "Specify battery charging temperature" (from different standards)
+   - "Label which brake controls which wheel" (cross-standard intent)
 
 2. **Respect Compliance Keywords:** Pay close attention to:
    - "shall" vs "must" vs "should" (different requirement levels)
@@ -237,14 +256,41 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
             groups.append(group)
         
         print(f"[SMART AI] Created {len(groups)} consolidation groups")
-        
+
+        # Filter to keep ONLY cross-standard groups (engineer requirement)
+        cross_standard_groups = []
+        single_standard_groups = []
+        all_ungrouped = list(result.get('ungrouped_indices', []))
+
+        for group in groups:
+            # Get unique standards in this group
+            standards_in_group = set(group.applies_to_standards)
+
+            if len(standards_in_group) >= 2:
+                # Cross-standard group - KEEP IT
+                cross_standard_groups.append(group)
+            else:
+                # Single-standard group - DISCARD IT
+                single_standard_groups.append(group)
+                # Add all requirement indices from this group to ungrouped
+                for req_idx in group.requirement_indices:
+                    if req_idx not in all_ungrouped:
+                        all_ungrouped.append(req_idx)
+
+        print(f"\n[CROSS-STANDARD FILTER]")
+        print(f"  - Total groups created: {len(groups)}")
+        print(f"  - Cross-standard groups (kept): {len(cross_standard_groups)}")
+        print(f"  - Single-standard groups (discarded): {len(single_standard_groups)}")
+        if len(groups) > 0:
+            print(f"  - Filter rate: {len(single_standard_groups)/len(groups)*100:.1f}% removed")
+
         return {
-            'groups': groups,
-            'ungrouped_indices': result.get('ungrouped_indices', []),
+            'groups': cross_standard_groups,  # Only cross-standard groups
+            'ungrouped_indices': all_ungrouped,
             'analysis_notes': result.get('analysis_notes', ''),
             'total_requirements': len(requirements),
-            'grouped_count': sum(len(g.requirement_indices) for g in groups),
-            'ungrouped_count': len(result.get('ungrouped_indices', []))
+            'grouped_count': sum(len(g.requirement_indices) for g in cross_standard_groups),
+            'ungrouped_count': len(all_ungrouped)
         }
         
     except anthropic.APITimeoutError as e:
@@ -331,14 +377,39 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
             continue
     
     combined_analysis = f"Processed {num_batches} batches. " + " | ".join(batch_analyses)
-    
+
     print(f"\n[BATCH] Complete! Created {len(all_groups)} total groups from {num_batches} batches")
-    
+
+    # Filter to keep ONLY cross-standard groups (engineer requirement)
+    cross_standard_groups = []
+    single_standard_groups = []
+
+    for group in all_groups:
+        # Get unique standards in this group
+        standards_in_group = set(group.applies_to_standards)
+
+        if len(standards_in_group) >= 2:
+            # Cross-standard group - KEEP IT
+            cross_standard_groups.append(group)
+        else:
+            # Single-standard group - DISCARD IT and add requirements to ungrouped
+            single_standard_groups.append(group)
+            # Add all requirement indices from this group to ungrouped
+            for req_idx in group.requirement_indices:
+                if req_idx not in all_ungrouped:
+                    all_ungrouped.append(req_idx)
+
+    print(f"\n[CROSS-STANDARD FILTER]")
+    print(f"  - Total groups created: {len(all_groups)}")
+    print(f"  - Cross-standard groups (kept): {len(cross_standard_groups)}")
+    print(f"  - Single-standard groups (discarded): {len(single_standard_groups)}")
+    print(f"  - Filter rate: {len(single_standard_groups)/len(all_groups)*100:.1f}% removed")
+
     return {
-        'groups': all_groups,
+        'groups': cross_standard_groups,  # Only cross-standard groups
         'ungrouped_indices': all_ungrouped,
         'analysis_notes': combined_analysis,
         'total_requirements': total_requirements,
-        'grouped_count': sum(len(g.requirement_indices) for g in all_groups),
+        'grouped_count': sum(len(g.requirement_indices) for g in cross_standard_groups),
         'ungrouped_count': len(all_ungrouped)
     }
