@@ -920,10 +920,10 @@ def generate_export_data(result, session_state):
                 standard = req.get('Standard/Reg', req.get('Standard/ Regulation', ''))
                 clause = req.get('Clause/Requirement', req.get('Clause ID', ''))
 
-                # Check flags
-                if req.get('Contains Image?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                # Check flags (convert to string to handle float values)
+                if str(req.get('Contains Image?', 'N')).upper() in ['Y', 'YES', 'TRUE']:
                     has_image = True
-                if req.get('Required in Print?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                if str(req.get('Required in Print?', 'N')).upper() in ['Y', 'YES', 'TRUE']:
                     requires_print = True
 
                 original_texts.append(f"[{standard} - {clause}] {text}")
@@ -1541,11 +1541,11 @@ def render_consolidation_tab():
                             req_row = df.iloc[idx]
                             req_info = format_requirement_display(req_row)
 
-                            # Check for special flags on this individual requirement
+                            # Check for special flags on this individual requirement (convert to string to handle float values)
                             req_badges = ""
-                            if req_row.get('Required in Print?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                            if str(req_row.get('Required in Print?', 'N')).upper() in ['Y', 'YES', 'TRUE']:
                                 req_badges += " 🖨️"
-                            if req_row.get('Contains Image?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                            if str(req_row.get('Contains Image?', 'N')).upper() in ['Y', 'YES', 'TRUE']:
                                 req_badges += " 📷"
 
                             if removal_mode:
@@ -2060,7 +2060,7 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
 
                 # Show success message
                 mode_emoji = "🤖" if result.get('extraction_mode') == 'ai' else "⚙️"
-                st.success(f"✅ Document processed successfully using {mode_emoji} {result.get('extraction_mode', 'unknown').upper()} mode!")
+                st.success(f"✅ Document processed successfully using {mode_emoji} {str(result.get('extraction_mode', 'unknown')).upper()} mode!")
 
                 # Show extraction stats
                 col1, col2, col3, col4 = st.columns(4)

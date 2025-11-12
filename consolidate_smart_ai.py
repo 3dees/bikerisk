@@ -263,10 +263,17 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
         all_ungrouped = list(result.get('ungrouped_indices', []))
 
         for group in groups:
-            # Get unique standards in this group
-            standards_in_group = set(group.applies_to_standards)
+            # Get actual unique standards from requirement indices (more accurate than group.applies_to_standards)
+            unique_standards = set()
+            for req_idx in group.requirement_indices:
+                if req_idx < len(requirements):
+                    req = requirements[req_idx]
+                    std = req.get('standard', '')
+                    # Use full standard ID (e.g., "UL 2271", "IEC 62133-2")
+                    if std and str(std).strip():
+                        unique_standards.add(str(std).strip())
 
-            if len(standards_in_group) >= 2:
+            if len(unique_standards) >= 2:
                 # Cross-standard group - KEEP IT
                 cross_standard_groups.append(group)
             else:
@@ -385,10 +392,19 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
     single_standard_groups = []
 
     for group in all_groups:
-        # Get unique standards in this group
-        standards_in_group = set(group.applies_to_standards)
+        # Get actual unique standards from requirement indices (more accurate than group.applies_to_standards)
+        unique_standards = set()
+        for req_idx in group.requirement_indices:
+            # Find the requirement in the original list
+            for req in requirements:
+                if req['index'] == req_idx:
+                    std = req.get('standard', '')
+                    # Use full standard ID (e.g., "UL 2271", "IEC 62133-2")
+                    if std and str(std).strip():
+                        unique_standards.add(str(std).strip())
+                    break
 
-        if len(standards_in_group) >= 2:
+        if len(unique_standards) >= 2:
             # Cross-standard group - KEEP IT
             cross_standard_groups.append(group)
         else:
