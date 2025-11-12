@@ -33,11 +33,70 @@ API_BASE_URL = "http://localhost:8000"
 
 
 def send_feedback_email(feedback_data):
-    """Send feedback via email using SendGrid (production) or Gmail SMTP (local)."""
+    """Send feedback via email using Resend (primary) or SendGrid (fallback)."""
 
     recipient = os.getenv('FEEDBACK_RECIPIENT_EMAIL', 'vanessajambois@gmail.com')
 
-    # Try SendGrid first (works on Railway)
+    # Try Resend first (recommended - simple and reliable)
+    resend_api_key = os.getenv('RESEND_API_KEY')
+
+    if resend_api_key:
+        try:
+            import resend
+
+            resend.api_key = resend_api_key
+            from_email = os.getenv('FEEDBACK_EMAIL_USER', 'onboarding@resend.dev')  # Use resend.dev for testing
+            rating_stars = "⭐" * feedback_data.get('rating', 0) if feedback_data.get('rating') else "N/A"
+
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2 style="color: #0d6efd;">BikeRisk Feedback Received</h2>
+                <table style="border-collapse: collapse; width: 100%;">
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Type:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['type']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Page:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['page']}</td>
+                    </tr>
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>From:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['email']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Rating:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{rating_stars}</td>
+                    </tr>
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Timestamp:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['timestamp']}</td>
+                    </tr>
+                </table>
+                <h3 style="color: #495057; margin-top: 20px;">Feedback Message:</h3>
+                <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #0d6efd; margin: 10px 0;">
+                    {feedback_data['text']}
+                </div>
+            </body>
+            </html>
+            """
+
+            params = {
+                "from": from_email,
+                "to": [recipient],
+                "subject": f"BikeRisk Feedback: {feedback_data['type']} - {feedback_data['page']}",
+                "html": html_content
+            }
+
+            email = resend.Emails.send(params)
+            return True, f"Email sent via Resend (ID: {email.get('id', 'unknown')})"
+
+        except Exception as e:
+            # Fall through to SendGrid if Resend fails
+            pass
+
+    # Try SendGrid as fallback
     sendgrid_api_key = os.getenv('SENDGRID_API_KEY')
 
     if sendgrid_api_key:
