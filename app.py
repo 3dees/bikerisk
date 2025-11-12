@@ -1846,8 +1846,10 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
         params['extraction_type'] = extraction_type_param
         print(f"[DEBUG] Sending extraction_type={extraction_type_param} to API")
 
+        # Prepare headers with API key (secure - not in URL)
+        headers = {}
         if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
-            params['api_key'] = st.session_state.anthropic_api_key
+            headers['Authorization'] = f"Bearer {st.session_state.anthropic_api_key}"
 
         # Submit job to backend (should return immediately with job_id)
         try:
@@ -1855,6 +1857,7 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
                 f"{API_BASE_URL}/upload",
                 files=files,
                 params=params,
+                headers=headers,
                 timeout=10  # Just 10s for initial submission (not processing)
             )
 
@@ -1978,15 +1981,17 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
             if custom_section_name:
                 params['custom_section_name'] = custom_section_name
 
-            # Add API key for AI mode
+            # Prepare headers with API key (secure - not in URL)
+            headers = {}
             if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
-                params['api_key'] = st.session_state.anthropic_api_key
+                headers['Authorization'] = f"Bearer {st.session_state.anthropic_api_key}"
 
             # Call upload API
             response = requests.post(
                 f"{API_BASE_URL}/upload",
                 files=files,
                 params=params,
+                headers=headers,
                 timeout=120  # Increased timeout for AI processing
             )
 

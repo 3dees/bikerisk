@@ -438,7 +438,7 @@ Respond with JSON:
     return (batch_index, all_requirements, new_cache_entries)
 
 
-def extract_from_detected_sections_batched(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None, batch_size: int = 10, max_workers: int = 3) -> Dict:
+def extract_from_detected_sections_batched(sections: List[Dict], standard_name: str = None, extraction_type: str = "manual", api_key: str = None, batch_size: int = 10, max_workers: int = 5) -> Dict:
     """Extract requirements from detected sections using AI with batch processing.
 
     This function processes multiple sections per API call for 10x efficiency improvement.
@@ -487,7 +487,9 @@ def extract_from_detected_sections_batched(sections: List[Dict], standard_name: 
         batch_sections = sections[start_idx:end_idx]
         batches.append((batch_num, start_idx, batch_sections))
 
-    print(f"[PARALLEL] Processing {len(sections)} sections in {num_batches} batches (batch_size={batch_size}) with {max_workers} parallel workers...")
+    print(f"[EXTRACTION] Starting extraction of {len(sections)} sections")
+    print(f"[EXTRACTION] Split into {num_batches} batches (batch_size={batch_size})")
+    print(f"[EXTRACTION] Using {max_workers} parallel workers")
 
     # Process batches in parallel (using configurable max_workers parameter)
     with ThreadPoolExecutor(max_workers=max_workers) as executor:

@@ -279,28 +279,55 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
         start_idx = batch_num * batch_size
         end_idx = min(start_idx + batch_size, total_requirements)
         batch_reqs = requirements[start_idx:end_idx]
-        
+
+        # Skip tiny batches (too small to consolidate meaningfully)
+        if len(batch_reqs) < 5:
+            print(f"\n[BATCH {batch_num + 1}/{num_batches}] ⚠️ Skipping (only {len(batch_reqs)} requirements - too small to consolidate)")
+            # Add them to ungrouped
+            for req in batch_reqs:
+                all_ungrouped.append(req['index'])
+            continue
+
         print(f"\n[BATCH {batch_num + 1}/{num_batches}] Processing requirements {start_idx}-{end_idx-1}")
-        
+
         try:
             batch_result = _consolidate_single_batch(batch_reqs, api_key, min_group_size, max_group_size)
-            
+
+            # Verify groups were created
+            if not batch_result.get('groups') or len(batch_result['groups']) == 0:
+                print(f"[BATCH {batch_num + 1}/{num_batches}] ⚠️ No groups created")
+                # Add batch requirements to ungrouped
+                for req in batch_reqs:
+                    all_ungrouped.append(req['index'])
+                continue
+
             # Adjust group IDs to be globally unique
             for group in batch_result['groups']:
                 group.group_id = len(all_groups)
                 all_groups.append(group)
-            
+
             # Adjust ungrouped indices to be globally correct
             for idx in batch_result.get('ungrouped_indices', []):
                 all_ungrouped.append(batch_reqs[idx]['index'])
-            
+
             batch_analyses.append(batch_result.get('analysis_notes', ''))
-            
+
             print(f"[BATCH {batch_num + 1}/{num_batches}] ✓ Created {len(batch_result['groups'])} groups")
-            
+
+        except IndexError as e:
+            print(f"[BATCH {batch_num + 1}/{num_batches}] ✗ IndexError: {e}")
+            print(f"[BATCH {batch_num + 1}/{num_batches}]   Batch size: {len(batch_reqs)}")
+            print(f"[BATCH {batch_num + 1}/{num_batches}]   Continuing with next batch...")
+            # Add batch requirements to ungrouped
+            for req in batch_reqs:
+                all_ungrouped.append(req['index'])
+            continue
         except Exception as e:
-            print(f"[BATCH {batch_num + 1}/{num_batches}] ✗ Failed: {e}")
-            # Continue with other batches even if one fails
+            print(f"[BATCH {batch_num + 1}/{num_batches}] ✗ Unexpected error: {e}")
+            print(f"[BATCH {batch_num + 1}/{num_batches}]   Continuing with next batch...")
+            # Add batch requirements to ungrouped
+            for req in batch_reqs:
+                all_ungrouped.append(req['index'])
             continue
     
     combined_analysis = f"Processed {num_batches} batches. " + " | ".join(batch_analyses)
