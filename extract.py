@@ -8,6 +8,47 @@ import pypdf
 from extract_ocr import extract_with_ocr
 
 
+def fix_encoding(text: str) -> str:
+    """
+    Fix common UTF-8 encoding issues in extracted text.
+
+    Fixes:
+    - Degree symbol: Â°C → °C
+    - En-dash: â€" → –
+    - Apostrophe: â€™ → '
+    - Quotes: â€œ/â€ → "
+
+    Args:
+        text: Text potentially with encoding issues
+
+    Returns:
+        Cleaned text with proper UTF-8 characters
+    """
+    if not text:
+        return text
+
+    # Fix common UTF-8 corruption issues
+    text = text.replace('Â°', '°')      # Degree symbol
+    text = text.replace('â€"', '–')     # En-dash
+    text = text.replace('â€"', '—')     # Em-dash
+    text = text.replace('â€™', "'")     # Apostrophe
+    text = text.replace('â€œ', '"')     # Left quote
+    text = text.replace('â€', '"')      # Right quote
+    text = text.replace('Â ', ' ')      # Non-breaking space
+
+    # Try to fix double-encoding (text decoded as latin-1 instead of utf-8)
+    try:
+        # Check if text was incorrectly decoded as latin-1
+        text.encode('latin-1')
+        # If successful, try to re-decode as utf-8
+        text = text.encode('latin-1').decode('utf-8')
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        # Already correct or unfixable - leave as is
+        pass
+
+    return text
+
+
 def extract_text_blocks(text: str) -> List[Dict]:
     """
     Parse extracted text into structured blocks with line numbers and heading detection.
@@ -91,6 +132,8 @@ def extract_from_pdf(file_bytes: bytes, filename: str) -> Dict:
     try:
         text, method = _extract_with_pdfplumber(file_bytes)
         if text and len(text.strip()) > 100:  # Meaningful content
+            # Fix UTF-8 encoding issues (degree symbols, etc.)
+            text = fix_encoding(text)
             blocks = extract_text_blocks(text)
             return {
                 'raw_text': text,
@@ -107,6 +150,8 @@ def extract_from_pdf(file_bytes: bytes, filename: str) -> Dict:
     try:
         text, method = _extract_with_pypdf(file_bytes)
         if text and len(text.strip()) > 100:
+            # Fix UTF-8 encoding issues (degree symbols, etc.)
+            text = fix_encoding(text)
             blocks = extract_text_blocks(text)
             return {
                 'raw_text': text,

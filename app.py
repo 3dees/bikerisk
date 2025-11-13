@@ -33,11 +33,70 @@ API_BASE_URL = "http://localhost:8000"
 
 
 def send_feedback_email(feedback_data):
-    """Send feedback via email using SendGrid (production) or Gmail SMTP (local)."""
+    """Send feedback via email using Resend (primary) or SendGrid (fallback)."""
 
     recipient = os.getenv('FEEDBACK_RECIPIENT_EMAIL', 'vanessajambois@gmail.com')
 
-    # Try SendGrid first (works on Railway)
+    # Try Resend first (recommended - simple and reliable)
+    resend_api_key = os.getenv('RESEND_API_KEY')
+
+    if resend_api_key:
+        try:
+            import resend
+
+            resend.api_key = resend_api_key
+            from_email = os.getenv('FEEDBACK_EMAIL_USER', 'onboarding@resend.dev')  # Use resend.dev for testing
+            rating_stars = "⭐" * feedback_data.get('rating', 0) if feedback_data.get('rating') else "N/A"
+
+            html_content = f"""
+            <html>
+            <body style="font-family: Arial, sans-serif;">
+                <h2 style="color: #0d6efd;">BikeRisk Feedback Received</h2>
+                <table style="border-collapse: collapse; width: 100%;">
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Type:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['type']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Page:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['page']}</td>
+                    </tr>
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>From:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['email']}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Rating:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{rating_stars}</td>
+                    </tr>
+                    <tr style="background-color: #f8f9fa;">
+                        <td style="padding: 10px; border: 1px solid #dee2e6;"><strong>Timestamp:</strong></td>
+                        <td style="padding: 10px; border: 1px solid #dee2e6;">{feedback_data['timestamp']}</td>
+                    </tr>
+                </table>
+                <h3 style="color: #495057; margin-top: 20px;">Feedback Message:</h3>
+                <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #0d6efd; margin: 10px 0;">
+                    {feedback_data['text']}
+                </div>
+            </body>
+            </html>
+            """
+
+            params = {
+                "from": from_email,
+                "to": [recipient],
+                "subject": f"BikeRisk Feedback: {feedback_data['type']} - {feedback_data['page']}",
+                "html": html_content
+            }
+
+            email = resend.Emails.send(params)
+            return True, f"Email sent via Resend (ID: {email.get('id', 'unknown')})"
+
+        except Exception as e:
+            # Fall through to SendGrid if Resend fails
+            pass
+
+    # Try SendGrid as fallback
     sendgrid_api_key = os.getenv('SENDGRID_API_KEY')
 
     if sendgrid_api_key:
@@ -861,10 +920,10 @@ def generate_export_data(result, session_state):
                 standard = req.get('Standard/Reg', req.get('Standard/ Regulation', ''))
                 clause = req.get('Clause/Requirement', req.get('Clause ID', ''))
 
-                # Check flags
-                if req.get('Contains Image?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                # Check flags (convert to string to handle float values)
+                if str(req.get('Contains Image?', 'N')).upper() in ['Y', 'YES', 'TRUE']:
                     has_image = True
-                if req.get('Required in Print?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                if str(req.get('Required in Print?', 'N')).upper() in ['Y', 'YES', 'TRUE']:
                     requires_print = True
 
                 original_texts.append(f"[{standard} - {clause}] {text}")
@@ -1218,43 +1277,61 @@ def render_consolidation_tab():
                 min_group_size = st.session_state.get('min_group_size', 3)
                 max_group_size = st.session_state.get('max_group_size', 12)
 
-                with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
-                    try:
-                        from consolidate_smart_ai import consolidate_with_smart_ai
+                # Create progress placeholders
+                progress_bar = st.progress(0)
+                status_text = st.empty()
 
-                        result = consolidate_with_smart_ai(
-                            df,
-                            st.session_state.anthropic_api_key,
-                            min_group_size=min_group_size,
-                            max_group_size=max_group_size
-                        )
+                # Define progress callback
+                def update_progress(message: str, progress_pct: float):
+                    """Update UI progress indicators"""
+                    status_text.text(f"🤖 {message}")
+                    progress_bar.progress(int(progress_pct))
 
-                        # Store results
-                        st.session_state.smart_consolidation = result
+                try:
+                    from consolidate_smart_ai import consolidate_with_smart_ai
 
-                        # Reset tracking when new analysis is run
-                        st.session_state.accepted_groups = set()
-                        st.session_state.rejected_groups = set()
-                        st.session_state.edited_groups = {}
-                        st.session_state.removed_requirements = {}
-                        st.session_state.modified_groups = set()
-                        st.session_state.show_all_groups = False
+                    result = consolidate_with_smart_ai(
+                        df,
+                        st.session_state.anthropic_api_key,
+                        min_group_size=min_group_size,
+                        max_group_size=max_group_size,
+                        progress_callback=update_progress
+                    )
 
-                        st.success(f"✅ Analysis complete!")
+                    # Clear progress indicators
+                    progress_bar.empty()
+                    status_text.empty()
 
-                        # Show stats
-                        stat_col1, stat_col2, stat_col3 = st.columns(3)
-                        with stat_col1:
-                            st.metric("Total Requirements", result['total_requirements'])
-                        with stat_col2:
-                            st.metric("Groups Created", len(result['groups']))
-                        with stat_col3:
-                            st.metric("Ungrouped", result['ungrouped_count'])
+                    # Store results
+                    st.session_state.smart_consolidation = result
 
-                    except Exception as e:
-                        st.error(f"❌ Error during consolidation: {e}")
-                        import traceback
-                        st.code(traceback.format_exc())
+                    # Reset tracking when new analysis is run
+                    st.session_state.accepted_groups = set()
+                    st.session_state.rejected_groups = set()
+                    st.session_state.edited_groups = {}
+                    st.session_state.removed_requirements = {}
+                    st.session_state.modified_groups = set()
+                    st.session_state.show_all_groups = False
+
+                    st.success(f"✅ Analysis complete!")
+
+                    # Show stats
+                    stat_col1, stat_col2, stat_col3 = st.columns(3)
+                    with stat_col1:
+                        st.metric("Total Requirements", result['total_requirements'])
+                    with stat_col2:
+                        st.metric("Groups Created", len(result['groups']))
+                    with stat_col3:
+                        st.metric("Ungrouped", result['ungrouped_count'])
+
+                except Exception as e:
+                    # Clear progress indicators on error
+                    progress_bar.empty()
+                    status_text.empty()
+
+                    st.error(f"❌ Error during consolidation: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
 
         with col2:
             # Advanced settings in popover
@@ -1482,11 +1559,11 @@ def render_consolidation_tab():
                             req_row = df.iloc[idx]
                             req_info = format_requirement_display(req_row)
 
-                            # Check for special flags on this individual requirement
+                            # Check for special flags on this individual requirement (convert to string to handle float values)
                             req_badges = ""
-                            if req_row.get('Required in Print?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                            if str(req_row.get('Required in Print?', 'N')).upper() in ['Y', 'YES', 'TRUE']:
                                 req_badges += " 🖨️"
-                            if req_row.get('Contains Image?', 'N').upper() in ['Y', 'YES', 'TRUE']:
+                            if str(req_row.get('Contains Image?', 'N')).upper() in ['Y', 'YES', 'TRUE']:
                                 req_badges += " 📷"
 
                             if removal_mode:
@@ -1846,8 +1923,10 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
         params['extraction_type'] = extraction_type_param
         print(f"[DEBUG] Sending extraction_type={extraction_type_param} to API")
 
+        # Prepare headers with API key (secure - not in URL)
+        headers = {}
         if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
-            params['api_key'] = st.session_state.anthropic_api_key
+            headers['Authorization'] = f"Bearer {st.session_state.anthropic_api_key}"
 
         # Submit job to backend (should return immediately with job_id)
         try:
@@ -1855,6 +1934,7 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
                 f"{API_BASE_URL}/upload",
                 files=files,
                 params=params,
+                headers=headers,
                 timeout=10  # Just 10s for initial submission (not processing)
             )
 
@@ -1978,15 +2058,17 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
             if custom_section_name:
                 params['custom_section_name'] = custom_section_name
 
-            # Add API key for AI mode
+            # Prepare headers with API key (secure - not in URL)
+            headers = {}
             if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
-                params['api_key'] = st.session_state.anthropic_api_key
+                headers['Authorization'] = f"Bearer {st.session_state.anthropic_api_key}"
 
             # Call upload API
             response = requests.post(
                 f"{API_BASE_URL}/upload",
                 files=files,
                 params=params,
+                headers=headers,
                 timeout=120  # Increased timeout for AI processing
             )
 
@@ -1996,7 +2078,7 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
 
                 # Show success message
                 mode_emoji = "🤖" if result.get('extraction_mode') == 'ai' else "⚙️"
-                st.success(f"✅ Document processed successfully using {mode_emoji} {result.get('extraction_mode', 'unknown').upper()} mode!")
+                st.success(f"✅ Document processed successfully using {mode_emoji} {str(result.get('extraction_mode', 'unknown')).upper()} mode!")
 
                 # Show extraction stats
                 col1, col2, col3, col4 = st.columns(4)

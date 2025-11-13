@@ -4,7 +4,7 @@ FastAPI backend for e-bike standards requirement extraction.
 import uuid
 from datetime import datetime
 from typing import Dict, Optional
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Header
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import os
@@ -197,7 +197,7 @@ async def upload_file(
     custom_section_name: Optional[str] = None,
     extraction_mode: Optional[str] = "ai",  # "ai" or "rules"
     extraction_type: Optional[str] = "manual",  # "manual" or "all"
-    api_key: Optional[str] = None
+    authorization: Optional[str] = Header(None)
 ):
     """
     Upload a PDF and start background extraction. Returns immediately with job_id.
@@ -208,7 +208,7 @@ async def upload_file(
         custom_section_name: Optional custom section name to search for (e.g., "Instruction for use")
         extraction_mode: "ai" (default) or "rules" for extraction method
         extraction_type: "manual" (default) for manual requirements only, "all" for all requirements
-        api_key: Anthropic API key (uses env var if not provided)
+        authorization: Authorization header with Bearer token (API key)
 
     Returns:
         Job ID and status='processing' (use /status/{job_id} to poll for completion)
@@ -226,7 +226,12 @@ async def upload_file(
     if not standard_name:
         standard_name = file.filename or "Unknown Standard"
 
-    # Get API key from env if not provided
+    # Extract API key from Authorization header
+    api_key = None
+    if authorization and authorization.startswith("Bearer "):
+        api_key = authorization.replace("Bearer ", "")
+
+    # Fallback to env var if no header provided
     if not api_key:
         api_key = os.getenv('ANTHROPIC_API_KEY')
 
@@ -234,7 +239,7 @@ async def upload_file(
     if extraction_mode == "ai" and not api_key:
         raise HTTPException(
             status_code=400,
-            detail="API key required for AI extraction mode. Please provide it or set ANTHROPIC_API_KEY env var."
+            detail="API key required for AI extraction mode. Please provide it via Authorization header or set ANTHROPIC_API_KEY env var."
         )
 
     # Initialize job in RESULTS_STORE with status='processing'
