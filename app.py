@@ -1376,7 +1376,100 @@ def render_consolidation_tab():
 
         # Show current settings (small text)
         st.caption(f"Current settings: Min={st.session_state.get('min_group_size', 3)}, Max={st.session_state.get('max_group_size', 12)}")
-        
+
+        st.divider()
+
+        # Alternative: Standards Comparison Tool
+        st.markdown("### 📊 Alternative: Compare Standards (No Consolidation)")
+        st.markdown("Identify which requirements appear across multiple standards without creating consolidated groups.")
+
+        if st.button("📊 Compare Standards Across Dataset", use_container_width=True, key="compare_standards_btn"):
+            # Create progress placeholders
+            progress_bar = st.progress(0)
+            status_text = st.empty()
+
+            # Define progress callback
+            def update_comparison_progress(message: str, progress_pct: float):
+                """Update UI progress indicators"""
+                status_text.text(f"📊 {message}")
+                progress_bar.progress(int(progress_pct))
+
+            try:
+                from compare_standards import compare_standards
+                import tempfile
+
+                # Save current DataFrame to temp CSV
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, newline='', encoding='utf-8') as tmp:
+                    df.to_csv(tmp.name, index=False)
+                    tmp_path = tmp.name
+
+                # Run comparison
+                result = compare_standards(
+                    tmp_path,
+                    st.session_state.anthropic_api_key,
+                    output_dir="./",
+                    progress_callback=update_comparison_progress
+                )
+
+                # Clean up temp file
+                os.unlink(tmp_path)
+
+                # Clear progress indicators
+                progress_bar.empty()
+                status_text.empty()
+
+                # Show results
+                st.success(f"✅ Comparison complete!")
+
+                # Stats
+                stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
+                with stat_col1:
+                    st.metric("Total Requirements", result['total_requirements'])
+                with stat_col2:
+                    st.metric("In All 3 Standards", result['cross_standard_3'])
+                with stat_col3:
+                    st.metric("In 2 Standards", result['cross_standard_2'])
+                with stat_col4:
+                    st.metric("Unique to 1 Standard", result['unique'])
+
+                # Download buttons
+                st.markdown("### 📥 Download Reports")
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    # CSV report
+                    with open(result['csv_path'], 'rb') as f:
+                        st.download_button(
+                            label="📄 Download CSV Report",
+                            data=f.read(),
+                            file_name="requirements_comparison_report.csv",
+                            mime="text/csv",
+                            use_container_width=True
+                        )
+
+                with col2:
+                    # Summary text
+                    with open(result['summary_path'], 'rb') as f:
+                        st.download_button(
+                            label="📝 Download Summary Text",
+                            data=f.read(),
+                            file_name="comparison_summary.txt",
+                            mime="text/plain",
+                            use_container_width=True
+                        )
+
+                st.info("💡 **Tip:** The CSV report includes match groups and similarity scores. The summary text provides a human-readable overview.")
+
+            except Exception as e:
+                # Clear progress indicators on error
+                progress_bar.empty()
+                status_text.empty()
+
+                st.error(f"❌ Error during comparison: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+
+
         # Display results
         if 'smart_consolidation' in st.session_state:
             result = st.session_state.smart_consolidation
