@@ -1403,10 +1403,9 @@ def render_consolidation_tab():
                     df.to_csv(tmp.name, index=False)
                     tmp_path = tmp.name
 
-                # Run comparison
+                # Run comparison (no API key needed - uses SequenceMatcher)
                 result = compare_standards(
                     tmp_path,
-                    st.session_state.anthropic_api_key,
                     output_dir="./",
                     progress_callback=update_comparison_progress
                 )
