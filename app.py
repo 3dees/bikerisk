@@ -1277,43 +1277,61 @@ def render_consolidation_tab():
                 min_group_size = st.session_state.get('min_group_size', 3)
                 max_group_size = st.session_state.get('max_group_size', 12)
 
-                with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
-                    try:
-                        from consolidate_smart_ai import consolidate_with_smart_ai
+                # Create progress placeholders
+                progress_bar = st.progress(0)
+                status_text = st.empty()
 
-                        result = consolidate_with_smart_ai(
-                            df,
-                            st.session_state.anthropic_api_key,
-                            min_group_size=min_group_size,
-                            max_group_size=max_group_size
-                        )
+                # Define progress callback
+                def update_progress(message: str, progress_pct: float):
+                    """Update UI progress indicators"""
+                    status_text.text(f"🤖 {message}")
+                    progress_bar.progress(int(progress_pct))
 
-                        # Store results
-                        st.session_state.smart_consolidation = result
+                try:
+                    from consolidate_smart_ai import consolidate_with_smart_ai
 
-                        # Reset tracking when new analysis is run
-                        st.session_state.accepted_groups = set()
-                        st.session_state.rejected_groups = set()
-                        st.session_state.edited_groups = {}
-                        st.session_state.removed_requirements = {}
-                        st.session_state.modified_groups = set()
-                        st.session_state.show_all_groups = False
+                    result = consolidate_with_smart_ai(
+                        df,
+                        st.session_state.anthropic_api_key,
+                        min_group_size=min_group_size,
+                        max_group_size=max_group_size,
+                        progress_callback=update_progress
+                    )
 
-                        st.success(f"✅ Analysis complete!")
+                    # Clear progress indicators
+                    progress_bar.empty()
+                    status_text.empty()
 
-                        # Show stats
-                        stat_col1, stat_col2, stat_col3 = st.columns(3)
-                        with stat_col1:
-                            st.metric("Total Requirements", result['total_requirements'])
-                        with stat_col2:
-                            st.metric("Groups Created", len(result['groups']))
-                        with stat_col3:
-                            st.metric("Ungrouped", result['ungrouped_count'])
+                    # Store results
+                    st.session_state.smart_consolidation = result
 
-                    except Exception as e:
-                        st.error(f"❌ Error during consolidation: {e}")
-                        import traceback
-                        st.code(traceback.format_exc())
+                    # Reset tracking when new analysis is run
+                    st.session_state.accepted_groups = set()
+                    st.session_state.rejected_groups = set()
+                    st.session_state.edited_groups = {}
+                    st.session_state.removed_requirements = {}
+                    st.session_state.modified_groups = set()
+                    st.session_state.show_all_groups = False
+
+                    st.success(f"✅ Analysis complete!")
+
+                    # Show stats
+                    stat_col1, stat_col2, stat_col3 = st.columns(3)
+                    with stat_col1:
+                        st.metric("Total Requirements", result['total_requirements'])
+                    with stat_col2:
+                        st.metric("Groups Created", len(result['groups']))
+                    with stat_col3:
+                        st.metric("Ungrouped", result['ungrouped_count'])
+
+                except Exception as e:
+                    # Clear progress indicators on error
+                    progress_bar.empty()
+                    status_text.empty()
+
+                    st.error(f"❌ Error during consolidation: {e}")
+                    import traceback
+                    st.code(traceback.format_exc())
 
         with col2:
             # Advanced settings in popover
