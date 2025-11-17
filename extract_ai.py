@@ -403,7 +403,15 @@ def remove_duplicate_requirements(requirements: List[Dict], similarity_threshold
     unique_requirements = []
     duplicates_info = []
 
-    for req in requirements:
+    total = len(requirements)
+    progress_interval = max(1, total // 10)  # Log progress every 10%
+
+    for idx, req in enumerate(requirements):
+        # Progress logging every 10%
+        if idx > 0 and idx % progress_interval == 0:
+            progress_pct = (idx / total) * 100
+            print(f"[DEDUPLICATION] Progress: {idx}/{total} ({progress_pct:.0f}%) - {len(unique_requirements)} unique, {len(duplicates_info)} duplicates")
+
         req_text = req.get('Description', '').strip().lower()
 
         if not req_text:
@@ -431,16 +439,18 @@ def remove_duplicate_requirements(requirements: List[Dict], similarity_threshold
                     'description': req_text[:100] + '...' if len(req_text) > 100 else req_text
                 })
                 is_duplicate = True
-                print(f"[DUPLICATE DETECTION] Removed: [{req.get('Clause/Requirement')}] matches [{existing.get('Clause/Requirement')}] (similarity: {similarity*100:.1f}%)")
+                # Only log first few duplicates to avoid log spam
+                if len(duplicates_info) <= 5:
+                    print(f"[DUPLICATE] Removed: [{req.get('Clause/Requirement')}] matches [{existing.get('Clause/Requirement')}] ({similarity*100:.1f}%)")
                 break
 
         if not is_duplicate:
             unique_requirements.append(req)
 
     if duplicates_info:
-        print(f"[DUPLICATE DETECTION] Removed {len(duplicates_info)} duplicate requirements ({len(unique_requirements)} unique remaining)")
+        print(f"[DEDUPLICATION] Summary: Removed {len(duplicates_info)} duplicates, kept {len(unique_requirements)} unique requirements")
     else:
-        print(f"[DUPLICATE DETECTION] No duplicates found ({len(unique_requirements)} unique requirements)")
+        print(f"[DEDUPLICATION] Summary: No duplicates found, all {len(unique_requirements)} requirements are unique")
 
     return unique_requirements, duplicates_info
 
@@ -1244,7 +1254,9 @@ def extract_from_detected_sections_batched(
     print(f"[{mode_label}] Total: {len(all_requirements)} requirements from {len(all_clause_chunks)} clause chunks (before deduplication)")
 
     # Deduplicate
+    print(f"[DEDUPLICATION] Starting deduplication for {len(all_requirements)} requirements...")
     unique_requirements, duplicates_info = remove_duplicate_requirements(all_requirements)
+    print(f"[DEDUPLICATION] Completed: {len(unique_requirements)} unique, {len(duplicates_info)} duplicates removed")
 
     # Generate stable IDs
     unique_requirements = add_requirement_ids(unique_requirements, standard_name or 'Unknown')
