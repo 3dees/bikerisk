@@ -79,7 +79,7 @@ CACHE_FILE = CACHE_DIR / "section_extractions.json"
 MODEL_CONFIG = {
     "extraction": {
         "model": os.getenv("EXTRACTION_MODEL", "claude-3-5-haiku-20241022"),  # Haiku 3.5 for cost/speed
-        "max_tokens": 16000,
+        "max_tokens": 8192,  # Haiku's maximum output token limit
         "temperature": 0,
         "timeout": 300.0,
         "cost_per_mtok_input": 0.25,  # $0.25 per million tokens
@@ -87,7 +87,7 @@ MODEL_CONFIG = {
     },
     "consolidation": {
         "model": os.getenv("CONSOLIDATION_MODEL", "claude-sonnet-4-5-20250929"),  # Sonnet 4.5 for reasoning
-        "max_tokens": 16000,
+        "max_tokens": 16000,  # Sonnet supports up to 16K output tokens
         "temperature": 0,
         "timeout": 600.0,
         "cost_per_mtok_input": 3.0,    # $3.00 per million tokens
@@ -1119,7 +1119,7 @@ Respond with JSON:
             start_time = time.time()
             with client.messages.stream(
                 model=extraction_config["model"],
-                max_tokens=8000,
+                max_tokens=extraction_config["max_tokens"],
                 temperature=extraction_config["temperature"],
                 timeout=extraction_config["timeout"],
                 messages=[{"role": "user", "content": prompt}]
