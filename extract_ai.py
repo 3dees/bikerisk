@@ -79,13 +79,13 @@ CACHE_FILE = CACHE_DIR / "section_extractions.json"
 # Model configuration
 MODEL_CONFIG = {
     "extraction": {
-        "provider": os.getenv("EXTRACTION_PROVIDER", "openai"),  # TESTING: Using OpenAI GPT-4o-mini
-        "model": os.getenv("EXTRACTION_MODEL", "gpt-4o-mini"),  # GPT-4o-mini for speed
+        "provider": os.getenv("EXTRACTION_PROVIDER", "openai"),  # TESTING: Using OpenAI GPT-5-mini
+        "model": os.getenv("EXTRACTION_MODEL", "gpt-5-mini"),  # GPT-5-mini - latest fast model
         "max_tokens": 16000,
         "temperature": 0,
         "timeout": 300.0,
-        "cost_per_mtok_input": 0.15,    # GPT-4o-mini pricing ($0.15/1M tokens)
-        "cost_per_mtok_output": 0.60    # GPT-4o-mini pricing ($0.60/1M tokens)
+        "cost_per_mtok_input": 0.15,    # GPT-5-mini pricing (TBD - using gpt-4o-mini pricing as estimate)
+        "cost_per_mtok_output": 0.60    # GPT-5-mini pricing (TBD - using gpt-4o-mini pricing as estimate)
     },
     "consolidation": {
         "provider": "anthropic",
