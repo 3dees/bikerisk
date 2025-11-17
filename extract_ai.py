@@ -2,6 +2,7 @@
 Improved AI-powered PDF extraction for manual requirements.
 """
 import anthropic
+from openai import OpenAI
 from typing import Dict, List, Tuple, Callable, TypeVar
 import json
 import os
@@ -78,14 +79,16 @@ CACHE_FILE = CACHE_DIR / "section_extractions.json"
 # Model configuration
 MODEL_CONFIG = {
     "extraction": {
-        "model": os.getenv("EXTRACTION_MODEL", "claude-sonnet-4-5-20250929"),  # TEMP: Switched back to Sonnet - Haiku quality issues
-        "max_tokens": 16000,  # Sonnet's output limit
+        "provider": os.getenv("EXTRACTION_PROVIDER", "openai"),  # TESTING: Using OpenAI GPT-4o-mini
+        "model": os.getenv("EXTRACTION_MODEL", "gpt-4o-mini"),  # GPT-4o-mini for speed
+        "max_tokens": 16000,
         "temperature": 0,
         "timeout": 300.0,
-        "cost_per_mtok_input": 3.0,    # Sonnet pricing
-        "cost_per_mtok_output": 15.0   # Sonnet pricing
+        "cost_per_mtok_input": 0.15,    # GPT-4o-mini pricing ($0.15/1M tokens)
+        "cost_per_mtok_output": 0.60    # GPT-4o-mini pricing ($0.60/1M tokens)
     },
     "consolidation": {
+        "provider": "anthropic",
         "model": os.getenv("CONSOLIDATION_MODEL", "claude-sonnet-4-5-20250929"),  # Sonnet 4.5 for reasoning
         "max_tokens": 16000,  # Sonnet supports up to 16K output tokens
         "temperature": 0,
@@ -1000,21 +1003,36 @@ Respond with JSON only. No additional text outside the JSON structure.
     try:
         # Get model configuration
         extraction_config = MODEL_CONFIG["extraction"]
+        provider = extraction_config.get("provider", "anthropic")
 
         # API call with retry logic
         start_time = time.time()
-        def make_api_call():
-            with client.messages.stream(
-                model=extraction_config["model"],
-                max_tokens=extraction_config["max_tokens"],
-                temperature=extraction_config["temperature"],
-                timeout=extraction_config["timeout"],
-                messages=[{"role": "user", "content": prompt}]
-            ) as stream:
-                response_text = ""
-                for text in stream.text_stream:
-                    response_text += text
-            return response_text
+
+        if provider == "openai":
+            # OpenAI API call
+            def make_api_call():
+                response = client.chat.completions.create(
+                    model=extraction_config["model"],
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=extraction_config["max_tokens"],
+                    temperature=extraction_config["temperature"],
+                    timeout=extraction_config["timeout"]
+                )
+                return response.choices[0].message.content
+        else:
+            # Anthropic API call
+            def make_api_call():
+                with client.messages.stream(
+                    model=extraction_config["model"],
+                    max_tokens=extraction_config["max_tokens"],
+                    temperature=extraction_config["temperature"],
+                    timeout=extraction_config["timeout"],
+                    messages=[{"role": "user", "content": prompt}]
+                ) as stream:
+                    response_text = ""
+                    for text in stream.text_stream:
+                        response_text += text
+                return response_text
 
         response_text = retry_with_backoff(make_api_call, max_retries=3)
         latency = time.time() - start_time
@@ -1149,22 +1167,38 @@ def extract_from_detected_sections_batched(
         print(f"[DEPRECATION WARNING] batch_size parameter is deprecated, use clauses_per_batch instead")
         clauses_per_batch = batch_size  # Treat old param as clause count
 
-    if not api_key:
-        api_key = os.getenv('ANTHROPIC_API_KEY')
-    if not api_key:
-        raise ValueError("No Anthropic API key provided")
+    # Determine provider from config
+    extraction_config = MODEL_CONFIG["extraction"]
+    provider = extraction_config.get("provider", "anthropic")
 
-    # Setup client
-    no_proxy = os.getenv('NO_PROXY', '')
-    if 'anthropic.com' not in no_proxy:
-        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
+    # Setup client based on provider
+    if provider == "openai":
+        # OpenAI client setup
+        if not api_key:
+            api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            raise ValueError("No OpenAI API key provided")
 
-    try:
-        http_client = httpx.Client(timeout=120.0)
-        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
-    except Exception as e:
-        print(f"[AI EXTRACTION] Client init error: {e}")
-        client = anthropic.Anthropic(api_key=api_key)
+        print(f"[AI EXTRACTION] Using OpenAI provider with model: {extraction_config['model']}")
+        client = OpenAI(api_key=api_key)
+    else:
+        # Anthropic client setup
+        if not api_key:
+            api_key = os.getenv('ANTHROPIC_API_KEY')
+        if not api_key:
+            raise ValueError("No Anthropic API key provided")
+
+        no_proxy = os.getenv('NO_PROXY', '')
+        if 'anthropic.com' not in no_proxy:
+            os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
+
+        print(f"[AI EXTRACTION] Using Anthropic provider with model: {extraction_config['model']}")
+        try:
+            http_client = httpx.Client(timeout=120.0)
+            client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
+        except Exception as e:
+            print(f"[AI EXTRACTION] Client init error: {e}")
+            client = anthropic.Anthropic(api_key=api_key)
 
     mode_label = "ALL REQUIREMENTS" if extraction_type == "all" else "MANUAL REQUIREMENTS"
 
