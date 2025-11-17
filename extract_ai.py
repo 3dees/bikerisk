@@ -78,12 +78,12 @@ CACHE_FILE = CACHE_DIR / "section_extractions.json"
 # Model configuration
 MODEL_CONFIG = {
     "extraction": {
-        "model": os.getenv("EXTRACTION_MODEL", "claude-3-5-haiku-20241022"),  # Haiku 3.5 for cost/speed
-        "max_tokens": 8192,  # Haiku's maximum output token limit
+        "model": os.getenv("EXTRACTION_MODEL", "claude-sonnet-4-5-20250929"),  # TEMP: Switched back to Sonnet - Haiku quality issues
+        "max_tokens": 16000,  # Sonnet's output limit
         "temperature": 0,
         "timeout": 300.0,
-        "cost_per_mtok_input": 0.25,  # $0.25 per million tokens
-        "cost_per_mtok_output": 1.25   # $1.25 per million tokens
+        "cost_per_mtok_input": 3.0,    # Sonnet pricing
+        "cost_per_mtok_output": 15.0   # Sonnet pricing
     },
     "consolidation": {
         "model": os.getenv("CONSOLIDATION_MODEL", "claude-sonnet-4-5-20250929"),  # Sonnet 4.5 for reasoning
