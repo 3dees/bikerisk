@@ -70,8 +70,19 @@ def _process_upload_background(
     Background processing function for PDF extraction.
     Updates RESULTS_STORE with progress and final results.
     """
+    import time
+    start_time = time.time()
+
     try:
         # Step 1: Extract text (always needed for both modes)
+        with results_lock:
+            RESULTS_STORE[job_id].update({
+                'status': 'processing',
+                'step': 'Extracting text from PDF',
+                'progress': 10,
+                'start_time': start_time
+            })
+
         extraction_result = extract_from_file(file_bytes, filename)
 
         if not extraction_result['success']:
@@ -88,6 +99,13 @@ def _process_upload_background(
         if extraction_mode == "ai":
             # HYBRID AI MODE: Rules find sections, AI extracts requirements
             print(f"[EXTRACTION] Using HYBRID AI mode (rules + Claude Opus)")
+
+            # Step 2: Detect sections
+            with results_lock:
+                RESULTS_STORE[job_id].update({
+                    'step': 'Detecting sections',
+                    'progress': 20
+                })
 
             # Step 1: Use appropriate detection based on extraction_type
             blocks = extraction_result['blocks']
@@ -110,6 +128,12 @@ def _process_upload_background(
 
             if not sections:
                 # No sections found by rules - fallback to full AI extraction
+                with results_lock:
+                    RESULTS_STORE[job_id].update({
+                        'step': 'No sections found, using full document extraction',
+                        'progress': 30
+                    })
+
                 print(f"[EXTRACTION] No sections found, trying full AI extraction as fallback")
                 pdf_text = extraction_result.get('text', '')
                 if not pdf_text:
@@ -118,6 +142,13 @@ def _process_upload_background(
 
                 ai_result = extract_requirements_with_ai(pdf_text, standard_name, extraction_type, api_key)
             else:
+                # Step 3: AI Extraction with progress updates
+                with results_lock:
+                    RESULTS_STORE[job_id].update({
+                        'step': f'Extracting requirements from {len(sections)} sections',
+                        'progress': 40
+                    })
+
                 # Step 2: Pass detected sections to AI for intelligent extraction (clause-level batching)
                 # Using optimal batch size of 75 clauses for all document sizes
                 # (Phase 1 clause segmentation + Phase 2 Haiku model = 6-9x speed improvement)
@@ -125,13 +156,32 @@ def _process_upload_background(
 
                 print(f"[EXTRACTION] Processing {len(sections)} sections with clause-level batching (75 clauses/batch)")
 
+                # Create a progress callback
+                def update_extraction_progress(completed_batches, total_batches, requirements_count):
+                    progress = 40 + int((completed_batches / total_batches) * 40)  # 40-80% range
+                    with results_lock:
+                        RESULTS_STORE[job_id].update({
+                            'step': f'Extracting batch {completed_batches}/{total_batches}',
+                            'progress': progress,
+                            'requirements_extracted': requirements_count
+                        })
+
                 ai_result = extract_from_detected_sections_batched(
                     sections,
                     standard_name,
                     extraction_type,
                     api_key,
-                    clauses_per_batch=clauses_per_batch
+                    clauses_per_batch=clauses_per_batch,
+                    progress_callback=update_extraction_progress,
+                    job_id=job_id
                 )
+
+            # Step 4: Finalization
+            with results_lock:
+                RESULTS_STORE[job_id].update({
+                    'step': 'Finalizing results',
+                    'progress': 90
+                })
 
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
@@ -143,17 +193,21 @@ def _process_upload_background(
 
             extraction_method = "hybrid_ai_rules"
 
+            elapsed_time = time.time() - start_time
+
             # Store completed results
             with results_lock:
                 RESULTS_STORE[job_id].update({
                     'status': 'completed',
+                    'step': 'Complete',
                     'extraction_method': extraction_method,
                     'extraction_confidence': confidence,
                     'rows': classified_rows,
                     'csv_rows': csv_rows,
                     'consolidations': consolidations,
                     'stats': stats,
-                    'progress': 100
+                    'progress': 100,
+                    'elapsed_time': round(elapsed_time, 2)
                 })
 
     except anthropic.APIStatusError as e:

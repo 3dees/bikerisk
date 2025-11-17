@@ -408,6 +408,57 @@ def remove_duplicate_requirements(requirements: List[Dict], similarity_threshold
     return unique_requirements, duplicates_info
 
 
+def generate_requirement_id(requirement: Dict, standard_name: str) -> str:
+    """
+    Generate a stable, content-based ID for a requirement.
+
+    ID format: {standard_prefix}_{clause}_{content_hash}
+    Example: EN15194_7.1.2_a3f5b9
+
+    Args:
+        requirement: Requirement dictionary with Description and Clause/Requirement
+        standard_name: Name of the standard (e.g., "EN 15194", "UL 2271")
+
+    Returns:
+        Stable requirement ID string
+    """
+    # Extract components
+    description = requirement.get('Description', '').strip().lower()
+    clause = requirement.get('Clause/Requirement', 'unknown').strip()
+
+    # Create standard prefix (remove spaces, keep alphanumeric)
+    standard_prefix = ''.join(c for c in standard_name if c.isalnum())[:10]
+
+    # Create clause identifier (remove special chars except dots and letters)
+    clause_id = ''.join(c for c in clause if c.isalnum() or c == '.')
+
+    # Hash the description (first 100 chars for uniqueness, 6 char hash)
+    content_sample = description[:100]
+    content_hash = hashlib.md5(content_sample.encode('utf-8')).hexdigest()[:6]
+
+    # Combine into stable ID
+    req_id = f"{standard_prefix}_{clause_id}_{content_hash}"
+
+    return req_id
+
+
+def add_requirement_ids(requirements: List[Dict], standard_name: str) -> List[Dict]:
+    """
+    Add stable IDs to a list of requirements.
+
+    Args:
+        requirements: List of requirement dictionaries
+        standard_name: Name of the standard
+
+    Returns:
+        Same list with 'requirement_id' field added to each requirement
+    """
+    for req in requirements:
+        req['requirement_id'] = generate_requirement_id(req, standard_name)
+
+    return requirements
+
+
 def _extract_single_batch(
     batch_sections: List[Dict],
     standard_name: str,
@@ -943,7 +994,9 @@ def extract_from_detected_sections_batched(
     api_key: str = None,
     batch_size: int = None,  # DEPRECATED: backward compatibility
     clauses_per_batch: int = 75,
-    max_workers: int = 5
+    max_workers: int = 5,
+    progress_callback = None,
+    job_id: str = None
 ) -> Dict:
     """
     Extract requirements using clause-level batching for 6-9x speed improvement.
@@ -962,6 +1015,8 @@ def extract_from_detected_sections_batched(
         batch_size: DEPRECATED - use clauses_per_batch instead (kept for backward compatibility)
         clauses_per_batch: Number of clause chunks to process per API call (default: 75)
         max_workers: Number of parallel workers (default: 5)
+        progress_callback: Optional function(completed, total, req_count) for progress updates
+        job_id: Optional job ID for thread-safe progress updates
     """
 
     # Handle backward compatibility
@@ -1054,6 +1109,11 @@ def extract_from_detected_sections_batched(
 
                 print(f"[PROGRESS] {completed_batches}/{len(batches)} batches ({progress_pct:.1f}%) | "
                       f"{len(all_requirements)} requirements extracted")
+
+                # Call progress callback if provided
+                if progress_callback:
+                    progress_callback(completed_batches, len(batches), len(all_requirements))
+
             except Exception as e:
                 print(f"[PARALLEL] Batch {batch_idx+1} failed: {e}")
                 import traceback
@@ -1070,6 +1130,10 @@ def extract_from_detected_sections_batched(
 
     # Deduplicate
     unique_requirements, duplicates_info = remove_duplicate_requirements(all_requirements)
+
+    # Generate stable IDs
+    unique_requirements = add_requirement_ids(unique_requirements, standard_name or 'Unknown')
+    print(f"[ID GENERATION] Added requirement IDs to {len(unique_requirements)} requirements")
 
     return {
         'rows': unique_requirements,
@@ -1520,6 +1584,10 @@ Respond with JSON only. No additional text outside the JSON structure.
             safety_type = detect_safety_notice(desc)
             if safety_type != "None" and req.get('Safety Notice Type', 'None') == 'None':
                 req['Safety Notice Type'] = safety_type
+
+        # Generate stable IDs
+        requirements = add_requirement_ids(requirements, standard_name or 'Unknown')
+        print(f"[ID GENERATION] Added requirement IDs to {len(requirements)} requirements")
 
         return {
             'rows': requirements,
