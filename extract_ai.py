@@ -351,6 +351,43 @@ def detect_safety_notice(text: str) -> str:
     return "None"
 
 
+def _repair_json(json_str: str) -> str:
+    """
+    Attempt to repair common JSON formatting errors.
+
+    Common issues:
+    - Unescaped quotes in strings
+    - Missing commas between objects
+    - Trailing commas
+    - Unescaped newlines in strings
+
+    Returns:
+        Repaired JSON string (best effort)
+    """
+    import re
+
+    # Remove any markdown code blocks if present
+    if "```json" in json_str:
+        json_str = json_str.split("```json")[1].split("```")[0].strip()
+    elif "```" in json_str:
+        json_str = json_str.split("```")[1].split("```")[0].strip()
+
+    # Replace unescaped newlines within strings with escaped newlines
+    # This is a simplified approach - may need refinement
+    json_str = json_str.replace('\n', '\\n')
+
+    # Fix common quote escaping issues in Description fields
+    # Replace smart quotes with regular quotes
+    json_str = json_str.replace('"', '"').replace('"', '"')
+    json_str = json_str.replace("'", "'").replace("'", "'")
+
+    # Remove trailing commas before closing braces/brackets
+    json_str = re.sub(r',\s*}', '}', json_str)
+    json_str = re.sub(r',\s*]', ']', json_str)
+
+    return json_str
+
+
 def remove_duplicate_requirements(requirements: List[Dict], similarity_threshold: float = 0.95) -> Tuple[List[Dict], List[Dict]]:
     """Remove duplicate requirements based on text similarity.
 
@@ -668,16 +705,55 @@ Respond with JSON only. No additional text outside the JSON structure.
         response_text = retry_with_backoff(make_api_call, max_retries=3)
         latency = time.time() - start_time
 
-        # Parse JSON
-        if "```json" in response_text:
-            json_str = response_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in response_text:
-            json_str = response_text.split("```")[1].split("```")[0].strip()
-        else:
-            json_str = response_text.strip()
+        # Parse JSON with retry logic
+        batch_requirements = []
+        json_parse_attempts = 0
+        max_json_retries = 3
+        last_error = None
 
-        result = json.loads(json_str)
-        batch_requirements = result.get('requirements', [])
+        while json_parse_attempts < max_json_retries:
+            try:
+                # Extract JSON from response
+                if "```json" in response_text:
+                    json_str = response_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in response_text:
+                    json_str = response_text.split("```")[1].split("```")[0].strip()
+                else:
+                    json_str = response_text.strip()
+
+                # Try parsing
+                result = json.loads(json_str)
+                batch_requirements = result.get('requirements', [])
+                break  # Success!
+
+            except json.JSONDecodeError as json_err:
+                json_parse_attempts += 1
+                last_error = json_err
+                print(f"[JSON PARSE] Batch {batch_index+1}: Parse attempt {json_parse_attempts} failed: {str(json_err)[:100]}")
+
+                if json_parse_attempts < max_json_retries:
+                    # Try repairing the JSON
+                    try:
+                        repaired_json = _repair_json(response_text)
+                        result = json.loads(repaired_json)
+                        batch_requirements = result.get('requirements', [])
+                        print(f"[JSON REPAIR] Batch {batch_index+1}: Successfully repaired JSON on attempt {json_parse_attempts}")
+                        break  # Success after repair!
+                    except Exception as repair_err:
+                        print(f"[JSON REPAIR] Batch {batch_index+1}: Repair attempt {json_parse_attempts} failed: {str(repair_err)[:100]}")
+
+                        # If not last attempt, retry the API call
+                        if json_parse_attempts < max_json_retries:
+                            print(f"[RETRY] Batch {batch_index+1}: Retrying API call (attempt {json_parse_attempts + 1}/{max_json_retries})")
+                            response_text = retry_with_backoff(make_api_call, max_retries=1)
+
+        # If all attempts failed, log detailed error
+        if not batch_requirements and last_error:
+            error_msg = f"[CRITICAL] Batch {batch_index+1}/{total_batches} JSON parsing failed after {max_json_retries} attempts"
+            print(error_msg)
+            print(f"[ERROR DETAILS] Last error: {last_error}")
+            print(f"[RAW RESPONSE] First 500 chars: {response_text[:500]}")
+            # Continue processing other batches - don't raise exception
 
         # Log API usage (approximate token counts)
         input_tokens = len(prompt) // 4  # Rough estimate: 4 chars per token
@@ -933,16 +1009,55 @@ Respond with JSON only. No additional text outside the JSON structure.
         response_text = retry_with_backoff(make_api_call, max_retries=3)
         latency = time.time() - start_time
 
-        # Parse JSON
-        if "```json" in response_text:
-            json_str = response_text.split("```json")[1].split("```")[0].strip()
-        elif "```" in response_text:
-            json_str = response_text.split("```")[1].split("```")[0].strip()
-        else:
-            json_str = response_text.strip()
+        # Parse JSON with retry logic
+        batch_requirements = []
+        json_parse_attempts = 0
+        max_json_retries = 3
+        last_error = None
 
-        result = json.loads(json_str)
-        batch_requirements = result.get('requirements', [])
+        while json_parse_attempts < max_json_retries:
+            try:
+                # Extract JSON from response
+                if "```json" in response_text:
+                    json_str = response_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in response_text:
+                    json_str = response_text.split("```")[1].split("```")[0].strip()
+                else:
+                    json_str = response_text.strip()
+
+                # Try parsing
+                result = json.loads(json_str)
+                batch_requirements = result.get('requirements', [])
+                break  # Success!
+
+            except json.JSONDecodeError as json_err:
+                json_parse_attempts += 1
+                last_error = json_err
+                print(f"[JSON PARSE] Batch {batch_index+1}: Parse attempt {json_parse_attempts} failed: {str(json_err)[:100]}")
+
+                if json_parse_attempts < max_json_retries:
+                    # Try repairing the JSON
+                    try:
+                        repaired_json = _repair_json(response_text)
+                        result = json.loads(repaired_json)
+                        batch_requirements = result.get('requirements', [])
+                        print(f"[JSON REPAIR] Batch {batch_index+1}: Successfully repaired JSON on attempt {json_parse_attempts}")
+                        break  # Success after repair!
+                    except Exception as repair_err:
+                        print(f"[JSON REPAIR] Batch {batch_index+1}: Repair attempt {json_parse_attempts} failed: {str(repair_err)[:100]}")
+
+                        # If not last attempt, retry the API call
+                        if json_parse_attempts < max_json_retries:
+                            print(f"[RETRY] Batch {batch_index+1}: Retrying API call (attempt {json_parse_attempts + 1}/{max_json_retries})")
+                            response_text = retry_with_backoff(make_api_call, max_retries=1)
+
+        # If all attempts failed, log detailed error
+        if not batch_requirements and last_error:
+            error_msg = f"[CRITICAL] Batch {batch_index+1}/{total_batches} JSON parsing failed after {max_json_retries} attempts"
+            print(error_msg)
+            print(f"[ERROR DETAILS] Last error: {last_error}")
+            print(f"[RAW RESPONSE] First 500 chars: {response_text[:500]}")
+            # Continue processing other batches - don't raise exception
 
         # Log API usage (approximate token counts)
         input_tokens = len(prompt) // 4  # Rough estimate: 4 chars per token
