@@ -521,26 +521,70 @@ Content:
 """
 
     # Build the batch prompt
-    prompt = f"""You are an expert at analyzing e-bike safety standards.
-
-Standard: {standard_name or 'Unknown'}
-
-EXTRACTION RULES:
+    prompt = f"""You are extracting requirements from an e-bike safety standard document.
 
 {focus_instructions}
 
-For EACH requirement, extract:
-1. Description: Full requirement text
-2. Clause/Requirement: Clause ID with full hierarchy (e.g., "7.1.1.a")
-3. Requirement scope: Keywords (ebike, battery, charger, etc.)
-4. Formatting required?: "Y" if specific formatting specified, else "N/A"
-5. Required in Print?: "y" if print required, "n" if digital OK, "N/A" if unclear
-6. Comments: Note if vague language, ambiguous, etc. USE THIS FIELD for any additional context that doesn't fit elsewhere
-7. Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
-8. Safety Notice Type: "WARNING" | "DANGER" | "CAUTION" | "HAZARD" | "None"
+EXTRACTION RULES:
+1. **Requirement Identification:**
+   - Look for SHALL, MUST, REQUIRED, or similar mandatory language
+   - Each requirement is a distinct obligation or specification
+   - Include the FULL text of the requirement (do not truncate)
 
-SPLIT numbered/lettered subsections into SEPARATE requirements.
-PRESERVE full clause hierarchy.
+2. **Clause/Requirement Field:**
+   - Extract the exact clause number as it appears in the document
+   - Examples: "7.1.2", "4.2.6.c", "A.3.1", "7.1(a)"
+   - PRESERVE full clause hierarchy (7.1.1.a format)
+   - If no clear number, use parent section number
+
+3. **Requirement Scope:**
+   - Specify what the requirement applies to: ebike, battery, charger, bicycle
+   - Use comma-separated list if multiple (e.g., "ebike, battery")
+   - Infer from context if not explicitly stated
+
+4. **Formatting Required:**
+   - Capture any specific formatting rules (font size, color, capitalization, etc.)
+   - Examples: "in capital letters", "minimum 2mm height", "red background"
+   - If none specified, use "N"
+
+5. **Required in Print:**
+   - "y" if it MUST appear in printed materials/labels/manuals
+   - "n" if it's a design/testing requirement without print obligation
+   - "ambiguous" if unclear
+   - Default to "y" for: warnings, cautions, default values, user instructions
+
+6. **Contains Image:**
+   - "Y - [reference]" if requirement references figures/diagrams/pictograms
+   - Examples: "Y - Figure 7.2", "Y - Table 4", "Y - Pictogram A"
+   - "N" if no visual reference
+
+7. **Safety Notice Type:**
+   - Detect: WARNING, CAUTION, DANGER, HAZARD
+   - "None" if not a safety notice
+   - Check the actual text for these keywords
+
+8. **Comments:**
+   - Note any ambiguity, special conditions, or classification rationale
+   - Examples: "applies only to lithium batteries", "unclear if print required"
+
+OUTPUT FORMAT:
+Return a JSON object with this structure:
+{{
+  "requirements": [
+    {{
+      "Description": "Full requirement text here...",
+      "Clause/Requirement": "7.1.2.a",
+      "Requirement scope": "ebike, battery",
+      "Formatting required?": "minimum 2mm height",
+      "Required in Print?": "y",
+      "Comments": "classification notes",
+      "Contains Image?": "Y - Figure 7.2",
+      "Safety Notice Type": "WARNING"
+    }}
+  ],
+  "extraction_notes": "Any observations about the extraction",
+  "confidence": "high"
+}}
 
 FLEXIBILITY: If document format is unusual, put core requirement in Description and use Comments for additional context. Set unclear fields to "N/A".
 
@@ -548,23 +592,8 @@ Process ALL sections below. Each is marked ---SECTION N---:
 
 {sections_content}
 
-Respond with JSON:
-{{
-  "requirements": [
-    {{
-      "Description": "Full text",
-      "Clause/Requirement": "7.1.1.a",
-      "Requirement scope": "ebike, battery",
-      "Formatting required?": "Y",
-      "Required in Print?": "y",
-      "Comments": "vague language used",
-      "Contains Image?": "Y - Figure 7.2",
-      "Safety Notice Type": "WARNING"
-    }}
-  ],
-  "extraction_notes": "Observations",
-  "confidence": "high|medium|low"
-}}"""
+Respond with JSON only. No additional text outside the JSON structure.
+"""
 
     try:
         # Get model configuration
@@ -715,30 +744,120 @@ def _extract_single_batch_clauses(
 
     # OPTIMIZED PROMPT
     if extraction_type == "all":
-        focus = "ALL requirements (design, test, manufacturing, documentation, safety, etc.)"
-        numbering_note = "\nDocument may use various numbering: numeric (7.1.2), letters (A.2.3), roman (VII.4), mixed (7.1.a), lists (a), b)).\nPreserve original clause numbers EXACTLY."
+        focus_instructions = """Extract ALL requirements from this standard, including:
+• Design specifications and technical requirements
+• Test procedures and quality requirements
+• Manufacturing and production requirements
+• User documentation and manual requirements
+• Safety requirements and warnings
+• Installation and maintenance requirements
+• Performance standards and measurements
+
+IMPORTANT: Document may use various numbering schemes:
+- Numeric: 4.1.2, 7.3.1.1
+- Letters: A.2.3, B.1.a
+- Roman: II.a, VII.4
+- Mixed: 4.1.a, A.2(b), 7.1(i)
+- Lists: A), (1), (a)
+
+Preserve the original clause number EXACTLY as written."""
     else:
-        focus = "requirements obligating manufacturers to COMMUNICATE to users via manuals/documentation"
-        numbering_note = ""
+        focus_instructions = """Extract ANY requirement that obligates the manufacturer to COMMUNICATE something to users in manuals/documentation.
 
-    prompt = f"""Extract {focus} from e-bike standard.
+✅ INCLUDE if it says or implies:
+• "shall be stated/included in the manual"
+• "user shall be informed/warned"
+• "instructions must contain/include"
+• "information must be presented/made available"
+• "user must be made aware"
+• "shall be provided to the user" (even if doesn't say "in manual")
 
-OUTPUT JSON:
-{{"requirements": [{{"Description": "full text", "Clause/Requirement": "7.1.1.a", "Requirement scope": "ebike, battery", "Formatting required?": "Y", "Required in Print?": "y", "Comments": "notes", "Contains Image?": "Y - Fig 7.2", "Safety Notice Type": "WARNING"}}]}}
+✅ ALWAYS INCLUDE:
+• ANY text with WARNING, DANGER, CAUTION, HAZARD
+• Requirements about what users need to know (temperature, load limits, maintenance)
+• Assembly instructions
+• Safety information
+• Symbols/pictograms for documentation
 
-RULES:
-- Extract verbatim text
-- Preserve clause hierarchy (7.1.1.a format){numbering_note}
-- Scope: ebike|battery|charger|bicycle (comma-separated if multiple)
-- Image refs: "Y - [reference]" or "N"
-- Safety: WARNING|CAUTION|DANGER|HAZARD|None
-- Print: y|n|ambiguous (defaults, warnings, labels = y)
-- Flexibility: If format unusual, prioritize Description field
+❌ EXCLUDE only if:
+• Pure physical product requirement with NO user communication mention
+• Internal manufacturing processes
+• Testing procedures users don't need to know
 
-Process clauses below:
+WHEN IN DOUBT → INCLUDE IT."""
+
+    prompt = f"""You are extracting requirements from an e-bike safety standard document.
+
+{focus_instructions}
+
+EXTRACTION RULES:
+1. **Requirement Identification:**
+   - Look for SHALL, MUST, REQUIRED, or similar mandatory language
+   - Each requirement is a distinct obligation or specification
+   - Include the FULL text of the requirement (do not truncate)
+
+2. **Clause/Requirement Field:**
+   - Extract the exact clause number as it appears in the document
+   - Examples: "7.1.2", "4.2.6.c", "A.3.1", "7.1(a)"
+   - PRESERVE full clause hierarchy (7.1.1.a format)
+   - If no clear number, use parent section number
+
+3. **Requirement Scope:**
+   - Specify what the requirement applies to: ebike, battery, charger, bicycle
+   - Use comma-separated list if multiple (e.g., "ebike, battery")
+   - Infer from context if not explicitly stated
+
+4. **Formatting Required:**
+   - Capture any specific formatting rules (font size, color, capitalization, etc.)
+   - Examples: "in capital letters", "minimum 2mm height", "red background"
+   - If none specified, use "N"
+
+5. **Required in Print:**
+   - "y" if it MUST appear in printed materials/labels/manuals
+   - "n" if it's a design/testing requirement without print obligation
+   - "ambiguous" if unclear
+   - Default to "y" for: warnings, cautions, default values, user instructions
+
+6. **Contains Image:**
+   - "Y - [reference]" if requirement references figures/diagrams/pictograms
+   - Examples: "Y - Figure 7.2", "Y - Table 4", "Y - Pictogram A"
+   - "N" if no visual reference
+
+7. **Safety Notice Type:**
+   - Detect: WARNING, CAUTION, DANGER, HAZARD
+   - "None" if not a safety notice
+   - Check the actual text for these keywords
+
+8. **Comments:**
+   - Note any ambiguity, special conditions, or classification rationale
+   - Examples: "applies only to lithium batteries", "unclear if print required"
+
+OUTPUT FORMAT:
+Return a JSON object with this structure:
+{{
+  "requirements": [
+    {{
+      "Description": "Full requirement text here...",
+      "Clause/Requirement": "7.1.2.a",
+      "Requirement scope": "ebike, battery",
+      "Formatting required?": "minimum 2mm height",
+      "Required in Print?": "y",
+      "Comments": "classification notes",
+      "Contains Image?": "Y - Figure 7.2",
+      "Safety Notice Type": "WARNING"
+    }}
+  ],
+  "extraction_notes": "Any observations about the extraction",
+  "confidence": "high"
+}}
+
+FLEXIBILITY: If document format is unusual, put core requirement in Description and use Comments for additional context. Set unclear fields to "N/A".
+
+Process ALL clauses below. Each is marked ---CLAUSE N---:
+
 {clauses_content}
 
-Return JSON with requirements array, extraction_notes, confidence (high|medium|low).
+Respond with JSON only. No additional text outside the JSON structure.
 """
 
     try:
@@ -800,24 +919,11 @@ Return JSON with requirements array, extraction_notes, confidence (high|medium|l
             if safety_type != "None" and req.get('Safety Notice Type', 'None') == 'None':
                 req['Safety Notice Type'] = safety_type
 
-        # Cache results at SECTION level (not clause level)
-        # Group processed clauses back into their parent sections for caching
-        section_contents = {}
-        for clause in clauses_to_process:
-            parent_key = f"{clause.get('parent_clause', 'N/A')}_{clause.get('parent_heading', '')}"
-            if parent_key not in section_contents:
-                section_contents[parent_key] = ''
-            section_contents[parent_key] += clause.get('content', '') + '\n'
-
-        # Cache once per section
-        for section_key, section_content in section_contents.items():
-            section_hash = _get_section_hash(section_content, extraction_type)
-            new_cache_entries[section_hash] = {
-                'requirements': batch_requirements,
-                'extraction_type': extraction_type,
-                'timestamp': datetime.now().isoformat(),
-                'standard': standard_name
-            }
+        # NOTE: Caching is disabled for clause-level batching because we cannot reliably
+        # attribute which requirements came from which parent section when processing
+        # multiple sections together in one batch. The cache checking still works (above),
+        # but we don't add new cache entries from clause-batched results.
+        # Caching still works correctly in _extract_single_batch() for section-level processing.
 
         all_requirements.extend(batch_requirements)
         print(f"[{mode_label}] Batch {batch_index+1}/{total_batches}: Extracted {len(batch_requirements)} requirements")
@@ -1066,51 +1172,81 @@ Preserve the original clause number EXACTLY as written in the document."""
 WHEN IN DOUBT → INCLUDE IT."""
 
         # Build the complete prompt
-        prompt = f"""You are an expert at analyzing e-bike safety standards.
-
-Standard: {standard_name or 'Unknown'}
-Section: {heading}
-Clause: {clause}
-
-Section Content:
-{section_text}
-
-EXTRACTION RULES:
+        prompt = f"""You are extracting requirements from an e-bike safety standard document.
 
 {focus_instructions}
 
-For EACH requirement, extract:
-1. Description: Full requirement text
-2. Clause/Requirement: Clause ID with full hierarchy (e.g., "7.1.1.a")
-3. Requirement scope: Keywords (ebike, battery, charger, etc.)
-4. Formatting required?: "Y" if specific formatting specified, else "N/A"
-5. Required in Print?: "y" if print required, "n" if digital OK, "N/A" if unclear
-6. Comments: Note if vague language, ambiguous, etc. USE THIS FIELD for any additional context that doesn't fit elsewhere
-7. Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
-8. Safety Notice Type: "WARNING" | "DANGER" | "CAUTION" | "HAZARD" | "None"
+EXTRACTION RULES:
+1. **Requirement Identification:**
+   - Look for SHALL, MUST, REQUIRED, or similar mandatory language
+   - Each requirement is a distinct obligation or specification
+   - Include the FULL text of the requirement (do not truncate)
 
-SPLIT numbered/lettered subsections into SEPARATE requirements.
-PRESERVE full clause hierarchy.
+2. **Clause/Requirement Field:**
+   - Extract the exact clause number as it appears in the document
+   - Examples: "7.1.2", "4.2.6.c", "A.3.1", "7.1(a)"
+   - PRESERVE full clause hierarchy (7.1.1.a format)
+   - If no clear number, use parent section number
 
-FLEXIBILITY: If document format is unusual, put core requirement in Description and use Comments for additional context. Set unclear fields to "N/A".
+3. **Requirement Scope:**
+   - Specify what the requirement applies to: ebike, battery, charger, bicycle
+   - Use comma-separated list if multiple (e.g., "ebike, battery")
+   - Infer from context if not explicitly stated
 
-Respond with JSON:
+4. **Formatting Required:**
+   - Capture any specific formatting rules (font size, color, capitalization, etc.)
+   - Examples: "in capital letters", "minimum 2mm height", "red background"
+   - If none specified, use "N"
+
+5. **Required in Print:**
+   - "y" if it MUST appear in printed materials/labels/manuals
+   - "n" if it's a design/testing requirement without print obligation
+   - "ambiguous" if unclear
+   - Default to "y" for: warnings, cautions, default values, user instructions
+
+6. **Contains Image:**
+   - "Y - [reference]" if requirement references figures/diagrams/pictograms
+   - Examples: "Y - Figure 7.2", "Y - Table 4", "Y - Pictogram A"
+   - "N" if no visual reference
+
+7. **Safety Notice Type:**
+   - Detect: WARNING, CAUTION, DANGER, HAZARD
+   - "None" if not a safety notice
+   - Check the actual text for these keywords
+
+8. **Comments:**
+   - Note any ambiguity, special conditions, or classification rationale
+   - Examples: "applies only to lithium batteries", "unclear if print required"
+
+OUTPUT FORMAT:
+Return a JSON object with this structure:
 {{
   "requirements": [
     {{
-      "Description": "Full text",
-      "Clause/Requirement": "7.1.1.a",
+      "Description": "Full requirement text here...",
+      "Clause/Requirement": "7.1.2.a",
       "Requirement scope": "ebike, battery",
-      "Formatting required?": "Y",
+      "Formatting required?": "minimum 2mm height",
       "Required in Print?": "y",
-      "Comments": "vague language used",
+      "Comments": "classification notes",
       "Contains Image?": "Y - Figure 7.2",
       "Safety Notice Type": "WARNING"
     }}
   ],
-  "extraction_notes": "Observations",
-  "confidence": "high|medium|low"
-}}"""
+  "extraction_notes": "Any observations about the extraction",
+  "confidence": "high"
+}}
+
+FLEXIBILITY: If document format is unusual, put core requirement in Description and use Comments for additional context. Set unclear fields to "N/A".
+
+Process this section:
+Section: {heading}
+Clause: {clause}
+
+{section_text}
+
+Respond with JSON only. No additional text outside the JSON structure.
+"""
 
         try:
             # Get model configuration
@@ -1219,61 +1355,120 @@ def extract_requirements_with_ai(pdf_text: str, standard_name: str = None, extra
 
     # Build prompt based on extraction type
     if extraction_type == "all":
-        focus = """Extract ALL requirements from this standard, including:
+        focus_instructions = """Extract ALL requirements from this standard, including:
 • Design specifications and technical requirements
 • Test procedures and quality requirements
 • Manufacturing and production requirements
 • User documentation and manual requirements
 • Safety requirements and warnings
 • Installation and maintenance requirements
+• Performance standards and measurements
 
-The document may use various numbering schemes (4.1.2, A.2, II.a, etc).
-Preserve the exact clause number as written.
-BE AGGRESSIVE - include anything that looks like a requirement."""
+IMPORTANT: Document may use various numbering schemes:
+- Numeric: 4.1.2, 7.3.1.1
+- Letters: A.2.3, B.1.a
+- Roman: II.a, VII.4
+- Mixed: 4.1.a, A.2(b), 7.1(i)
+- Lists: A), (1), (a)
+
+Preserve the original clause number EXACTLY as written."""
     else:
-        focus = """Extract requirements that obligate manufacturers to communicate with users in manuals/documentation.
-BE AGGRESSIVE - include anything that might be user communication."""
+        focus_instructions = """Extract ANY requirement that obligates the manufacturer to COMMUNICATE something to users in manuals/documentation.
 
-    prompt = f"""Extract requirements from this e-bike standard.
+✅ INCLUDE if it says or implies:
+• "shall be stated/included in the manual"
+• "user shall be informed/warned"
+• "instructions must contain/include"
+• "information must be presented/made available"
+• "user must be made aware"
+• "shall be provided to the user" (even if doesn't say "in manual")
 
-Standard: {standard_name or 'Unknown'}
+✅ ALWAYS INCLUDE:
+• ANY text with WARNING, DANGER, CAUTION, HAZARD
+• Requirements about what users need to know (temperature, load limits, maintenance)
+• Assembly instructions
+• Safety information
+• Symbols/pictograms for documentation
 
-PDF Text:
-{pdf_text}
+❌ EXCLUDE only if:
+• Pure physical product requirement with NO user communication mention
+• Internal manufacturing processes
+• Testing procedures users don't need to know
 
-{focus}
+WHEN IN DOUBT → INCLUDE IT."""
 
-For each requirement, try to extract these fields:
-- Description: Main requirement text
-- Clause/Requirement: Section/clause number if available
-- Requirement scope: Keywords like "ebike", "battery", "charger"
-- Formatting required?: "Y" if specific format mentioned, else "N/A"
-- Required in Print?: "y" if must be printed, "n" if digital OK, "N/A" if unclear
-- Comments: Any notes about vague language, ambiguity, or context
-- Contains Image?: "Y - [reference]" if mentions figure/diagram, else "N"
-- Safety Notice Type: "WARNING", "DANGER", "CAUTION", "HAZARD", or "None"
+    prompt = f"""You are extracting requirements from an e-bike safety standard document.
 
-IMPORTANT: If the document format doesn't fit these fields well, you can:
-1. Put the core requirement text in "Description"
-2. Use "Comments" field to add any additional context or information that doesn't fit elsewhere
-3. Set unclear fields to "N/A" rather than leaving empty
-4. Adapt flexibly - these fields are guidelines, not strict rules
+{focus_instructions}
 
-Respond with JSON in this format:
+EXTRACTION RULES:
+1. **Requirement Identification:**
+   - Look for SHALL, MUST, REQUIRED, or similar mandatory language
+   - Each requirement is a distinct obligation or specification
+   - Include the FULL text of the requirement (do not truncate)
+
+2. **Clause/Requirement Field:**
+   - Extract the exact clause number as it appears in the document
+   - Examples: "7.1.2", "4.2.6.c", "A.3.1", "7.1(a)"
+   - PRESERVE full clause hierarchy (7.1.1.a format)
+   - If no clear number, use "N/A"
+
+3. **Requirement Scope:**
+   - Specify what the requirement applies to: ebike, battery, charger, bicycle
+   - Use comma-separated list if multiple (e.g., "ebike, battery")
+   - Infer from context if not explicitly stated
+
+4. **Formatting Required:**
+   - Capture any specific formatting rules (font size, color, capitalization, etc.)
+   - Examples: "in capital letters", "minimum 2mm height", "red background"
+   - If none specified, use "N"
+
+5. **Required in Print:**
+   - "y" if it MUST appear in printed materials/labels/manuals
+   - "n" if it's a design/testing requirement without print obligation
+   - "ambiguous" if unclear
+   - Default to "y" for: warnings, cautions, default values, user instructions
+
+6. **Contains Image:**
+   - "Y - [reference]" if requirement references figures/diagrams/pictograms
+   - Examples: "Y - Figure 7.2", "Y - Table 4", "Y - Pictogram A"
+   - "N" if no visual reference
+
+7. **Safety Notice Type:**
+   - Detect: WARNING, CAUTION, DANGER, HAZARD
+   - "None" if not a safety notice
+   - Check the actual text for these keywords
+
+8. **Comments:**
+   - Note any ambiguity, special conditions, or classification rationale
+   - Examples: "applies only to lithium batteries", "unclear if print required"
+
+OUTPUT FORMAT:
+Return a JSON object with this structure:
 {{
   "requirements": [
     {{
-      "Description": "...",
-      "Clause/Requirement": "...",
-      "Requirement scope": "...",
-      "Formatting required?": "...",
-      "Required in Print?": "...",
-      "Comments": "...",
-      "Contains Image?": "...",
-      "Safety Notice Type": "..."
+      "Description": "Full requirement text here...",
+      "Clause/Requirement": "7.1.2.a",
+      "Requirement scope": "ebike, battery",
+      "Formatting required?": "minimum 2mm height",
+      "Required in Print?": "y",
+      "Comments": "classification notes",
+      "Contains Image?": "Y - Figure 7.2",
+      "Safety Notice Type": "WARNING"
     }}
-  ]
-}}"""
+  ],
+  "extraction_notes": "Any observations about the extraction",
+  "confidence": "high"
+}}
+
+FLEXIBILITY: If document format is unusual, put core requirement in Description and use Comments for additional context. Set unclear fields to "N/A".
+
+Process this PDF text:
+{pdf_text}
+
+Respond with JSON only. No additional text outside the JSON structure.
+"""
 
     try:
         # Get model configuration
