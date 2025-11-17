@@ -75,6 +75,48 @@ def retry_with_backoff(
 CACHE_DIR = Path("cache")
 CACHE_FILE = CACHE_DIR / "section_extractions.json"
 
+# Model configuration
+MODEL_CONFIG = {
+    "extraction": {
+        "model": os.getenv("EXTRACTION_MODEL", "claude-3-5-haiku-20241022"),  # Haiku 3.5 for cost/speed
+        "max_tokens": 16000,
+        "temperature": 0,
+        "timeout": 300.0,
+        "cost_per_mtok_input": 0.25,  # $0.25 per million tokens
+        "cost_per_mtok_output": 1.25   # $1.25 per million tokens
+    },
+    "consolidation": {
+        "model": os.getenv("CONSOLIDATION_MODEL", "claude-sonnet-4-5-20250929"),  # Sonnet 4.5 for reasoning
+        "max_tokens": 16000,
+        "temperature": 0,
+        "timeout": 600.0,
+        "cost_per_mtok_input": 3.0,    # $3.00 per million tokens
+        "cost_per_mtok_output": 15.0   # $15.00 per million tokens
+    }
+}
+
+
+def _log_api_usage(model_type: str, input_tokens: int, output_tokens: int, latency_seconds: float):
+    """
+    Log API usage metrics for cost tracking and performance monitoring.
+
+    Args:
+        model_type: "extraction" or "consolidation"
+        input_tokens: Number of input tokens used
+        output_tokens: Number of output tokens generated
+        latency_seconds: API call latency in seconds
+    """
+    config = MODEL_CONFIG.get(model_type, {})
+    cost_input = (input_tokens / 1_000_000) * config.get("cost_per_mtok_input", 0)
+    cost_output = (output_tokens / 1_000_000) * config.get("cost_per_mtok_output", 0)
+    total_cost = cost_input + cost_output
+
+    print(f"[API USAGE] {model_type.upper()} | "
+          f"Model: {config.get('model', 'unknown')} | "
+          f"Tokens: {input_tokens:,}in + {output_tokens:,}out | "
+          f"Cost: ${total_cost:.4f} | "
+          f"Latency: {latency_seconds:.2f}s")
+
 
 def _get_section_hash(section_content: str, extraction_type: str) -> str:
     """Create hash of section content + extraction type for caching.
@@ -525,13 +567,17 @@ Respond with JSON:
 }}"""
 
     try:
+        # Get model configuration
+        extraction_config = MODEL_CONFIG["extraction"]
+
         # Wrap the API call with retry logic
+        start_time = time.time()
         def make_api_call():
             with client.messages.stream(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=16000,
-                temperature=0,
-                timeout=300.0,
+                model=extraction_config["model"],
+                max_tokens=extraction_config["max_tokens"],
+                temperature=extraction_config["temperature"],
+                timeout=extraction_config["timeout"],
                 messages=[{"role": "user", "content": prompt}]
             ) as stream:
                 response_text = ""
@@ -540,6 +586,7 @@ Respond with JSON:
             return response_text
 
         response_text = retry_with_backoff(make_api_call, max_retries=3)
+        latency = time.time() - start_time
 
         # Parse JSON
         if "```json" in response_text:
@@ -551,6 +598,11 @@ Respond with JSON:
 
         result = json.loads(json_str)
         batch_requirements = result.get('requirements', [])
+
+        # Log API usage (approximate token counts)
+        input_tokens = len(prompt) // 4  # Rough estimate: 4 chars per token
+        output_tokens = len(response_text) // 4
+        _log_api_usage("extraction", input_tokens, output_tokens, latency)
 
         # Add standard name and validate
         for req in batch_requirements:
@@ -690,13 +742,17 @@ Return JSON with requirements array, extraction_notes, confidence (high|medium|l
 """
 
     try:
+        # Get model configuration
+        extraction_config = MODEL_CONFIG["extraction"]
+
         # API call with retry logic
+        start_time = time.time()
         def make_api_call():
             with client.messages.stream(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=16000,
-                temperature=0,
-                timeout=300.0,
+                model=extraction_config["model"],
+                max_tokens=extraction_config["max_tokens"],
+                temperature=extraction_config["temperature"],
+                timeout=extraction_config["timeout"],
                 messages=[{"role": "user", "content": prompt}]
             ) as stream:
                 response_text = ""
@@ -705,6 +761,7 @@ Return JSON with requirements array, extraction_notes, confidence (high|medium|l
             return response_text
 
         response_text = retry_with_backoff(make_api_call, max_retries=3)
+        latency = time.time() - start_time
 
         # Parse JSON
         if "```json" in response_text:
@@ -716,6 +773,11 @@ Return JSON with requirements array, extraction_notes, confidence (high|medium|l
 
         result = json.loads(json_str)
         batch_requirements = result.get('requirements', [])
+
+        # Log API usage (approximate token counts)
+        input_tokens = len(prompt) // 4  # Rough estimate: 4 chars per token
+        output_tokens = len(response_text) // 4
+        _log_api_usage("extraction", input_tokens, output_tokens, latency)
 
         # Post-process requirements
         for req in batch_requirements:
@@ -1051,16 +1113,21 @@ Respond with JSON:
 }}"""
 
         try:
+            # Get model configuration
+            extraction_config = MODEL_CONFIG["extraction"]
+
+            start_time = time.time()
             with client.messages.stream(
-                model="claude-sonnet-4-5-20250929",
+                model=extraction_config["model"],
                 max_tokens=8000,
-                temperature=0,
-                timeout=300.0,
+                temperature=extraction_config["temperature"],
+                timeout=extraction_config["timeout"],
                 messages=[{"role": "user", "content": prompt}]
             ) as stream:
                 response_text = ""
                 for text in stream.text_stream:
                     response_text += text
+            latency = time.time() - start_time
 
             # Parse JSON
             if "```json" in response_text:
@@ -1072,6 +1139,11 @@ Respond with JSON:
 
             result = json.loads(json_str)
             section_requirements = result.get('requirements', [])
+
+            # Log API usage (approximate token counts)
+            input_tokens = len(prompt) // 4
+            output_tokens = len(response_text) // 4
+            _log_api_usage("extraction", input_tokens, output_tokens, latency)
 
             # Add standard name and validate
             for req in section_requirements:
@@ -1204,16 +1276,21 @@ Respond with JSON in this format:
 }}"""
 
     try:
+        # Get model configuration
+        extraction_config = MODEL_CONFIG["extraction"]
+
+        start_time = time.time()
         with client.messages.stream(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=16000,
-            temperature=0,
-            timeout=600.0,
+            model=extraction_config["model"],
+            max_tokens=extraction_config["max_tokens"],
+            temperature=extraction_config["temperature"],
+            timeout=600.0,  # Keep longer timeout for full PDF extraction
             messages=[{"role": "user", "content": prompt}]
         ) as stream:
             response_text = ""
             for text in stream.text_stream:
                 response_text += text
+        latency = time.time() - start_time
 
         # Parse JSON
         if "```json" in response_text:
@@ -1224,6 +1301,11 @@ Respond with JSON in this format:
             json_str = response_text.strip()
 
         result = json.loads(json_str)
+
+        # Log API usage (approximate token counts)
+        input_tokens = len(prompt) // 4
+        output_tokens = len(response_text) // 4
+        _log_api_usage("extraction", input_tokens, output_tokens, latency)
 
         # Handle both formats: {"requirements": [...]} and [...]
         if isinstance(result, list):
