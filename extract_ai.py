@@ -1186,16 +1186,15 @@ def extract_from_detected_sections_batched(
 
     # Setup client based on provider
     if provider == "openai":
-        # OpenAI client setup
-        if not api_key:
-            api_key = os.getenv('OPENAI_API_KEY')
-        if not api_key:
-            raise ValueError("No OpenAI API key provided")
+        # OpenAI client setup - ALWAYS use OpenAI key for OpenAI provider
+        openai_key = os.getenv('OPENAI_API_KEY')
+        if not openai_key:
+            raise ValueError("No OpenAI API key provided in OPENAI_API_KEY environment variable")
 
         print(f"[AI EXTRACTION] Using OpenAI provider with model: {extraction_config['model']}")
-        client = OpenAI(api_key=api_key)
+        client = OpenAI(api_key=openai_key)
     else:
-        # Anthropic client setup
+        # Anthropic client setup - use provided key or fall back to env
         if not api_key:
             api_key = os.getenv('ANTHROPIC_API_KEY')
         if not api_key:
