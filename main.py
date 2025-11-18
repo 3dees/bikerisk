@@ -150,11 +150,11 @@ def _process_upload_background(
                     })
 
                 # Step 2: Pass detected sections to AI for intelligent extraction (clause-level batching)
-                # Using optimal batch size of 75 clauses for all document sizes
-                # (Phase 1 clause segmentation + Phase 2 Haiku model = 6-9x speed improvement)
-                clauses_per_batch = 75
+                # Using optimal batch size of 30 clauses to stay under 5-minute timeout
+                # (Phase 1 clause segmentation = 6-9x speed improvement)
+                clauses_per_batch = 30
 
-                print(f"[EXTRACTION] Processing {len(sections)} sections with clause-level batching (75 clauses/batch)")
+                print(f"[EXTRACTION] Processing {len(sections)} sections with clause-level batching (30 clauses/batch)")
 
                 # Create a progress callback
                 def update_extraction_progress(completed_batches, total_batches, requirements_count):
