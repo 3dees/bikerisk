@@ -281,9 +281,14 @@ async def upload_file(
     if authorization and authorization.startswith("Bearer "):
         api_key = authorization.replace("Bearer ", "")
 
-    # Fallback to env var if no header provided
+    # Fallback to env var if no header provided (check provider from MODEL_CONFIG)
     if not api_key:
-        api_key = os.getenv('ANTHROPIC_API_KEY')
+        from extract_ai import MODEL_CONFIG
+        provider = MODEL_CONFIG["extraction"].get("provider", "anthropic")
+        if provider == "openai":
+            api_key = os.getenv('OPENAI_API_KEY')
+        else:
+            api_key = os.getenv('ANTHROPIC_API_KEY')
 
     # Validate API key for AI mode
     if extraction_mode == "ai" and not api_key:
