@@ -375,10 +375,6 @@ def _repair_json(json_str: str) -> str:
     elif "```" in json_str:
         json_str = json_str.split("```")[1].split("```")[0].strip()
 
-    # Replace unescaped newlines within strings with escaped newlines
-    # This is a simplified approach - may need refinement
-    json_str = json_str.replace('\n', '\\n')
-
     # Fix common quote escaping issues in Description fields
     # Replace smart quotes with regular quotes
     json_str = json_str.replace('"', '"').replace('"', '"')
@@ -387,6 +383,23 @@ def _repair_json(json_str: str) -> str:
     # Remove trailing commas before closing braces/brackets
     json_str = re.sub(r',\s*}', '}', json_str)
     json_str = re.sub(r',\s*]', ']', json_str)
+
+    # Fix unescaped newlines WITHIN string values only
+    # This regex finds strings and escapes literal newlines inside them
+    # Pattern: matches "text with\nnewline" and replaces with "text with\\nnewline"
+    def escape_newlines_in_strings(match):
+        string_content = match.group(1)
+        # Escape unescaped newlines
+        string_content = string_content.replace('\n', '\\n')
+        return f'"{string_content}"'
+
+    # Match strings: "..." (with escaped quotes handled)
+    # This is a simplified approach - doesn't handle all edge cases perfectly
+    try:
+        json_str = re.sub(r'"([^"\\]*(?:\\.[^"\\]*)*)"', escape_newlines_in_strings, json_str)
+    except Exception as e:
+        # If regex approach fails, fall back to simple cleanup
+        print(f"[JSON REPAIR] Regex approach failed: {e}, using simple cleanup")
 
     return json_str
 
