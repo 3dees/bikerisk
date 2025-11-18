@@ -72,6 +72,11 @@ def consolidate_with_smart_ai(
     total_requirements = len(requirements)
     print(f"[SMART AI] Processing {total_requirements} requirements")
 
+    # Debug: Show unique standards
+    unique_standards = set(req['standard'] for req in requirements)
+    print(f"[DEBUG] Unique standards found: {unique_standards}")
+    print(f"[DEBUG] Number of unique standards: {len(unique_standards)}")
+
     if progress_callback:
         progress_callback(f"Processing {total_requirements} requirements...", 0)
 
@@ -450,7 +455,10 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
     print(f"  - Total groups created: {len(all_groups)}")
     print(f"  - Cross-standard groups (kept): {len(cross_standard_groups)}")
     print(f"  - Single-standard groups (discarded): {len(single_standard_groups)}")
-    print(f"  - Filter rate: {len(single_standard_groups)/len(all_groups)*100:.1f}% removed")
+    if len(all_groups) > 0:
+        print(f"  - Filter rate: {len(single_standard_groups)/len(all_groups)*100:.1f}% removed")
+    else:
+        print(f"  - Filter rate: N/A (no groups created)")
 
     if progress_callback:
         progress_callback(f"Complete! Created {len(cross_standard_groups)} cross-standard groups", 100)

@@ -1149,7 +1149,7 @@ def extract_from_detected_sections_batched(
     extraction_type: str = "manual",
     api_key: str = None,
     batch_size: int = None,  # DEPRECATED: backward compatibility
-    clauses_per_batch: int = 75,
+    clauses_per_batch: int = 30,
     max_workers: int = 5,
     progress_callback = None,
     job_id: str = None
@@ -1159,7 +1159,7 @@ def extract_from_detected_sections_batched(
 
     CHANGES from previous version:
     - Segments sections into clauses before batching
-    - Batches by clause count (75) instead of section count (10)
+    - Batches by clause count (30) instead of section count (10)
     - Maintains parallel processing and caching
     - Works for both "manual" and "all" extraction types
 
