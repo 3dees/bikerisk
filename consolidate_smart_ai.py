@@ -72,6 +72,11 @@ def consolidate_with_smart_ai(
     total_requirements = len(requirements)
     print(f"[SMART AI] Processing {total_requirements} requirements")
 
+    # Debug: Show unique standards
+    unique_standards = set(req['standard'] for req in requirements)
+    print(f"[DEBUG] Unique standards found: {unique_standards}")
+    print(f"[DEBUG] Number of unique standards: {len(unique_standards)}")
+
     if progress_callback:
         progress_callback(f"Processing {total_requirements} requirements...", 0)
 
