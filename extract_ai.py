@@ -103,13 +103,13 @@ CACHE_FILE = CACHE_DIR / "section_extractions.json"
 # Model configuration
 MODEL_CONFIG = {
     "extraction": {
-        "provider": os.getenv("EXTRACTION_PROVIDER", "openai"),  # TESTING: Using OpenAI GPT-5-mini
-        "model": os.getenv("EXTRACTION_MODEL", "gpt-5-mini"),  # GPT-5-mini - latest fast model
+        "provider": os.getenv("EXTRACTION_PROVIDER", "openai"),  # TESTING: Using OpenAI gpt-4o-mini
+        "model": os.getenv("EXTRACTION_MODEL", "gpt-4o-mini"),  # gpt-4o-mini - latest fast model
         "max_tokens": 16000,
         "temperature": 0,
         "timeout": 300.0,
-        "cost_per_mtok_input": 0.15,    # GPT-5-mini pricing (TBD - using gpt-4o-mini pricing as estimate)
-        "cost_per_mtok_output": 0.60    # GPT-5-mini pricing (TBD - using gpt-4o-mini pricing as estimate)
+        "cost_per_mtok_input": 0.15,    # gpt-4o-mini pricing
+        "cost_per_mtok_output": 0.60    # gpt-4o-mini pricing
     },
     "consolidation": {
         "provider": "anthropic",
@@ -1046,13 +1046,13 @@ Respond with JSON only. No additional text outside the JSON structure.
         start_time = time.time()
 
         if provider == "openai":
-            # OpenAI API call (GPT-5 series uses max_completion_tokens instead of max_tokens)
-            # Note: GPT-5-mini does not support temperature parameter (uses default=1 only)
+            # OpenAI API call (gpt-4o-mini supports temperature control)
             def make_api_call():
                 response = client.chat.completions.create(
                     model=extraction_config["model"],
                     messages=[{"role": "user", "content": prompt}],
                     max_completion_tokens=extraction_config["max_tokens"],
+                    temperature=extraction_config["temperature"],
                     timeout=extraction_config["timeout"]
                 )
                 return response.choices[0].message.content

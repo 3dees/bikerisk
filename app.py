@@ -560,7 +560,7 @@ def main():
         st.caption("Reduce Manual Size · Maintain Compliance")
 
     with header_col2:
-        with st.popover("⚙️", use_container_width=True):
+        with st.expander("⚙️ Settings"):
             render_settings_menu()
 
     st.divider()
@@ -1334,8 +1334,8 @@ def render_consolidation_tab():
                     st.code(traceback.format_exc())
 
         with col2:
-            # Advanced settings in popover
-            with st.popover("⚙️ Advanced", use_container_width=True):
+            # Advanced settings in expander
+            with st.expander("⚙️ Advanced Settings"):
                 st.markdown("#### Group Size Settings")
 
                 min_group_size = st.slider(
@@ -2553,7 +2553,7 @@ def render_footer():
         st.caption("BikeRisk v1.0 · Phase 3 Beta · Powered by Claude Sonnet 4.5")
 
     with footer_col2:
-        with st.popover("💬", use_container_width=True):
+        with st.expander("💬 Send Feedback"):
             st.markdown("### Send Feedback")
 
             feedback_type = st.selectbox(
