@@ -2,7 +2,7 @@
 Improved AI-powered PDF extraction for manual requirements.
 """
 import anthropic
-from openai import OpenAI
+from openai import OpenAI, APIError, APIStatusError as OpenAIAPIStatusError
 from typing import Dict, List, Tuple, Callable, TypeVar
 import json
 import os
@@ -55,7 +55,7 @@ def retry_with_backoff(
             last_exception = e
             if e.status_code == 529:  # Overloaded
                 if attempt < max_retries:
-                    print(f"[RETRY] API overloaded, waiting {delay:.1f}s before retry {attempt+1}/{max_retries}")
+                    print(f"[RETRY] Anthropic API overloaded, waiting {delay:.1f}s before retry {attempt+1}/{max_retries}")
                     time.sleep(delay)
                     delay = min(delay * backoff_factor, max_delay)
                 else:
@@ -63,6 +63,30 @@ def retry_with_backoff(
                     raise
             else:
                 # Don't retry other status codes
+                raise
+        except OpenAIAPIStatusError as e:
+            last_exception = e
+            # Retry on rate limits (429) and server errors (5xx)
+            if e.status_code in [429, 500, 502, 503, 504]:
+                if attempt < max_retries:
+                    print(f"[RETRY] OpenAI API error {e.status_code}, waiting {delay:.1f}s before retry {attempt+1}/{max_retries}")
+                    time.sleep(delay)
+                    delay = min(delay * backoff_factor, max_delay)
+                else:
+                    print(f"[RETRY] Max retries reached, giving up")
+                    raise
+            else:
+                # Don't retry other status codes (400, 401, etc.)
+                raise
+        except APIError as e:
+            # Generic OpenAI API error
+            last_exception = e
+            if attempt < max_retries:
+                print(f"[RETRY] OpenAI API error, waiting {delay:.1f}s before retry {attempt+1}/{max_retries}")
+                time.sleep(delay)
+                delay = min(delay * backoff_factor, max_delay)
+            else:
+                print(f"[RETRY] Max retries reached, giving up")
                 raise
         except Exception as e:
             # Don't retry unexpected errors
@@ -1023,12 +1047,12 @@ Respond with JSON only. No additional text outside the JSON structure.
 
         if provider == "openai":
             # OpenAI API call (GPT-5 series uses max_completion_tokens instead of max_tokens)
+            # Note: GPT-5-mini does not support temperature parameter (uses default=1 only)
             def make_api_call():
                 response = client.chat.completions.create(
                     model=extraction_config["model"],
                     messages=[{"role": "user", "content": prompt}],
                     max_completion_tokens=extraction_config["max_tokens"],
-                    temperature=extraction_config["temperature"],
                     timeout=extraction_config["timeout"]
                 )
                 return response.choices[0].message.content
