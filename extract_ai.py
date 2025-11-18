@@ -1022,12 +1022,12 @@ Respond with JSON only. No additional text outside the JSON structure.
         start_time = time.time()
 
         if provider == "openai":
-            # OpenAI API call
+            # OpenAI API call (GPT-5 series uses max_completion_tokens instead of max_tokens)
             def make_api_call():
                 response = client.chat.completions.create(
                     model=extraction_config["model"],
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=extraction_config["max_tokens"],
+                    max_completion_tokens=extraction_config["max_tokens"],
                     temperature=extraction_config["temperature"],
                     timeout=extraction_config["timeout"]
                 )
