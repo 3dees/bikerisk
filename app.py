@@ -2287,8 +2287,9 @@ def display_results(job_id):
                     stats = result.get('stats', {})
                     st.json(stats)
 
-            rows = result.get('rows', [])
-            df = pd.DataFrame(rows) if rows else pd.DataFrame()
+            # Use csv_rows for properly formatted column names
+            csv_rows = result.get('csv_rows', result.get('rows', []))
+            df = pd.DataFrame(csv_rows) if csv_rows else pd.DataFrame()
 
         else:
             # Multiple documents - combine results
@@ -2316,10 +2317,11 @@ def display_results(job_id):
                     response = requests.get(f"{API_BASE_URL}/results/{jid}")
                     if response.status_code == 200:
                         result = response.json()
-                        rows = result.get('rows', [])
-                        all_rows.extend(rows)
+                        # Use csv_rows for properly formatted column names
+                        csv_rows = result.get('csv_rows', result.get('rows', []))
+                        all_rows.extend(csv_rows)
                         all_filenames.append(result.get('filename', 'Unknown'))
-                        doc_row_counts.append(len(rows))
+                        doc_row_counts.append(len(csv_rows))
                     else:
                         st.warning(f"⚠️ Failed to fetch job {jid}: Status {response.status_code}")
                 except Exception as e:
@@ -2342,7 +2344,7 @@ def display_results(job_id):
             st.info("No requirements found in the document(s).")
             return
 
-        # Keep only the 9 schema columns
+        # Keep all schema columns (now 11 columns with section hierarchy)
         display_columns = [
             'Description',
             'Standard/Reg',
@@ -2350,9 +2352,11 @@ def display_results(job_id):
             'Requirement scope',
             'Formatting required?',
             'Required in Print?',
+            'Parent Section',       # NEW - top-level section
+            'Sub-section',          # NEW - sub-section within parent
             'Comments',
-            'Contains Image?',      # NEW - flags figure references
-            'Safety Notice Type'    # NEW - marks WARNING/DANGER/CAUTION
+            'Contains Image?',      # Flags figure references
+            'Safety Notice Type'    # Marks WARNING/DANGER/CAUTION
         ]
 
         # Ensure all required columns exist (defensive programming)
@@ -2363,6 +2367,10 @@ def display_results(job_id):
                     df[col] = 'N'
                 elif col == 'Safety Notice Type':
                     df[col] = 'None'
+                elif col == 'Parent Section':
+                    df[col] = 'Unknown'
+                elif col == 'Sub-section':
+                    df[col] = 'N/A'
                 else:
                     df[col] = ''
 
