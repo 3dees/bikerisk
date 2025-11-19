@@ -678,6 +678,14 @@ EXTRACTION RULES:
    - Note any ambiguity, special conditions, or classification rationale
    - Examples: "applies only to lithium batteries", "unclear if print required"
 
+9. **Section Hierarchy:**
+   - **Parent Section**: The top-level section this requirement belongs to
+     Examples: "4. Safety requirements", "7. Battery requirements", "9. Enclosures"
+   - **Sub-section**: The specific sub-section within the parent
+     Examples: "4.2 Electrical requirements", "7.3 Charging", "9.1 General"
+   - Extract from the heading/clause context provided in the section metadata
+   - Include both the number AND the title (e.g., "4.2 Electrical" not just "4.2")
+
 OUTPUT FORMAT:
 Return a JSON object with this structure:
 {{
@@ -690,7 +698,9 @@ Return a JSON object with this structure:
       "Required in Print?": "y",
       "Comments": "classification notes",
       "Contains Image?": "Y - Figure 7.2",
-      "Safety Notice Type": "WARNING"
+      "Safety Notice Type": "WARNING",
+      "Parent Section": "4. Safety requirements",
+      "Sub-section": "4.2 Electrical requirements"
     }}
   ],
   "extraction_notes": "Any observations about the extraction",
@@ -786,6 +796,15 @@ Respond with JSON only. No additional text outside the JSON structure.
         # Add standard name and validate
         for req in batch_requirements:
             req['Standard/Reg'] = standard_name or 'Unknown'
+
+            # Set section hierarchy defaults if not provided by AI
+            # Use first section in batch for context (batch typically contains related sections)
+            if sections_to_process and len(sections_to_process) > 0:
+                first_section = sections_to_process[0]
+                if 'Parent Section' not in req or not req.get('Parent Section', '').strip():
+                    req['Parent Section'] = first_section.get('heading', 'Unknown')
+                if 'Sub-section' not in req or not req.get('Sub-section', '').strip():
+                    req['Sub-section'] = first_section.get('clause_number', req.get('Clause/Requirement', 'N/A'))
 
             # Fix UTF-8 encoding in all text fields
             for key, value in req.items():
@@ -982,6 +1001,14 @@ EXTRACTION RULES:
    - Note any ambiguity, special conditions, or classification rationale
    - Examples: "applies only to lithium batteries", "unclear if print required"
 
+9. **Section Hierarchy:**
+   - **Parent Section**: The top-level section this requirement belongs to
+     Examples: "4. Safety requirements", "7. Battery requirements", "9. Enclosures"
+   - **Sub-section**: The specific sub-section within the parent
+     Examples: "4.2 Electrical requirements", "7.3 Charging", "9.1 General"
+   - Extract from the clause context provided (Parent heading in the clause metadata)
+   - Include both the number AND the title (e.g., "4.2 Electrical" not just "4.2")
+
 OUTPUT FORMAT:
 Return a JSON object with this structure:
 {{
@@ -994,7 +1021,9 @@ Return a JSON object with this structure:
       "Required in Print?": "y",
       "Comments": "classification notes",
       "Contains Image?": "Y - Figure 7.2",
-      "Safety Notice Type": "WARNING"
+      "Safety Notice Type": "WARNING",
+      "Parent Section": "4. Safety requirements",
+      "Sub-section": "4.2 Electrical requirements"
     }}
   ],
   "extraction_notes": "Any observations about the extraction",
@@ -1090,6 +1119,20 @@ Respond with JSON only. No additional text outside the JSON structure.
         # Post-process requirements
         for req in batch_requirements:
             req['Standard/Reg'] = standard_name or 'Unknown'
+
+            # Set section hierarchy from clause context
+            if clauses_to_process and len(clauses_to_process) > 0:
+                first_clause = clauses_to_process[0]
+                if 'Parent Section' not in req or not req.get('Parent Section', '').strip():
+                    req['Parent Section'] = first_clause.get('parent_heading', 'Unknown')
+                if 'Sub-section' not in req or not req.get('Sub-section', '').strip():
+                    # Use parent clause with heading for better context
+                    parent_clause = first_clause.get('parent_clause', '')
+                    parent_heading = first_clause.get('parent_heading', '')
+                    if parent_clause and parent_heading:
+                        req['Sub-section'] = f"{parent_clause} {parent_heading}"
+                    else:
+                        req['Sub-section'] = parent_clause or req.get('Clause/Requirement', 'N/A')
 
             # Fix UTF-8 encoding
             for key, value in req.items():
@@ -1422,6 +1465,14 @@ EXTRACTION RULES:
    - Note any ambiguity, special conditions, or classification rationale
    - Examples: "applies only to lithium batteries", "unclear if print required"
 
+9. **Section Hierarchy:**
+   - **Parent Section**: The top-level section this requirement belongs to
+     Examples: "4. Safety requirements", "7. Battery requirements", "9. Enclosures"
+   - **Sub-section**: The specific sub-section within the parent
+     Examples: "4.2 Electrical requirements", "7.3 Charging", "9.1 General"
+   - Extract from the section context provided below
+   - Include both the number AND the title (e.g., "4.2 Electrical" not just "4.2")
+
 OUTPUT FORMAT:
 Return a JSON object with this structure:
 {{
@@ -1434,7 +1485,9 @@ Return a JSON object with this structure:
       "Required in Print?": "y",
       "Comments": "classification notes",
       "Contains Image?": "Y - Figure 7.2",
-      "Safety Notice Type": "WARNING"
+      "Safety Notice Type": "WARNING",
+      "Parent Section": "4. Safety requirements",
+      "Sub-section": "4.2 Electrical requirements"
     }}
   ],
   "extraction_notes": "Any observations about the extraction",
@@ -1488,6 +1541,12 @@ Respond with JSON only. No additional text outside the JSON structure.
             # Add standard name and validate
             for req in section_requirements:
                 req['Standard/Reg'] = standard_name or 'Unknown'
+
+                # Set section hierarchy defaults if not provided by AI
+                if 'Parent Section' not in req or not req.get('Parent Section', '').strip():
+                    req['Parent Section'] = section.get('heading', 'Unknown')
+                if 'Sub-section' not in req or not req.get('Sub-section', '').strip():
+                    req['Sub-section'] = section.get('clause_number', req.get('Clause/Requirement', 'N/A'))
 
                 desc = req.get('Description', '')
 

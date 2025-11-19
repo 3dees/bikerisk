@@ -331,31 +331,54 @@ def render_settings_menu():
     # API Configuration
     st.markdown("#### 🔑 API Key")
 
-    # Check if API key exists in session state or env
+    # Check if API keys exist in session state or env
     if 'anthropic_api_key' not in st.session_state:
         st.session_state.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY', '')
+    if 'openai_api_key' not in st.session_state:
+        st.session_state.openai_api_key = os.getenv('OPENAI_API_KEY', '')
+
+    # Show status for both API keys
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.session_state.openai_api_key:
+            st.success("✅ OpenAI Key")
+        else:
+            st.warning("⚠️ No OpenAI Key")
+    with col2:
+        if st.session_state.anthropic_api_key:
+            st.success("✅ Claude Key")
+        else:
+            st.warning("⚠️ No Claude Key")
 
     use_different_key = st.checkbox(
-        "Use different API key",
+        "Configure API Keys",
         value=False,
         key="use_different_key_menu"
     )
 
     if use_different_key:
-        api_key = st.text_input(
-            "Enter API Key",
+        openai_key = st.text_input(
+            "OpenAI API Key (for GPT mode)",
+            type="password",
+            value=st.session_state.openai_api_key,
+            key="openai_key_input_menu",
+            help="Required for GPT-4o-mini extraction mode"
+        )
+        if openai_key:
+            st.session_state.openai_api_key = openai_key
+
+        anthropic_key = st.text_input(
+            "Anthropic API Key (for Claude mode)",
             type="password",
             value=st.session_state.anthropic_api_key,
-            key="api_key_input_menu"
+            key="anthropic_key_input_menu",
+            help="Required for Claude Hybrid extraction mode"
         )
-        if api_key:
-            st.session_state.anthropic_api_key = api_key
-            st.success("✅ API key updated")
-    else:
-        if st.session_state.anthropic_api_key:
-            st.success("✅ API key loaded")
-        else:
-            st.warning("⚠️ No API key found")
+        if anthropic_key:
+            st.session_state.anthropic_api_key = anthropic_key
+
+        if openai_key or anthropic_key:
+            st.success("✅ API keys updated")
 
     st.divider()
 
@@ -645,9 +668,40 @@ def render_extraction_tab():
     # File upload in main area (like consolidation tab)
     st.divider()
 
-    # Extraction mode selector
+    # Extraction engine selector
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        extraction_engine = st.selectbox(
+            "🤖 Extraction Engine",
+            ["GPT-4o-mini (Recommended)", "Claude Hybrid (Legacy)", "Rules Only"],
+            help="""
+            **GPT-4o-mini**: Fast, cost-effective extraction using OpenAI GPT-4o-mini. Best for all document formats.
+
+            **Claude Hybrid**: Uses regex to find sections, then Claude for extraction. Good quality but slower and more expensive.
+
+            **Rules Only**: Regex-based extraction. Fastest but may miss non-standard formats.
+            """
+        )
+
+    with col2:
+        # Show API key status based on selected engine
+        if extraction_engine.startswith("GPT"):
+            if 'openai_api_key' in st.session_state and st.session_state.openai_api_key:
+                st.success("✅ OpenAI Key")
+            else:
+                st.warning("⚠️ No OpenAI Key")
+        elif extraction_engine.startswith("Claude"):
+            if 'anthropic_api_key' in st.session_state and st.session_state.anthropic_api_key:
+                st.success("✅ Claude Key")
+            else:
+                st.warning("⚠️ No Claude Key")
+        else:
+            st.info("ℹ️ No key needed")
+
+    # Extraction type selector (what to extract)
     extraction_mode = st.selectbox(
-        "📋 Extraction Mode",
+        "📋 Extraction Type",
         ["Manual Requirements Only", "All Requirements"],
         help="""
         **Manual Requirements Only**: Extract only requirements about user manuals, instructions, and documentation.
@@ -696,10 +750,20 @@ def render_extraction_tab():
             # Show connection warning for long processing
             st.info("⏱️ **Large PDFs take 5-10 minutes.** Keep this tab open. If Streamlit asks to reconnect, click 'Always rerun' to see results when complete.")
 
-            # Actually run the processing - use stored extraction_type from session state
+            # Actually run the processing - use stored parameters from session state
             stored_extraction_type = st.session_state.get('extraction_type', 'manual')
-            print(f"[DEBUG] Processing started - extraction_type in session state: {stored_extraction_type}")
-            process_multiple_documents(uploaded_files, standard_name, extraction_mode="ai")
+            stored_extraction_engine = st.session_state.get('extraction_engine', 'GPT-4o-mini (Recommended)')
+
+            # Map UI label to backend parameter
+            if stored_extraction_engine.startswith("GPT"):
+                backend_mode = "gpt"
+            elif stored_extraction_engine.startswith("Claude"):
+                backend_mode = "ai"
+            else:  # Rules Only
+                backend_mode = "rules"
+
+            print(f"[DEBUG] Processing started - extraction_type={stored_extraction_type}, engine={stored_extraction_engine}, backend_mode={backend_mode}")
+            process_multiple_documents(uploaded_files, standard_name, extraction_mode=backend_mode)
             st.session_state.processing_active = False
             st.rerun()
         else:
@@ -713,7 +777,8 @@ def render_extraction_tab():
             if process_button:
                 st.session_state.processing_active = True
                 st.session_state.extraction_type = extraction_type  # Store for API call
-                print(f"[DEBUG] Button clicked - storing extraction_type={extraction_type} in session state")
+                st.session_state.extraction_engine = extraction_engine  # Store engine choice
+                print(f"[DEBUG] Button clicked - storing extraction_type={extraction_type}, extraction_engine={extraction_engine} in session state")
                 st.rerun()  # Trigger re-render to show loading state
 
     # Show existing results if available
@@ -1907,7 +1972,9 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
 
         # Prepare headers with API key (secure - not in URL)
         headers = {}
-        if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
+        if extraction_mode == "gpt" and st.session_state.get('openai_api_key'):
+            headers['Authorization'] = f"Bearer {st.session_state.openai_api_key}"
+        elif extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
             headers['Authorization'] = f"Bearer {st.session_state.anthropic_api_key}"
 
         # Submit job to backend (should return immediately with job_id)
@@ -2177,8 +2244,9 @@ def display_results(job_id):
                     stats = result.get('stats', {})
                     st.json(stats)
 
-            rows = result.get('rows', [])
-            df = pd.DataFrame(rows) if rows else pd.DataFrame()
+            # Use csv_rows for properly formatted column names
+            csv_rows = result.get('csv_rows', result.get('rows', []))
+            df = pd.DataFrame(csv_rows) if csv_rows else pd.DataFrame()
 
         else:
             # Multiple documents - combine results
@@ -2206,10 +2274,11 @@ def display_results(job_id):
                     response = requests.get(f"{API_BASE_URL}/results/{jid}")
                     if response.status_code == 200:
                         result = response.json()
-                        rows = result.get('rows', [])
-                        all_rows.extend(rows)
+                        # Use csv_rows for properly formatted column names
+                        csv_rows = result.get('csv_rows', result.get('rows', []))
+                        all_rows.extend(csv_rows)
                         all_filenames.append(result.get('filename', 'Unknown'))
-                        doc_row_counts.append(len(rows))
+                        doc_row_counts.append(len(csv_rows))
                     else:
                         st.warning(f"⚠️ Failed to fetch job {jid}: Status {response.status_code}")
                 except Exception as e:
@@ -2232,7 +2301,7 @@ def display_results(job_id):
             st.info("No requirements found in the document(s).")
             return
 
-        # Keep only the 9 schema columns
+        # Keep all schema columns (now 11 columns with section hierarchy)
         display_columns = [
             'Description',
             'Standard/Reg',
@@ -2240,9 +2309,11 @@ def display_results(job_id):
             'Requirement scope',
             'Formatting required?',
             'Required in Print?',
+            'Parent Section',       # NEW - top-level section
+            'Sub-section',          # NEW - sub-section within parent
             'Comments',
-            'Contains Image?',      # NEW - flags figure references
-            'Safety Notice Type'    # NEW - marks WARNING/DANGER/CAUTION
+            'Contains Image?',      # Flags figure references
+            'Safety Notice Type'    # Marks WARNING/DANGER/CAUTION
         ]
 
         # Ensure all required columns exist (defensive programming)
@@ -2253,6 +2324,10 @@ def display_results(job_id):
                     df[col] = 'N'
                 elif col == 'Safety Notice Type':
                     df[col] = 'None'
+                elif col == 'Parent Section':
+                    df[col] = 'Unknown'
+                elif col == 'Sub-section':
+                    df[col] = 'N/A'
                 else:
                     df[col] = ''
 
