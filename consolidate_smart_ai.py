@@ -35,21 +35,19 @@ def consolidate_with_smart_ai(
     api_key: str,
     min_group_size: int = 3,
     max_group_size: int = 12,
-    batch_size: int = 150,  # Auto-batch if more than this
-    progress_callback = None  # Optional callback for progress updates
+    batch_size: int = 150  # Auto-batch if more than this
 ) -> Dict:
     """
     Use Claude to intelligently consolidate requirements based on regulatory intent.
     Automatically batches large datasets to avoid timeouts.
-
+    
     Args:
         df: DataFrame with requirements
         api_key: Anthropic API key
         min_group_size: Minimum requirements per group (default 3)
         max_group_size: Maximum requirements per group (default 12)
         batch_size: Maximum requirements per batch (default 150)
-        progress_callback: Optional function(message, progress_pct) for UI updates
-
+    
     Returns:
         Dict with consolidation results
     """
@@ -71,33 +69,25 @@ def consolidate_with_smart_ai(
     
     total_requirements = len(requirements)
     print(f"[SMART AI] Processing {total_requirements} requirements")
-
-    if progress_callback:
-        progress_callback(f"Processing {total_requirements} requirements...", 0)
-
+    
     # Check if we need to batch
     if total_requirements > batch_size:
         print(f"[SMART AI] Dataset is large ({total_requirements} requirements)")
         print(f"[SMART AI] Using automatic batching ({batch_size} requirements per batch)")
-        if progress_callback:
-            num_batches = (total_requirements + batch_size - 1) // batch_size
-            progress_callback(f"Using automatic batching ({num_batches} batches)...", 5)
-        return _consolidate_batched(requirements, api_key, batch_size, min_group_size, max_group_size, progress_callback)
+        return _consolidate_batched(requirements, api_key, batch_size, min_group_size, max_group_size)
     else:
         print(f"[SMART AI] Dataset size OK - processing in single batch")
-        if progress_callback:
-            progress_callback("Processing in single batch...", 5)
-        return _consolidate_single_batch(requirements, api_key, min_group_size, max_group_size, progress_callback)
+        return _consolidate_single_batch(requirements, api_key, min_group_size, max_group_size)
 
 
-def _consolidate_single_batch(requirements: List[Dict], api_key: str, min_group_size: int = 3, max_group_size: int = 12, progress_callback = None) -> Dict:
+def _consolidate_single_batch(requirements: List[Dict], api_key: str, min_group_size: int = 3, max_group_size: int = 12) -> Dict:
     """Process a single batch of requirements."""
-
+    
     # Setup client with long timeout
     no_proxy = os.getenv('NO_PROXY', '')
     if 'anthropic.com' not in no_proxy:
         os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com'
-
+    
     try:
         http_client = httpx.Client(timeout=600.0)  # 10 minute timeout
         client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
@@ -105,10 +95,8 @@ def _consolidate_single_batch(requirements: List[Dict], api_key: str, min_group_
     except Exception as e:
         print(f"[SMART AI] Client init with http_client failed: {e}, using simple init")
         client = anthropic.Anthropic(api_key=api_key)
-
+    
     print(f"[SMART AI] Estimated time: 3-8 minutes for {len(requirements)} requirements")
-    if progress_callback:
-        progress_callback(f"Sending {len(requirements)} requirements to Claude...", 10)
     
     # Build comprehensive prompt
     prompt = f"""You are an expert in e-bike and bicycle safety standards and compliance requirements.
@@ -229,9 +217,7 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
     
     try:
         print(f"[SMART AI] Sending to Claude Sonnet 4.5...")
-        if progress_callback:
-            progress_callback("Claude is analyzing requirements by regulatory intent...", 20)
-
+        
         message = client.messages.create(
             model="claude-sonnet-4-5-20250929",
             max_tokens=16000,
@@ -239,11 +225,9 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
             timeout=600.0,  # 10 minute timeout
             messages=[{"role": "user", "content": prompt}]
         )
-
+        
         response_text = message.content[0].text
         print(f"[SMART AI] Received response ({len(response_text)} chars)")
-        if progress_callback:
-            progress_callback("Processing Claude's response...", 70)
         
         # Parse JSON
         if "```json" in response_text:
@@ -272,8 +256,6 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
             groups.append(group)
         
         print(f"[SMART AI] Created {len(groups)} consolidation groups")
-        if progress_callback:
-            progress_callback(f"Filtering to cross-standard groups only...", 85)
 
         # Filter to keep ONLY cross-standard groups (engineer requirement)
         cross_standard_groups = []
@@ -309,9 +291,6 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
         if len(groups) > 0:
             print(f"  - Filter rate: {len(single_standard_groups)/len(groups)*100:.1f}% removed")
 
-        if progress_callback:
-            progress_callback(f"Analysis complete! Created {len(cross_standard_groups)} cross-standard groups", 100)
-
         return {
             'groups': cross_standard_groups,  # Only cross-standard groups
             'ungrouped_indices': all_ungrouped,
@@ -335,17 +314,15 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
         raise ValueError(f"Smart AI consolidation failed: {str(e)}")
 
 
-def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int, min_group_size: int = 3, max_group_size: int = 12, progress_callback = None) -> Dict:
+def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int, min_group_size: int = 3, max_group_size: int = 12) -> Dict:
     """
     Process requirements in batches and combine results.
     Useful for very large datasets (150+ requirements).
     """
     total_requirements = len(requirements)
     num_batches = (total_requirements + batch_size - 1) // batch_size
-
+    
     print(f"[BATCH] Splitting {total_requirements} requirements into {num_batches} batches")
-    if progress_callback:
-        progress_callback(f"Processing {num_batches} batches...", 10)
     
     all_groups = []
     all_ungrouped = []
@@ -366,13 +343,8 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
 
         print(f"\n[BATCH {batch_num + 1}/{num_batches}] Processing requirements {start_idx}-{end_idx-1}")
 
-        # Calculate progress percentage for this batch (10-85% range)
-        batch_progress = 10 + (batch_num / num_batches) * 75
-        if progress_callback:
-            progress_callback(f"Processing batch {batch_num + 1}/{num_batches} ({len(batch_reqs)} requirements)...", batch_progress)
-
         try:
-            batch_result = _consolidate_single_batch(batch_reqs, api_key, min_group_size, max_group_size, None)
+            batch_result = _consolidate_single_batch(batch_reqs, api_key, min_group_size, max_group_size)
 
             # Verify groups were created
             if not batch_result.get('groups') or len(batch_result['groups']) == 0:
@@ -415,9 +387,6 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
 
     print(f"\n[BATCH] Complete! Created {len(all_groups)} total groups from {num_batches} batches")
 
-    if progress_callback:
-        progress_callback("Filtering to cross-standard groups only...", 90)
-
     # Filter to keep ONLY cross-standard groups (engineer requirement)
     cross_standard_groups = []
     single_standard_groups = []
@@ -451,9 +420,6 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
     print(f"  - Cross-standard groups (kept): {len(cross_standard_groups)}")
     print(f"  - Single-standard groups (discarded): {len(single_standard_groups)}")
     print(f"  - Filter rate: {len(single_standard_groups)/len(all_groups)*100:.1f}% removed")
-
-    if progress_callback:
-        progress_callback(f"Complete! Created {len(cross_standard_groups)} cross-standard groups", 100)
 
     return {
         'groups': cross_standard_groups,  # Only cross-standard groups
