@@ -314,12 +314,13 @@ def rows_to_csv_dicts(rows: List[Dict]) -> List[Dict]:
         rows: Classified rows with internal fields
 
     Returns:
-        List of dicts with only the 9 schema columns
+        List of dicts with 10 schema columns (including requirement_id)
     """
     csv_rows = []
 
     for row in rows:
         csv_rows.append({
+            'Requirement ID': row.get('requirement_id', ''),
             'Description': row.get('Description', row.get('text', '')),
             'Standard/Reg': row.get('Standard/Reg', ''),
             'Clause/Requirement': row.get('Clause/Requirement', ''),

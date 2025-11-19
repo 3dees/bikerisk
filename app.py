@@ -2062,16 +2062,44 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
                 mode_emoji = "🤖" if result.get('extraction_mode') == 'ai' else "⚙️"
                 st.success(f"✅ Document processed successfully using {mode_emoji} {str(result.get('extraction_mode', 'unknown')).upper()} mode!")
 
-                # Show extraction stats
+                # Show extraction stats dashboard
+                st.markdown("---")
+                st.subheader("📊 Extraction Statistics")
+
+                stats = result.get('stats', {})
+                elapsed_time = result.get('elapsed_time', 0)
+
+                # First row of metrics
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Extraction Method", result.get('extraction_method', 'unknown'))
+                    st.metric("Total Requirements", stats.get('total_detected', 0))
                 with col2:
-                    st.metric("Confidence", result.get('extraction_confidence', 'unknown').upper())
+                    st.metric("Sections Processed", stats.get('sections_processed', 0))
                 with col3:
-                    st.metric("Total Detected", result['stats'].get('total_detected', 0))
+                    st.metric("Batches Processed", stats.get('batches_processed', 0))
                 with col4:
-                    st.metric("Classified Rows", result['stats'].get('classified_rows', 0))
+                    st.metric("Processing Time", f"{elapsed_time:.1f}s" if elapsed_time > 0 else "N/A")
+
+                # Second row of metrics
+                col5, col6, col7, col8 = st.columns(4)
+                with col5:
+                    duplicates = stats.get('duplicates_removed', 0)
+                    st.metric("Duplicates Removed", duplicates, delta=f"-{duplicates}" if duplicates > 0 else None)
+                with col6:
+                    clause_chunks = stats.get('clause_chunks_processed', 0)
+                    if clause_chunks > 0:
+                        st.metric("Clause Chunks", clause_chunks)
+                    else:
+                        st.metric("Clause Chunks", "N/A")
+                with col7:
+                    req_per_sec = stats.get('total_detected', 0) / elapsed_time if elapsed_time > 0 else 0
+                    st.metric("Requirements/sec", f"{req_per_sec:.1f}" if req_per_sec > 0 else "N/A")
+                with col8:
+                    confidence = result.get('extraction_confidence', 'unknown')
+                    st.metric("Confidence", confidence.title())
+
+                # Show extraction method
+                st.caption(f"Extraction method: {result.get('extraction_method', 'unknown')}")
 
                 # Clear processing flag and rerun to display results immediately
                 st.session_state.processing_active = False
