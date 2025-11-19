@@ -35,7 +35,7 @@ def consolidate_with_smart_ai(
     api_key: str,
     min_group_size: int = 3,
     max_group_size: int = 12,
-    batch_size: int = 150,  # Auto-batch if more than this
+    batch_size: int = 50,  # Auto-batch if more than this (reduced from 150 to prevent timeouts)
     progress_callback = None  # Optional callback for progress updates
 ) -> Dict:
     """
@@ -47,7 +47,7 @@ def consolidate_with_smart_ai(
         api_key: Anthropic API key
         min_group_size: Minimum requirements per group (default 3)
         max_group_size: Maximum requirements per group (default 12)
-        batch_size: Maximum requirements per batch (default 150)
+        batch_size: Maximum requirements per batch (default 50, reduced from 150 to prevent timeouts)
         progress_callback: Optional function(message, progress_pct) for UI updates
 
     Returns:
@@ -83,7 +83,7 @@ def consolidate_with_smart_ai(
     # Check if we need to batch
     if total_requirements > batch_size:
         print(f"[SMART AI] Dataset is large ({total_requirements} requirements)")
-        print(f"[SMART AI] Using automatic batching ({batch_size} requirements per batch)")
+        print(f"[SMART AI] Using automatic batching ({batch_size} requirements per batch - reduced from 150 to prevent timeouts)")
         if progress_callback:
             num_batches = (total_requirements + batch_size - 1) // batch_size
             progress_callback(f"Using automatic batching ({num_batches} batches)...", 5)
@@ -237,13 +237,21 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
         if progress_callback:
             progress_callback("Claude is analyzing requirements by regulatory intent...", 20)
 
-        message = client.messages.create(
-            model="claude-sonnet-4-5-20250929",
-            max_tokens=16000,
-            temperature=0,
-            timeout=600.0,  # 10 minute timeout
-            messages=[{"role": "user", "content": prompt}]
-        )
+        # Add explicit timeout handling with httpx.TimeoutException
+        try:
+            message = client.messages.create(
+                model="claude-sonnet-4-5-20250929",
+                max_tokens=16000,
+                temperature=0,
+                timeout=600.0,  # 10 minute timeout
+                messages=[{"role": "user", "content": prompt}]
+            )
+        except httpx.TimeoutException as e:
+            print(f"[SMART AI] ✗ Timeout after 10 minutes: {e}")
+            raise Exception(f"API timeout after 10 minutes processing {len(requirements)} requirements") from e
+        except httpx.ReadTimeout as e:
+            print(f"[SMART AI] ✗ Read timeout: {e}")
+            raise Exception(f"API read timeout processing {len(requirements)} requirements") from e
 
         response_text = message.content[0].text
         print(f"[SMART AI] Received response ({len(response_text)} chars)")
