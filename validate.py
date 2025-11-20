@@ -1,62 +1,92 @@
 """
 Post-processing validation for GPT extracted requirements.
 
-Filters out garbage like definitions, test procedures, bibliography, and informative annexes.
+PHILOSOPHY: "When in doubt, include it"
+Better to over-include and let manual review prune false positives than miss requirements.
+
+MINIMAL filtering - only remove obvious non-requirements:
+1. Pure definitions (Section 3) with NO requirement keywords
+2. Introductory preamble ("This clause of ISO X is applicable" with no additional content)
+3. Pure test methodology (no requirement language)
+4. "N/A" placeholder entries
 """
 import re
 import csv
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 from pathlib import Path
 
 
 # ============================================================================
-# EXCLUSION PATTERNS
+# SECTION NAME MAPPING (for parent section recognition)
 # ============================================================================
 
-# Clause patterns to exclude (section numbers)
-EXCLUDE_CLAUSE_PATTERNS = [
-    r'^1$',  # Scope (exactly "1")
-    r'^1\.\d+$',  # Scope subsections (1.1, 1.2, etc.)
-    r'^2$',  # Normative references
-    r'^2\.\d+$',  # Normative reference subsections
-    r'^3$',  # Terms and definitions
-    r'^3\.\d+(\.\d+)?$',  # Definition subsections (3.1, 3.1.1, etc.)
-    r'^Bibliography$',  # Bibliography section
-    r'^Annex\s+[A-Z]+',  # Annexes (will filter informative separately)
-    r'^Table\s+',  # Table captions
-    r'^Figure\s+',  # Figure captions
-]
+# Common section patterns across e-bike standards
+SECTION_NAMES = {
+    # Standard structural sections
+    "1": "Scope",
+    "2": "Normative references",
+    "3": "Terms and definitions",
+    "4": "General requirements",
+    "5": "General requirements",
+    "6": "Mechanical requirements",
+    "7": "Environmental requirements",
+    "8": "Safety requirements",
+    "9": "Electrical requirements",
+    "10": "System requirements",
 
-# Test procedure patterns
-TEST_PROCEDURE_PATTERNS = [
-    r'Test T\.\d+',  # UN test procedures (Test T.1, T.2, etc.)
-    r'^\d+\.\d+\s+Test',  # Test sections (6.101 Test, etc.)
-    r'Test\s+(item|category|sequence)',
-    r'Number of samples',
-    r'Purpose:\s+',  # Test purpose descriptions
-    r'Requirement:\s+Cells and batteries meet',  # Test pass criteria
-]
+    # Common annexes
+    "A": "Annex A",
+    "AA": "Annex AA - Rationale",
+    "BB": "Annex BB - Marking and instructions",
+    "CC": "Annex CC - Additional requirements",
+    "DD": "Annex DD - Test procedures",
+    "EE": "Annex EE - Bibliography",
+    "FF": "Annex FF - Test specifications",
+    "GG": "Annex GG - Test methods",
+}
 
-# Content patterns that indicate garbage
-GARBAGE_CONTENT_PATTERNS = [
-    # Definitions
-    r'^[A-Za-z\s\-]+\n',  # Term followed by newline (definition format)
-    r'^\w+(\s+\w+){0,5}$',  # Very short (1-6 words, likely a heading)
 
-    # Bibliography/references
-    r'^\[\d+\]',  # Bibliography entry ([1], [2], etc.)
-    r'^ISO\s+\d+',  # ISO standard reference
-    r'^IEC\s+\d+',  # IEC standard reference
-    r'^EN\s+\d+',  # EN standard reference
-    r'^UL\s+\d+',  # UL standard reference
-    r'^UN\s+(ECE\s+)?Regulation',  # UN regulations
+def parse_parent_section(clause: str) -> Optional[str]:
+    """
+    Parse clause number to extract parent section.
 
-    # Table of contents
-    r'\.{3,}',  # Dots pattern (TOC entries)
-    r'\s+\d+$',  # Ends with page number
-]
+    Examples:
+        "5.1.101" → "5. General requirements"
+        "BB.1.1" → "Annex BB - Marking and instructions"
+        "7.2.101.a" → "7. Environmental requirements"
 
-# Keywords that must appear for valid requirements
+    Returns:
+        Section name with number, or None if cannot parse
+    """
+    clause = clause.strip()
+
+    # Match annex patterns (AA, BB, CC, etc.)
+    annex_match = re.match(r'^([A-Z]{1,2})\.', clause)
+    if annex_match:
+        annex_letter = annex_match.group(1)
+        section_name = SECTION_NAMES.get(annex_letter, f"Annex {annex_letter}")
+        return f"{annex_letter}. {section_name}" if not section_name.startswith("Annex") else section_name
+
+    # Match numeric sections (5.1.101, 7.2, etc.)
+    numeric_match = re.match(r'^(\d+)\.', clause)
+    if numeric_match:
+        section_num = numeric_match.group(1)
+        section_name = SECTION_NAMES.get(section_num, "Unknown Section")
+        return f"{section_num}. {section_name}"
+
+    # Standalone number (1, 2, 3, etc.)
+    if clause.isdigit():
+        section_name = SECTION_NAMES.get(clause, "Unknown Section")
+        return f"{clause}. {section_name}"
+
+    return None
+
+
+# ============================================================================
+# MINIMAL FILTERING PATTERNS
+# ============================================================================
+
+# Required keywords that indicate a real requirement
 REQUIRED_KEYWORDS = [
     'shall',
     'must',
@@ -71,104 +101,157 @@ REQUIRED_KEYWORDS = [
     'manual',
     'document',
     'information',
+    'provide',
+    'include',
+    'contain',
+    'state',
+    'indicate',
 ]
 
-MIN_TEXT_LENGTH = 20  # Minimum characters for valid requirement
 
-
-# ============================================================================
-# FILTERING FUNCTIONS
-# ============================================================================
-
-def is_excluded_clause(clause: str) -> Tuple[bool, str]:
+def is_pure_definition(clause: str, text: str) -> Tuple[bool, str]:
     """
-    Check if clause number should be excluded.
+    Check if this is a pure definition (Section 3) with NO requirement language.
 
     Returns:
-        (should_exclude, reason)
+        (is_pure_definition, reason)
     """
-    clause = clause.strip()
+    # Only check Section 3 items
+    if not re.match(r'^3(\.\d+)*$', clause.strip()):
+        return False, ""
 
-    for pattern in EXCLUDE_CLAUSE_PATTERNS:
-        if re.match(pattern, clause, re.IGNORECASE):
-            return True, f"Excluded clause pattern: {pattern}"
+    # If it has requirement keywords, keep it (not a pure definition)
+    text_lower = text.lower()
+    for keyword in REQUIRED_KEYWORDS:
+        if keyword in text_lower:
+            return False, ""
+
+    # Pure definition - no requirement language
+    return True, "Pure definition in Section 3 (no requirement keywords)"
+
+
+def is_preamble(text: str) -> Tuple[bool, str]:
+    """
+    Check if this is introductory preamble with no additional content.
+
+    Examples:
+        "This clause of ISO 12405-3:2014 is applicable"
+        "This section applies to all batteries"
+
+    Returns:
+        (is_preamble, reason)
+    """
+    text = text.strip()
+
+    # Very short preamble patterns
+    preamble_patterns = [
+        r'^This clause of .+ is applicable\.?$',
+        r'^This section of .+ applies\.?$',
+        r'^Not applicable\.?$',
+        r'^See .+\.$',
+    ]
+
+    for pattern in preamble_patterns:
+        if re.match(pattern, text, re.IGNORECASE):
+            return True, f"Introductory preamble: {pattern}"
 
     return False, ""
 
 
-def is_test_procedure(clause: str, text: str) -> Tuple[bool, str]:
+def is_na_placeholder(text: str) -> Tuple[bool, str]:
     """
-    Check if this is a test procedure description.
+    Check if this is just "N/A" or similar placeholder.
 
     Returns:
-        (is_test, reason)
+        (is_placeholder, reason)
     """
-    combined = f"{clause} {text}"
+    text = text.strip().upper()
 
-    for pattern in TEST_PROCEDURE_PATTERNS:
-        if re.search(pattern, combined, re.IGNORECASE):
-            return True, f"Test procedure pattern: {pattern}"
+    if text in ['N/A', 'NA', 'NOT APPLICABLE', 'NONE', '-']:
+        return True, "N/A placeholder"
 
     return False, ""
 
 
-def is_informative_annex(clause: str, text: str) -> Tuple[bool, str]:
+def is_pure_test_methodology(text: str) -> Tuple[bool, str]:
     """
-    Check if this is from an informative annex.
+    Check if this is pure test methodology with NO requirement language.
+
+    Examples:
+        "Test T.1: Connect equipment to power supply and measure voltage"
+        "Number of samples: 5"
 
     Returns:
-        (is_informative, reason)
-    """
-    combined = f"{clause} {text}"
-
-    # Check for "(informative)" marker
-    if re.search(r'\(informative\)', combined, re.IGNORECASE):
-        return True, "Informative annex"
-
-    # Specific informative annexes by letter (common: FF, GG for test specs)
-    if re.match(r'^FF\.|^GG\.', clause):
-        return True, "Informative test annex (FF/GG)"
-
-    return False, ""
-
-
-def has_garbage_content(text: str) -> Tuple[bool, str]:
-    """
-    Check if text contains garbage patterns.
-
-    Returns:
-        (is_garbage, reason)
-    """
-    for pattern in GARBAGE_CONTENT_PATTERNS:
-        if re.search(pattern, text):
-            return True, f"Garbage content pattern: {pattern}"
-
-    return False, ""
-
-
-def has_required_keywords(text: str) -> bool:
-    """
-    Check if text contains at least one required keyword.
+        (is_pure_test, reason)
     """
     text_lower = text.lower()
 
+    # If it has requirement keywords, keep it (test requirements are valid)
     for keyword in REQUIRED_KEYWORDS:
         if keyword in text_lower:
-            return True
+            return False, ""
 
-    return False
+    # Pure methodology patterns (no requirement language)
+    test_patterns = [
+        r'Test T\.\d+:',
+        r'Number of samples?:',
+        r'Test equipment:',
+        r'Measurement procedure:',
+        r'Connect .+ and measure',
+        r'Apply .+ and observe',
+    ]
+
+    for pattern in test_patterns:
+        if re.search(pattern, text, re.IGNORECASE):
+            return True, f"Pure test methodology: {pattern}"
+
+    return False, ""
 
 
-def is_too_short(text: str) -> bool:
+def has_minimum_substance(text: str) -> bool:
     """
-    Check if text is too short to be a real requirement.
+    Check if text has minimum substance (not just a heading).
+
+    Very lenient - only reject extremely short items.
     """
-    return len(text.strip()) < MIN_TEXT_LENGTH
+    text = text.strip()
+
+    # Must have at least 10 characters
+    if len(text) < 10:
+        return False
+
+    # Must have at least 2 words
+    if len(text.split()) < 2:
+        return False
+
+    return True
+
+
+def clean_comments_field(req: Dict) -> Dict:
+    """
+    Clean up the Comments field if it contains extraction metadata.
+
+    Removes "GPT extraction" and similar metadata.
+    """
+    if 'Comments' in req:
+        comment = req['Comments'].strip()
+
+        # Remove extraction metadata
+        if comment.lower() in ['gpt extraction', 'ai extraction', 'automated extraction']:
+            req['Comments'] = ''
+
+        # Remove "N/A" placeholders
+        if comment.upper() in ['N/A', 'NA']:
+            req['Comments'] = ''
+
+    return req
 
 
 def validate_requirement(req: Dict) -> Tuple[bool, str]:
     """
-    Validate a single requirement.
+    Validate a single requirement using MINIMAL filtering.
+
+    PHILOSOPHY: When in doubt, include it.
 
     Returns:
         (is_valid, rejection_reason)
@@ -176,37 +259,43 @@ def validate_requirement(req: Dict) -> Tuple[bool, str]:
     clause = req.get('clause', '').strip()
     text = req.get('text', '').strip()
 
-    # Check exclusion filters (order matters - most specific first)
+    # Clean Comments field
+    req = clean_comments_field(req)
 
-    # 1. Informative annexes
-    is_info, reason = is_informative_annex(clause, text)
-    if is_info:
+    # Check minimal exclusion filters
+
+    # 1. N/A placeholders
+    is_na, reason = is_na_placeholder(text)
+    if is_na:
         return False, reason
 
-    # 2. Test procedures
-    is_test, reason = is_test_procedure(clause, text)
+    # 2. Preamble
+    is_pream, reason = is_preamble(text)
+    if is_pream:
+        return False, reason
+
+    # 3. Pure definitions (Section 3 with no requirement keywords)
+    is_def, reason = is_pure_definition(clause, text)
+    if is_def:
+        return False, reason
+
+    # 4. Pure test methodology (no requirement keywords)
+    is_test, reason = is_pure_test_methodology(text)
     if is_test:
         return False, reason
 
-    # 3. Excluded clauses (scope, definitions, etc.)
-    excluded, reason = is_excluded_clause(clause)
-    if excluded:
-        return False, reason
+    # 5. Minimum substance check (very lenient)
+    if not has_minimum_substance(text):
+        return False, f"Too short or lacks substance ({len(text)} chars)"
 
-    # 4. Garbage content patterns
-    is_garbage, reason = has_garbage_content(text)
-    if is_garbage:
-        return False, reason
+    # 6. Try to populate parent section if missing
+    if 'Parent Section' in req:
+        if req.get('Parent Section', '').strip() in ['', 'Unknown', 'N/A']:
+            parent = parse_parent_section(clause)
+            if parent:
+                req['Parent Section'] = parent
 
-    # 5. Too short
-    if is_too_short(text):
-        return False, f"Too short ({len(text)} chars < {MIN_TEXT_LENGTH})"
-
-    # 6. Missing required keywords
-    if not has_required_keywords(text):
-        return False, "Missing required keywords (shall/must/required/etc.)"
-
-    # Passed all filters
+    # Passed all filters - INCLUDE IT
     return True, ""
 
 
@@ -219,10 +308,10 @@ def validate_requirements(
     verbose: bool = True
 ) -> Tuple[List[Dict], List[Dict], Dict]:
     """
-    Filter GPT-extracted requirements to remove garbage.
+    Filter GPT-extracted requirements using MINIMAL filtering.
 
     Args:
-        requirements: List of {clause, text} dicts
+        requirements: List of {clause, text} dicts (may have additional fields)
         verbose: Print detailed filtering stats
 
     Returns:
@@ -261,15 +350,20 @@ def validate_requirements(
 
     if verbose:
         print("=" * 80)
-        print("VALIDATION RESULTS")
+        print("VALIDATION RESULTS (MINIMAL FILTERING)")
         print("=" * 80)
         print(f"Input:   {stats['total_input']} requirements")
         print(f"Valid:   {stats['valid_output']} requirements ({stats['valid_output']/stats['total_input']*100:.1f}%)")
         print(f"Removed: {stats['removed_total']} requirements ({stats['removed_total']/stats['total_input']*100:.1f}%)")
         print()
-        print("Removal breakdown:")
-        for reason, count in sorted(stats['removal_reasons'].items(), key=lambda x: x[1], reverse=True):
-            print(f"  - {reason}: {count}")
+
+        if stats['removal_reasons']:
+            print("Removal breakdown:")
+            for reason, count in sorted(stats['removal_reasons'].items(), key=lambda x: x[1], reverse=True):
+                print(f"  - {reason}: {count}")
+        else:
+            print("No items removed - all items passed minimal filtering")
+
         print("=" * 80)
 
     return valid, removed, stats
@@ -304,6 +398,7 @@ def validate_csv_file(
     requirements = []
     with open(input_csv, 'r', encoding='utf-8') as f:
         reader = csv.DictReader(f)
+        fieldnames = reader.fieldnames
         for row in reader:
             requirements.append(row)
 
@@ -312,8 +407,11 @@ def validate_csv_file(
 
     # Write valid requirements
     if valid:
+        # Preserve all original fields
+        output_fieldnames = fieldnames if fieldnames else ['clause', 'text']
+
         with open(output_csv, 'w', encoding='utf-8', newline='') as f:
-            writer = csv.DictWriter(f, fieldnames=['clause', 'text'])
+            writer = csv.DictWriter(f, fieldnames=output_fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(valid)
 
@@ -322,9 +420,13 @@ def validate_csv_file(
 
     # Write removed requirements
     if removed:
+        # Add removal_reason to fieldnames
+        removed_fieldnames = list(fieldnames if fieldnames else ['clause', 'text'])
+        if 'removal_reason' not in removed_fieldnames:
+            removed_fieldnames.append('removal_reason')
+
         with open(removed_csv, 'w', encoding='utf-8', newline='') as f:
-            fieldnames = ['clause', 'text', 'removal_reason']
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer = csv.DictWriter(f, fieldnames=removed_fieldnames, extrasaction='ignore')
             writer.writeheader()
             writer.writerows(removed)
 
@@ -345,6 +447,12 @@ if __name__ == "__main__":
         print("Usage: python validate.py <input_csv> [output_csv] [removed_csv]")
         print("\nExample:")
         print("  python validate.py test_ss_en_50604_results.csv")
+        print("\nMINIMAL FILTERING - 'When in doubt, include it'")
+        print("Only removes:")
+        print("  - Pure definitions (Section 3 with no requirement keywords)")
+        print("  - Introductory preamble")
+        print("  - Pure test methodology (no requirement language)")
+        print("  - N/A placeholders")
         sys.exit(1)
 
     input_csv = sys.argv[1]
