@@ -147,26 +147,62 @@ def _process_upload_background(
                     'progress': 85
                 })
 
-            # Convert GPT format to classified format
+            # Convert GPT format to classified format with auto-classification
             # GPT returns: [{"clause": "X", "text": "Y"}]
             # We need: [{"Clause/Requirement": "X", "Description": "Y", "Standard/Reg": ...}]
             classified_rows = []
             for req in raw_requirements:
                 clause = req.get('clause', '')
+                text = req.get('text', '')
+                text_lower = text.lower()
                 parent = parse_parent_section(clause) or 'Unknown'
+
+                # Auto-classify based on text content
+                # Requirement scope
+                scope = ''
+                if any(kw in text_lower for kw in ['manual', 'instruction', 'document']):
+                    scope = 'Documentation'
+                elif any(kw in text_lower for kw in ['marking', 'label', 'symbol']):
+                    scope = 'Marking/Labeling'
+                elif any(kw in text_lower for kw in ['warning', 'caution', 'danger']):
+                    scope = 'Safety Notice'
+
+                # Formatting requirements
+                formatting = 'N/A'
+                if any(kw in text_lower for kw in ['bold', 'font', 'size', 'color', 'symbol']):
+                    formatting = 'Yes'
+
+                # Required in print
+                required_print = 'n'
+                if any(kw in text_lower for kw in ['manual', 'instruction', 'document', 'warning', 'caution']):
+                    required_print = 'y'
+
+                # Contains image
+                contains_image = 'N'
+                if any(kw in text_lower for kw in ['figure', 'symbol', 'pictogram', 'icon', 'diagram']):
+                    contains_image = 'Possible'
+
+                # Safety notice type
+                safety_type = 'None'
+                if 'danger' in text_lower:
+                    safety_type = 'Danger'
+                elif 'warning' in text_lower:
+                    safety_type = 'Warning'
+                elif 'caution' in text_lower:
+                    safety_type = 'Caution'
 
                 classified_rows.append({
                     'Clause/Requirement': clause,
-                    'Description': req.get('text', ''),
+                    'Description': text,
                     'Standard/Reg': standard_name or 'Unknown',
-                    'Requirement scope': '',  # Will be filled by classify.py if needed
-                    'Formatting required?': 'N/A',
-                    'Required in Print?': 'n',
-                    'Parent Section': parent,  # Parsed from clause number
+                    'Requirement scope': scope,
+                    'Formatting required?': formatting,
+                    'Required in Print?': required_print,
+                    'Parent Section': parent,
                     'Sub-section': 'N/A',
                     'Comments': '',  # Leave empty per user guidance
-                    'Contains Image?': 'N',
-                    'Safety Notice Type': 'None'
+                    'Contains Image?': contains_image,
+                    'Safety Notice Type': safety_type
                 })
 
             # Convert to CSV format
