@@ -297,9 +297,10 @@ def clean_comments_field(req: Dict) -> Dict:
 
 def validate_requirement(req: Dict) -> Tuple[bool, str]:
     """
-    Validate a single requirement using MINIMAL filtering.
+    Tag and validate requirements - INCLUDE everything except obvious junk.
 
-    PHILOSOPHY: When in doubt, include it.
+    NEW PHILOSOPHY: Tag clauses by type instead of rejecting them.
+    Definitions, test methods, preambles are VALID - just tag them for filtering later.
 
     Returns:
         (is_valid, rejection_reason)
@@ -310,40 +311,41 @@ def validate_requirement(req: Dict) -> Tuple[bool, str]:
     # Clean Comments field
     req = clean_comments_field(req)
 
-    # Check minimal exclusion filters
+    # REJECT only obvious junk
 
-    # 1. N/A placeholders
+    # 1. N/A placeholders - still reject (no value)
     is_na, reason = is_na_placeholder(text)
     if is_na:
         return False, reason
 
-    # 2. Preamble
-    is_pream, reason = is_preamble(text)
-    if is_pream:
-        return False, reason
-
-    # 3. Pure definitions (Section 3 with no requirement keywords)
-    is_def, reason = is_pure_definition(clause, text)
-    if is_def:
-        return False, reason
-
-    # 4. Pure test methodology (no requirement keywords)
-    is_test, reason = is_pure_test_methodology(text)
-    if is_test:
-        return False, reason
-
-    # 5. Minimum substance check (very lenient)
+    # 2. Minimum substance check - still reject (garbage)
     if not has_minimum_substance(text):
         return False, f"Too short or lacks substance ({len(text)} chars)"
 
-    # 6. Populate parent section (add field if missing)
+    # TAG instead of reject - keep all clauses but classify them
+
+    # 3. Preamble → TAG as "Preamble"
+    is_pream, reason = is_preamble(text)
+    if is_pream:
+        req['Clause_Type'] = 'Preamble'
+    # 4. Pure definitions → TAG as "Definition"
+    elif is_pure_definition(clause, text)[0]:
+        req['Clause_Type'] = 'Definition'
+    # 5. Pure test methodology → TAG as "Test_Methodology"
+    elif is_pure_test_methodology(text)[0]:
+        req['Clause_Type'] = 'Test_Methodology'
+    # 6. Default → TAG as "Requirement"
+    else:
+        req['Clause_Type'] = 'Requirement'
+
+    # 7. Populate parent section (always)
     parent = parse_parent_section(clause)
     if parent:
         req['Parent Section'] = parent
     elif 'Parent Section' not in req:
         req['Parent Section'] = 'Unknown'
 
-    # Passed all filters - INCLUDE IT
+    # INCLUDE IT with appropriate tag
     return True, ""
 
 
@@ -455,10 +457,12 @@ def validate_csv_file(
 
     # Write valid requirements
     if valid:
-        # Preserve all original fields + add Parent Section if not present
+        # Preserve all original fields + add Parent Section and Clause_Type if not present
         output_fieldnames = list(fieldnames) if fieldnames else ['clause', 'text']
         if 'Parent Section' not in output_fieldnames:
             output_fieldnames.append('Parent Section')
+        if 'Clause_Type' not in output_fieldnames:
+            output_fieldnames.append('Clause_Type')
 
         with open(output_csv, 'w', encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=output_fieldnames, extrasaction='ignore')
