@@ -52,60 +52,82 @@ SECTION_NAMES = {
 
 def parse_parent_section(clause: str) -> Optional[str]:
     """
-    Parse clause number to extract parent section.
+    Parse clause number to extract parent section using structure-based logic.
+
+    PHILOSOPHY: Extract parent from clause STRUCTURE, not hardcoded mappings.
+    Works across all standards (ISO, IEC, UL, EN, ANSI) automatically.
+
+    Rules:
+    - 1 segment ("5", "BB") → IS a top-level parent → return as-is
+    - 2 segments ("5.101", "BB.1", "46.8") → IS a mid-level parent → return as-is
+    - 3+ segments ("5.101.1", "BB.1.2") → Parent = first 2 segments
 
     Examples:
-        "5.1.101" → "5. General requirements"
-        "BB.1.1" → "Annex BB - Marking and instructions"
-        "7.2.101.a" → "7. Environmental requirements"
+        "5.101.1" → "5.101"
+        "BB.1.1" → "BB.1"
+        "7.2.3.4" → "7.2"
+        "46.8" → "46.8" (already parent level)
+        "A.2.1" → "A.2"
+        "5" → "5" (top-level)
 
     Returns:
-        Section name with number, or None if cannot parse
+        Parent section number, or None if cannot parse
     """
     clause = clause.strip()
 
-    # Special cases for non-standard clause formats
+    # Handle special cases
     if clause.lower().startswith('annex'):
-        # "Annex GG" → extract letters after "Annex "
+        # "Annex GG" → "Annex GG"
         annex_match = re.match(r'annex\s+([A-Z]{1,2})', clause, re.IGNORECASE)
         if annex_match:
-            annex_letter = annex_match.group(1).upper()
-            section_name = SECTION_NAMES.get(annex_letter, f"Annex {annex_letter}")
-            return section_name if section_name.startswith("Annex") else f"Annex {annex_letter} - {section_name}"
+            return f"Annex {annex_match.group(1).upper()}"
         return "Annex"
 
     if clause.lower().startswith('table'):
-        # "Table GG.1" → extract letters after "Table "
-        table_match = re.match(r'table\s+([A-Z]{1,2})\.', clause, re.IGNORECASE)
+        # "Table GG.1" → "Table GG"
+        table_match = re.match(r'table\s+([A-Z]{1,2})', clause, re.IGNORECASE)
         if table_match:
-            annex_letter = table_match.group(1).upper()
-            section_name = SECTION_NAMES.get(annex_letter, f"Annex {annex_letter}")
-            return section_name if section_name.startswith("Annex") else f"Annex {annex_letter}"
-        return "Tables"
+            return f"Table {table_match.group(1).upper()}"
+        return "Table"
 
     if clause.lower() == 'bibliography':
         return "Bibliography"
 
-    # Match annex patterns (AA, BB, CC, etc.)
-    annex_match = re.match(r'^([A-Z]{1,2})\.', clause)
-    if annex_match:
-        annex_letter = annex_match.group(1)
-        section_name = SECTION_NAMES.get(annex_letter, f"Annex {annex_letter}")
-        return section_name if section_name.startswith("Annex") else f"Annex {annex_letter}"
+    # Parse clause structure: "5.101.1.a" → ["5", "101", "1", "a"]
+    # Treat annex letters as single segment: "BB.1.1" → ["BB", "1", "1"]
 
-    # Match numeric sections (5.1.101, 7.2, etc.)
-    numeric_match = re.match(r'^(\d+)\.', clause)
-    if numeric_match:
-        section_num = numeric_match.group(1)
-        section_name = SECTION_NAMES.get(section_num, "Unknown Section")
-        return f"{section_num}. {section_name}"
+    # First, handle letter prefixes (annexes)
+    letter_prefix_match = re.match(r'^([A-Z]{1,2})\.(.+)$', clause)
+    if letter_prefix_match:
+        prefix = letter_prefix_match.group(1)
+        rest = letter_prefix_match.group(2)
+        segments = [prefix] + rest.split('.')
+    else:
+        # Pure numeric or mixed
+        segments = clause.split('.')
 
-    # Standalone number (1, 2, 3, etc.)
-    if clause.isdigit():
-        section_name = SECTION_NAMES.get(clause, "Unknown Section")
-        return f"{clause}. {section_name}"
+    # Remove letter suffixes from last segment if present
+    # "5.101.1.a" → segments = ["5", "101", "1", "a"]
+    # We want numeric segments only for depth calculation
+    numeric_segments = []
+    for seg in segments:
+        # Remove trailing letters: "1a" → "1", "101a" → "101"
+        numeric_part = re.match(r'^(\d+|[A-Z]{1,2})', seg)
+        if numeric_part:
+            numeric_segments.append(numeric_part.group(1))
 
-    return None
+    if not numeric_segments:
+        return None
+
+    # Apply depth rules:
+    # - 1 segment → return as-is (top-level parent)
+    # - 2 segments → return as-is (mid-level parent, use this for grouping)
+    # - 3+ segments → return first 2 segments
+
+    if len(numeric_segments) <= 2:
+        return '.'.join(numeric_segments)
+    else:
+        return '.'.join(numeric_segments[:2])
 
 
 # ============================================================================

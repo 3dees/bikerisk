@@ -52,8 +52,8 @@ def count_tokens(text: str, model: str = "gpt-4o-mini") -> int:
 
 def chunk_text_by_tokens(
     text: str,
-    max_tokens: int = 4000,
-    overlap_tokens: int = 500
+    max_tokens: int = 3000,
+    overlap_tokens: int = 400
 ) -> List[str]:
     """
     Chunk text by token count with overlap.
@@ -84,10 +84,53 @@ def chunk_text_by_tokens(
     return chunks
 
 
+def _call_openai_with_retry(
+    client: OpenAI,
+    messages: List[Dict],
+    max_retries: int = 3
+) -> any:
+    """
+    Call OpenAI API with exponential backoff retry logic.
+
+    Args:
+        client: OpenAI client instance
+        messages: Message list for chat completion
+        max_retries: Maximum number of retry attempts
+
+    Returns:
+        OpenAI response object
+
+    Raises:
+        Exception: If all retries fail
+    """
+    for attempt in range(max_retries):
+        try:
+            response = client.chat.completions.create(
+                model=MODEL_CONFIG["model"],
+                messages=messages,
+                max_tokens=MODEL_CONFIG["max_tokens"],
+                temperature=MODEL_CONFIG["temperature"],
+                timeout=MODEL_CONFIG["timeout"]
+            )
+            return response
+
+        except Exception as e:
+            if attempt < max_retries - 1:
+                # Exponential backoff: 2s, 4s, 8s
+                wait_time = 2 ** (attempt + 1)
+                print(f"[RETRY] Attempt {attempt + 1} failed: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+                continue
+            else:
+                # All retries exhausted
+                print(f"[RETRY] All {max_retries} attempts failed: {e}")
+                raise
+
+
 def chunk_text_smart(
     text: str,
-    max_tokens: int = 4000,
-    overlap_tokens: int = 500
+    max_tokens: int = 3000,
+    overlap_tokens: int = 400
 ) -> List[str]:
     """
     Smart chunking: Try to split on section boundaries, fallback to token-based.
@@ -214,64 +257,35 @@ Include requirements about:
 • Symbols and pictograms for documentation
 • Marking and labeling requirements"""
 
-    prompt = f"""You are extracting requirements from an e-bike safety standard.
-
-DOCUMENT: {filename}
-EXTRACTION MODE: {extraction_type}
+    prompt = f"""Extract requirements from e-bike safety standard: {filename}
 
 {focus_instructions}
 
-CRITICAL RULES (DO NOT DEVIATE):
-1. Extract EVERY item with a clause/section number
-2. Include numbered paragraphs even without "shall" (e.g., definitions, notes, examples)
-3. Extract ISO modification markers: "Replacement:", "Addition:", "Amendment:"
-4. **ADAPT to THIS document's numbering scheme** - handle ANY format:
-   - Numeric: "5.1.101", "7.3.2", "10.2.1.1"
-   - Alpha: "Annex A.2.3.b", "Section C.4.a"
-   - Mixed: "7.3.2.a.1", "BB.1.2.c"
-   - Whatever numbering THIS specific document uses
-5. **CRITICAL - Sub-items**: Extract ALL sub-items as SEPARATE entries:
-   - Recognize ANY sub-item format used in THIS document:
-     * Parentheses: (a), (b), (1), (i), (α), (A)
-     * Suffixes: a), b), 1), i), α), A)
-     * Periods: a., b., 1., i., α., A.
-     * Bullets: —, –, •, *, ►, ○, ●
-     * Plain: a, b, c (if clearly sub-items)
-   - Each sub-item = separate requirement (DO NOT combine into one entry)
-   - Append sub-marker to parent clause: "BB.1.1" + "(a)" → "BB.1.1.a"
-6. Keep FULL text for each item - don't summarize or truncate
-7. Extract table/figure/equation references if they have identifiers
-8. DO NOT skip items that seem like headers - they provide context
-9. **BE FLEXIBLE**: Every standard uses different conventions - adapt to what you see
-10. When in doubt, INCLUDE IT
+RULES:
+1. Extract EVERY numbered clause (e.g., "5.1.101", "BB.1.2.a", "Annex A.3")
+2. Adapt to document's numbering scheme - handle numeric, alpha, or mixed formats
+3. Extract sub-items SEPARATELY: (a), (b), a), b), etc. → append to parent clause
+4. Keep full text - don't summarize
+5. Include headers, definitions, notes if numbered
+6. When in doubt, INCLUDE IT
 
-EXTRACTION INTELLIGENCE:
-- First pass: Identify THIS document's numbering patterns
-- Second pass: Extract ALL items matching those patterns, including all nesting levels
-- If parent has sub-items → extract parent + each sub-item separately
-- Don't force a standard format - mirror the document's actual structure
-
-OUTPUT FORMAT: Return ONLY a JSON array (no markdown, no explanations):
+Return JSON array only (no markdown):
 [
-  {{"clause": "5.1.101", "text": "Full requirement text here..."}},
-  {{"clause": "7.3.2.a", "text": "Another requirement..."}},
-  ...
+  {{"clause": "5.1.101", "text": "Full requirement text..."}},
+  {{"clause": "BB.1.2.a", "text": "Another requirement..."}}
 ]
 
-TEXT TO PROCESS:
-{chunk_text}
-
-Return JSON array only:"""
+TEXT:
+{chunk_text}"""
 
     try:
         start_time = time.time()
 
-        response = client.chat.completions.create(
-            model=MODEL_CONFIG["model"],
+        # Use retry logic
+        response = _call_openai_with_retry(
+            client,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=MODEL_CONFIG["max_tokens"],
-            temperature=MODEL_CONFIG["temperature"],
-            timeout=MODEL_CONFIG["timeout"]
+            max_retries=3
         )
 
         latency = time.time() - start_time
@@ -355,7 +369,7 @@ def extract_requirements_gpt(
     print(f"[GPT EXTRACTION] Document length: {len(pdf_text):,} characters")
 
     # Chunk the text
-    chunks = chunk_text_smart(pdf_text, max_tokens=6000, overlap_tokens=500)
+    chunks = chunk_text_smart(pdf_text, max_tokens=3000, overlap_tokens=400)
     num_chunks = len(chunks)
 
     print(f"[GPT EXTRACTION] Split into {num_chunks} chunks")
