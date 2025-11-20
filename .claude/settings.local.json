@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(taskkill /F /PID 51944)",
+      "Bash(taskkill //F //PID 51944)",
+      "Bash(taskkill //F //PID 44592)",
+      "Bash(taskkill //F //PID 36488)",
+      "Bash(taskkill //F //PID 27112)"
     ],
     "deny": [],
     "ask": []

@@ -2313,7 +2313,12 @@ def display_results(job_id):
             'Sub-section',          # NEW - sub-section within parent
             'Comments',
             'Contains Image?',      # Flags figure references
-            'Safety Notice Type'    # Marks WARNING/DANGER/CAUTION
+            'Safety Notice Type',   # Marks WARNING/DANGER/CAUTION
+            # NEW COLUMNS from validate.py tagging
+            'Clause_Type',          # Requirement/Definition/Test_Methodology/Preamble
+            'Mandate_Level',        # High/Medium/Informative
+            'Safety_Flag',          # y/n - safety-related keywords
+            'Manual_Flag'           # y/n - manual/documentation keywords
         ]
 
         # Ensure all required columns exist (defensive programming)
@@ -2328,6 +2333,14 @@ def display_results(job_id):
                     df[col] = 'Unknown'
                 elif col == 'Sub-section':
                     df[col] = 'N/A'
+                elif col == 'Clause_Type':
+                    df[col] = 'Requirement'
+                elif col == 'Mandate_Level':
+                    df[col] = 'Informative'
+                elif col == 'Safety_Flag':
+                    df[col] = 'n'
+                elif col == 'Manual_Flag':
+                    df[col] = 'n'
                 else:
                     df[col] = ''
 

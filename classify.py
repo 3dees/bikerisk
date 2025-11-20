@@ -332,6 +332,11 @@ def rows_to_csv_dicts(rows: List[Dict]) -> List[Dict]:
             'Comments': row.get('Comments', ''),
             'Contains Image?': row.get('Contains Image?', 'N'),
             'Safety Notice Type': row.get('Safety Notice Type', 'None'),
+            # NEW COLUMNS from validate.py tagging
+            'Clause_Type': row.get('Clause_Type', 'Requirement'),
+            'Mandate_Level': row.get('Mandate_Level', 'Informative'),
+            'Safety_Flag': row.get('Safety_Flag', 'n'),
+            'Manual_Flag': row.get('Manual_Flag', 'n'),
         })
 
     return csv_rows

@@ -18,7 +18,7 @@ from extract_ai import extract_requirements_with_ai, extract_from_detected_secti
 from extract_gpt import extract_requirements_gpt
 from detect import detect_manual_sections, detect_all_sections, merge_small_sections
 from classify import rows_to_csv_dicts
-from validate import parse_parent_section
+from validate import parse_parent_section, validate_requirements
 
 load_dotenv()
 
@@ -193,24 +193,40 @@ def _process_upload_background(
                 progress_callback=update_gpt_progress
             )
 
-            # Step 4: Classify requirements using existing classify.py
+            # Step 4: Validate and tag requirements using validate.py
             with results_lock:
                 RESULTS_STORE[job_id].update({
-                    'step': 'Classifying requirements',
+                    'step': 'Validating and tagging requirements',
                     'progress': 85
                 })
 
-            # Convert GPT format to classified format with auto-classification
-            # GPT returns: [{"clause": "X", "text": "Y"}]
-            # We need: [{"Clause/Requirement": "X", "Description": "Y", "Standard/Reg": ...}]
+            # Validate requirements - adds Clause_Type, Mandate_Level, Safety_Flag, Manual_Flag
+            validated_requirements, removed_requirements, validation_stats = validate_requirements(
+                raw_requirements,
+                verbose=True
+            )
+
+            print(f"[VALIDATION] Kept {len(validated_requirements)}/{len(raw_requirements)} requirements "
+                  f"({len(validated_requirements)/len(raw_requirements)*100:.1f}%)")
+            print(f"[VALIDATION] Removed {len(removed_requirements)} garbage items")
+
+            # Convert validated format to UI format
+            # validate.py adds: clause, text, Parent Section, Clause_Type, Mandate_Level, Safety_Flag, Manual_Flag
+            # UI needs: Clause/Requirement, Description, Standard/Reg, etc.
             classified_rows = []
-            for req in raw_requirements:
+            for req in validated_requirements:
                 clause = req.get('clause', '')
                 text = req.get('text', '')
                 text_lower = text.lower()
-                parent = parse_parent_section(clause) or 'Unknown'
 
-                # Auto-classify based on text content
+                # Use tags from validate.py
+                clause_type = req.get('Clause_Type', 'Requirement')
+                mandate_level = req.get('Mandate_Level', 'Informative')
+                safety_flag = req.get('Safety_Flag', 'n')
+                manual_flag = req.get('Manual_Flag', 'n')
+                parent = req.get('Parent Section', 'Unknown')
+
+                # Auto-classify based on text content for legacy columns
                 # Requirement scope
                 scope = ''
                 if any(kw in text_lower for kw in ['manual', 'instruction', 'document']):
@@ -258,7 +274,12 @@ def _process_upload_background(
                     'Sub-section': 'N/A',
                     'Comments': comment,
                     'Contains Image?': contains_image,
-                    'Safety Notice Type': safety_type
+                    'Safety Notice Type': safety_type,
+                    # NEW COLUMNS from validate.py tagging
+                    'Clause_Type': clause_type,
+                    'Mandate_Level': mandate_level,
+                    'Safety_Flag': safety_flag,
+                    'Manual_Flag': manual_flag
                 })
 
             # Convert to CSV format
@@ -608,10 +629,19 @@ def export_csv(job_id: str):
         'Requirement scope',
         'Formatting required?',
         'Required in Print?',
-        'Comments'
+        'Parent Section',
+        'Sub-section',
+        'Comments',
+        'Contains Image?',
+        'Safety Notice Type',
+        # NEW COLUMNS from validate.py tagging
+        'Clause_Type',
+        'Mandate_Level',
+        'Safety_Flag',
+        'Manual_Flag'
     ]
 
-    writer = csv.DictWriter(output, fieldnames=fieldnames)
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
     writer.writeheader()
     writer.writerows(csv_rows)
 
