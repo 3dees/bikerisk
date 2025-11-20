@@ -48,6 +48,59 @@ app.add_middleware(
 )
 
 
+def _generate_context_comment(clause: str, text: str, parent_section: str) -> str:
+    """
+    Generate contextual comment describing the requirement type and nature.
+
+    Mimics the old Vision mode comment style.
+    """
+    text_lower = text.lower()
+
+    # Check if it's a section header (short, no "shall/must")
+    if len(text) < 100 and not any(kw in text_lower for kw in ['shall', 'must', 'required']):
+        if any(kw in text_lower for kw in ['general', 'requirements']):
+            return "Section header - specific requirements in subsections"
+        elif 'test' in text_lower:
+            return "Test section header - specific test procedures in subsections"
+        elif 'annex' in text_lower or 'informative' in text_lower:
+            return f"Reference section in {parent_section}"
+        else:
+            return "Section header only - detailed content in subsections"
+
+    # Normative vs informative
+    context_type = ""
+    if parent_section.startswith("Annex BB"):
+        context_type = "Normative annex - "
+    elif parent_section.startswith("Annex"):
+        context_type = "Informative annex - "
+    elif parent_section == "2. Normative references":
+        context_type = "Normative reference - "
+    elif parent_section == "3. Terms and definitions":
+        context_type = "Definition - "
+
+    # Identify requirement type
+    if 'marking' in text_lower or 'label' in text_lower:
+        return f"{context_type}Marking and labeling requirements"
+    elif 'instruction' in text_lower or 'manual' in text_lower or 'document' in text_lower:
+        return f"{context_type}Documentation and instruction requirements"
+    elif 'test' in text_lower and 'procedure' in text_lower:
+        return f"{context_type}Test procedure specification"
+    elif 'test' in text_lower and ('shall' in text_lower or 'requirement' in text_lower):
+        return f"{context_type}Test requirement and acceptance criteria"
+    elif 'warning' in text_lower or 'caution' in text_lower or 'danger' in text_lower:
+        return f"{context_type}Safety notice and warning requirements"
+    elif 'symbol' in text_lower or 'graphical' in text_lower:
+        return f"{context_type}Graphical symbol requirements"
+    elif 'shall' in text_lower or 'must' in text_lower:
+        return f"{context_type}Compliance requirement"
+    elif 'purpose' in text_lower:
+        return f"{context_type}Test purpose and objective"
+    elif 'applicable' in text_lower:
+        return f"{context_type}Applicability statement"
+    else:
+        return f"{context_type}Requirement specification" if context_type else "Requirement specification"
+
+
 @app.get("/")
 def read_root():
     """Health check endpoint."""
@@ -191,6 +244,9 @@ def _process_upload_background(
                 elif 'caution' in text_lower:
                     safety_type = 'Caution'
 
+                # Generate contextual comment
+                comment = _generate_context_comment(clause, text, parent)
+
                 classified_rows.append({
                     'Clause/Requirement': clause,
                     'Description': text,
@@ -200,7 +256,7 @@ def _process_upload_background(
                     'Required in Print?': required_print,
                     'Parent Section': parent,
                     'Sub-section': 'N/A',
-                    'Comments': '',  # Leave empty per user guidance
+                    'Comments': comment,
                     'Contains Image?': contains_image,
                     'Safety Notice Type': safety_type
                 })
