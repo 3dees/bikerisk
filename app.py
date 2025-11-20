@@ -2366,173 +2366,161 @@ def display_results(job_id):
             st.session_state.current_job_id = st.session_state.job_id
 
         # Instructions
-        st.info("💡 **Edit extracted requirements below**: Use checkboxes to select rows, then merge or delete them.")
+        st.info("💡 **Edit extracted requirements**: Select rows using checkboxes, then merge or delete them.")
 
         # Initialize selection state
         if 'selected_row_indices' not in st.session_state:
             st.session_state.selected_row_indices = set()
 
+        # Add checkbox column to display data
+        display_df = st.session_state.edited_data.copy()
+        display_df.insert(0, '☑️', False)  # Add checkbox column at start
+
+        # Update checkbox values based on selection state
+        for idx in st.session_state.selected_row_indices:
+            if idx in display_df.index:
+                display_df.at[idx, '☑️'] = True
+
         # Action buttons row
-        col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
+        col1, col2, col3, col4 = st.columns([1.5, 1.5, 1.5, 5.5])
 
         with col1:
-            if st.button("☑️ Select All", use_container_width=True):
-                st.session_state.selected_row_indices = set(range(len(st.session_state.edited_data)))
+            # Toggle button for select/deselect all
+            if len(st.session_state.selected_row_indices) == len(st.session_state.edited_data):
+                button_label = "☐ Deselect All"
+                button_action = "deselect"
+            else:
+                button_label = "☑️ Select All"
+                button_action = "select"
+
+            if st.button(button_label, use_container_width=True):
+                if button_action == "select":
+                    st.session_state.selected_row_indices = set(range(len(st.session_state.edited_data)))
+                else:
+                    st.session_state.selected_row_indices = set()
                 st.rerun()
 
         with col2:
-            if st.button("☐ Deselect All", use_container_width=True):
-                st.session_state.selected_row_indices = set()
-                st.rerun()
+            # Merge button
+            num_selected = len(st.session_state.selected_row_indices)
+            merge_button = st.button(
+                f"🔗 Merge ({num_selected})",
+                type="primary" if num_selected >= 2 else "secondary",
+                disabled=num_selected < 2,
+                use_container_width=True
+            )
 
         with col3:
-            num_selected = len(st.session_state.selected_row_indices)
-            st.metric("Selected", num_selected)
+            # Delete button
+            delete_button = st.button(
+                f"🗑️ Delete ({num_selected})",
+                type="secondary",
+                disabled=num_selected == 0,
+                use_container_width=True
+            )
 
         st.divider()
 
-        # Action buttons for selected rows
-        if len(st.session_state.selected_row_indices) > 0:
-            action_col1, action_col2, action_col3 = st.columns([2, 2, 6])
+        # Handle merge action
+        if merge_button and num_selected >= 2:
+            selected_indices = sorted(list(st.session_state.selected_row_indices))
 
-            with action_col1:
-                merge_button = st.button(
-                    f"🔗 Merge ({len(st.session_state.selected_row_indices)} rows)",
-                    type="primary" if len(st.session_state.selected_row_indices) >= 2 else "secondary",
-                    disabled=len(st.session_state.selected_row_indices) < 2,
-                    use_container_width=True
-                )
+            # Show merge preview
+            st.warning(f"**Merging {len(selected_indices)} rows**")
 
-            with action_col2:
-                delete_button = st.button(
-                    f"🗑️ Delete ({len(st.session_state.selected_row_indices)} rows)",
-                    type="secondary",
-                    use_container_width=True
-                )
+            merge_descriptions = []
+            merge_clauses = []
+            merge_scopes = set()
+            merge_comments = []
 
-            # Handle merge action
-            if merge_button and len(st.session_state.selected_row_indices) >= 2:
-                selected_indices = sorted(list(st.session_state.selected_row_indices))
+            for idx in selected_indices:
+                row = st.session_state.edited_data.iloc[idx]
+                merge_descriptions.append(row['Description'])
+                if pd.notna(row['Clause/Requirement']):
+                    merge_clauses.append(str(row['Clause/Requirement']))
+                if pd.notna(row['Requirement scope']):
+                    merge_scopes.add(str(row['Requirement scope']))
+                if pd.notna(row['Comments']):
+                    merge_comments.append(str(row['Comments']))
 
-                # Show merge preview
-                st.warning(f"**Merging {len(selected_indices)} rows**")
+            merged_desc = "\n\n".join([f"[{i+1}] {d}" for i, d in enumerate(merge_descriptions)])
+            merged_clause = ", ".join(merge_clauses)
+            merged_scope = ", ".join(merge_scopes)
+            merged_comments = "; ".join(merge_comments)
 
-                merge_descriptions = []
-                merge_clauses = []
-                merge_scopes = set()
-                merge_comments = []
+            st.text_area("📝 Merged Description Preview:", merged_desc, height=200)
 
-                for idx in selected_indices:
-                    row = st.session_state.edited_data.iloc[idx]
-                    merge_descriptions.append(row['Description'])
-                    if pd.notna(row['Clause/Requirement']):
-                        merge_clauses.append(str(row['Clause/Requirement']))
-                    if pd.notna(row['Requirement scope']):
-                        merge_scopes.add(str(row['Requirement scope']))
-                    if pd.notna(row['Comments']):
-                        merge_comments.append(str(row['Comments']))
+            confirm_col1, confirm_col2 = st.columns(2)
+            with confirm_col1:
+                if st.button("✅ Confirm Merge", type="primary", key="confirm_merge"):
+                    # Create merged row
+                    first_row = st.session_state.edited_data.iloc[selected_indices[0]].copy()
+                    first_row['Description'] = merged_desc
+                    first_row['Clause/Requirement'] = merged_clause
+                    first_row['Requirement scope'] = merged_scope
+                    first_row['Comments'] = merged_comments + " (merged)"
 
-                merged_desc = "\n\n".join([f"[{i+1}] {d}" for i, d in enumerate(merge_descriptions)])
-                merged_clause = ", ".join(merge_clauses)
-                merged_scope = ", ".join(merge_scopes)
-                merged_comments = "; ".join(merge_comments)
+                    # Remove selected rows and add merged row
+                    df_temp = st.session_state.edited_data.copy()
+                    df_temp = df_temp.drop(selected_indices)
+                    df_temp = pd.concat([df_temp, pd.DataFrame([first_row])], ignore_index=True)
 
-                st.text_area("📝 Merged Description Preview:", merged_desc, height=200)
+                    st.session_state.edited_data = df_temp
+                    st.session_state.selected_row_indices = set()
+                    st.success(f"✅ Merged {len(selected_indices)} rows!")
+                    st.rerun()
 
-                confirm_col1, confirm_col2 = st.columns(2)
-                with confirm_col1:
-                    if st.button("✅ Confirm Merge", type="primary", key="confirm_merge"):
-                        # Create merged row
-                        first_row = st.session_state.edited_data.iloc[selected_indices[0]].copy()
-                        first_row['Description'] = merged_desc
-                        first_row['Clause/Requirement'] = merged_clause
-                        first_row['Requirement scope'] = merged_scope
-                        first_row['Comments'] = merged_comments + " (merged)"
+            with confirm_col2:
+                if st.button("❌ Cancel Merge", key="cancel_merge"):
+                    st.rerun()
 
-                        # Remove selected rows and add merged row
-                        df_temp = st.session_state.edited_data.copy()
-                        df_temp = df_temp.drop(selected_indices)
-                        df_temp = pd.concat([df_temp, pd.DataFrame([first_row])], ignore_index=True)
+            st.stop()  # Don't show table when merge preview is active
 
-                        st.session_state.edited_data = df_temp
-                        st.session_state.selected_row_indices = set()
-                        st.success(f"✅ Merged {len(selected_indices)} rows!")
-                        st.rerun()
+        # Handle delete action
+        if delete_button and num_selected > 0:
+            selected_indices = sorted(list(st.session_state.selected_row_indices))
 
-                with confirm_col2:
-                    if st.button("❌ Cancel Merge", key="cancel_merge"):
-                        st.rerun()
+            st.error(f"⚠️ **You are about to delete {len(selected_indices)} row(s)**")
 
-                st.stop()  # Don't show table when merge preview is active
+            # Show preview of rows to be deleted
+            st.markdown("**Rows to be deleted:**")
+            for idx in selected_indices:
+                row = st.session_state.edited_data.iloc[idx]
+                st.markdown(f"- **Row {idx}**: `{row['Clause/Requirement']}` - {row['Description'][:100]}...")
 
-            # Handle delete action
-            if delete_button:
-                selected_indices = sorted(list(st.session_state.selected_row_indices))
+            confirm_col1, confirm_col2 = st.columns(2)
+            with confirm_col1:
+                if st.button("⚠️ Confirm Delete", type="primary", key="confirm_delete"):
+                    # Remove selected rows
+                    df_temp = st.session_state.edited_data.copy()
+                    df_temp = df_temp.drop(selected_indices)
+                    df_temp = df_temp.reset_index(drop=True)
 
-                st.error(f"⚠️ **You are about to delete {len(selected_indices)} row(s)**")
+                    st.session_state.edited_data = df_temp
+                    st.session_state.selected_row_indices = set()
+                    st.success(f"✅ Deleted {len(selected_indices)} row(s)!")
+                    st.rerun()
 
-                # Show preview of rows to be deleted
-                st.markdown("**Rows to be deleted:**")
-                for idx in selected_indices:
-                    row = st.session_state.edited_data.iloc[idx]
-                    st.markdown(f"- **Row {idx}**: `{row['Clause/Requirement']}` - {row['Description'][:100]}...")
+            with confirm_col2:
+                if st.button("❌ Cancel Delete", key="cancel_delete"):
+                    st.rerun()
 
-                confirm_col1, confirm_col2 = st.columns(2)
-                with confirm_col1:
-                    if st.button("⚠️ Confirm Delete", type="primary", key="confirm_delete"):
-                        # Remove selected rows
-                        df_temp = st.session_state.edited_data.copy()
-                        df_temp = df_temp.drop(selected_indices)
-                        df_temp = df_temp.reset_index(drop=True)
+            st.stop()  # Don't show table when delete preview is active
 
-                        st.session_state.edited_data = df_temp
-                        st.session_state.selected_row_indices = set()
-                        st.success(f"✅ Deleted {len(selected_indices)} row(s)!")
-                        st.rerun()
-
-                with confirm_col2:
-                    if st.button("❌ Cancel Delete", key="cancel_delete"):
-                        st.rerun()
-
-                st.stop()  # Don't show table when delete preview is active
-
-            st.divider()
-
-        # Display table with checkboxes
-        st.markdown("### Extracted Requirements")
-
-        # Create a container for the table with checkboxes
-        for idx, row in st.session_state.edited_data.iterrows():
-            col_checkbox, col_content = st.columns([0.3, 9.7])
-
-            with col_checkbox:
-                is_selected = idx in st.session_state.selected_row_indices
-                checkbox_key = f"checkbox_{idx}_{st.session_state.get('current_job_id', 'default')}"
-
-                if st.checkbox("", value=is_selected, key=checkbox_key, label_visibility="collapsed"):
-                    st.session_state.selected_row_indices.add(idx)
-                else:
-                    st.session_state.selected_row_indices.discard(idx)
-
-            with col_content:
-                with st.expander(f"**Row {idx}** | Clause: `{row['Clause/Requirement']}` | {row['Description'][:80]}...", expanded=False):
-                    st.markdown(f"**Clause/Requirement:** {row['Clause/Requirement']}")
-                    st.markdown(f"**Parent Section:** {row.get('Parent Section', 'N/A')}")
-                    st.markdown(f"**Description:**")
-                    st.text_area("", value=row['Description'], height=100, key=f"desc_{idx}", label_visibility="collapsed", disabled=True)
-                    st.markdown(f"**Comments:** {row.get('Comments', 'N/A')}")
-                    st.markdown(f"**Requirement Scope:** {row.get('Requirement scope', 'N/A')}")
-
-        st.divider()
-
-        # Display DataFrame with text wrapping (read-only, cleaner)
-        st.dataframe(
-            st.session_state.edited_data,
+        # Display editable DataFrame with checkbox column
+        edited_df = st.data_editor(
+            display_df,
             use_container_width=True,
             height=500,
             hide_index=False,
+            disabled=[col for col in display_df.columns if col != '☑️'],  # Only checkbox is editable
             column_config={
-                # Main content columns with wrapping
+                "☑️": st.column_config.CheckboxColumn(
+                    "Select",
+                    help="Select row for merge/delete",
+                    default=False,
+                    width="small"
+                ),
                 "Description": st.column_config.TextColumn(
                     "Description",
                     width="large",
@@ -2543,7 +2531,6 @@ def display_results(job_id):
                     width="medium",
                     help="AI notes and context"
                 ),
-                # Reference columns - compact
                 "Standard/Reg": st.column_config.TextColumn(
                     "Standard/Reg",
                     width="small"
@@ -2552,10 +2539,22 @@ def display_results(job_id):
                     "Clause/Requirement",
                     width="small"
                 ),
-            }
+            },
+            key="data_editor"
         )
 
-        st.caption(f"Total requirements: {len(st.session_state.edited_data)}")
+        # Update selection state based on checkbox changes
+        new_selection = set()
+        for idx in edited_df.index:
+            if edited_df.at[idx, '☑️']:
+                new_selection.add(idx)
+
+        # Only rerun if selection actually changed
+        if new_selection != st.session_state.selected_row_indices:
+            st.session_state.selected_row_indices = new_selection
+            st.rerun()
+
+        st.caption(f"Total requirements: {len(st.session_state.edited_data)} | Selected: {len(st.session_state.selected_row_indices)}")
 
         # Export button - one-click download using data
         st.divider()
