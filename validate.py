@@ -60,12 +60,34 @@ def parse_parent_section(clause: str) -> Optional[str]:
     """
     clause = clause.strip()
 
+    # Special cases for non-standard clause formats
+    if clause.lower().startswith('annex'):
+        # "Annex GG" → extract letters after "Annex "
+        annex_match = re.match(r'annex\s+([A-Z]{1,2})', clause, re.IGNORECASE)
+        if annex_match:
+            annex_letter = annex_match.group(1).upper()
+            section_name = SECTION_NAMES.get(annex_letter, f"Annex {annex_letter}")
+            return section_name if section_name.startswith("Annex") else f"Annex {annex_letter} - {section_name}"
+        return "Annex"
+
+    if clause.lower().startswith('table'):
+        # "Table GG.1" → extract letters after "Table "
+        table_match = re.match(r'table\s+([A-Z]{1,2})\.', clause, re.IGNORECASE)
+        if table_match:
+            annex_letter = table_match.group(1).upper()
+            section_name = SECTION_NAMES.get(annex_letter, f"Annex {annex_letter}")
+            return section_name if section_name.startswith("Annex") else f"Annex {annex_letter}"
+        return "Tables"
+
+    if clause.lower() == 'bibliography':
+        return "Bibliography"
+
     # Match annex patterns (AA, BB, CC, etc.)
     annex_match = re.match(r'^([A-Z]{1,2})\.', clause)
     if annex_match:
         annex_letter = annex_match.group(1)
         section_name = SECTION_NAMES.get(annex_letter, f"Annex {annex_letter}")
-        return f"{annex_letter}. {section_name}" if not section_name.startswith("Annex") else section_name
+        return section_name if section_name.startswith("Annex") else f"Annex {annex_letter}"
 
     # Match numeric sections (5.1.101, 7.2, etc.)
     numeric_match = re.match(r'^(\d+)\.', clause)
@@ -288,12 +310,12 @@ def validate_requirement(req: Dict) -> Tuple[bool, str]:
     if not has_minimum_substance(text):
         return False, f"Too short or lacks substance ({len(text)} chars)"
 
-    # 6. Try to populate parent section if missing
-    if 'Parent Section' in req:
-        if req.get('Parent Section', '').strip() in ['', 'Unknown', 'N/A']:
-            parent = parse_parent_section(clause)
-            if parent:
-                req['Parent Section'] = parent
+    # 6. Populate parent section (add field if missing)
+    parent = parse_parent_section(clause)
+    if parent:
+        req['Parent Section'] = parent
+    elif 'Parent Section' not in req:
+        req['Parent Section'] = 'Unknown'
 
     # Passed all filters - INCLUDE IT
     return True, ""
@@ -407,8 +429,10 @@ def validate_csv_file(
 
     # Write valid requirements
     if valid:
-        # Preserve all original fields
-        output_fieldnames = fieldnames if fieldnames else ['clause', 'text']
+        # Preserve all original fields + add Parent Section if not present
+        output_fieldnames = list(fieldnames) if fieldnames else ['clause', 'text']
+        if 'Parent Section' not in output_fieldnames:
+            output_fieldnames.append('Parent Section')
 
         with open(output_csv, 'w', encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=output_fieldnames, extrasaction='ignore')
