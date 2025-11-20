@@ -52,7 +52,7 @@ def count_tokens(text: str, model: str = "gpt-4o-mini") -> int:
 
 def chunk_text_by_tokens(
     text: str,
-    max_tokens: int = 6000,
+    max_tokens: int = 4000,
     overlap_tokens: int = 500
 ) -> List[str]:
     """
@@ -86,7 +86,7 @@ def chunk_text_by_tokens(
 
 def chunk_text_smart(
     text: str,
-    max_tokens: int = 6000,
+    max_tokens: int = 4000,
     overlap_tokens: int = 500
 ) -> List[str]:
     """
