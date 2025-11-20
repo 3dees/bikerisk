@@ -18,6 +18,7 @@ from extract_ai import extract_requirements_with_ai, extract_from_detected_secti
 from extract_gpt import extract_requirements_gpt
 from detect import detect_manual_sections, detect_all_sections, merge_small_sections
 from classify import rows_to_csv_dicts
+from validate import parse_parent_section
 
 load_dotenv()
 
@@ -151,16 +152,19 @@ def _process_upload_background(
             # We need: [{"Clause/Requirement": "X", "Description": "Y", "Standard/Reg": ...}]
             classified_rows = []
             for req in raw_requirements:
+                clause = req.get('clause', '')
+                parent = parse_parent_section(clause) or 'Unknown'
+
                 classified_rows.append({
-                    'Clause/Requirement': req.get('clause', ''),
+                    'Clause/Requirement': clause,
                     'Description': req.get('text', ''),
                     'Standard/Reg': standard_name or 'Unknown',
                     'Requirement scope': '',  # Will be filled by classify.py if needed
                     'Formatting required?': 'N/A',
                     'Required in Print?': 'n',
-                    'Parent Section': 'Unknown',  # GPT doesn't extract hierarchy yet
+                    'Parent Section': parent,  # Parsed from clause number
                     'Sub-section': 'N/A',
-                    'Comments': 'GPT extraction',
+                    'Comments': '',  # Leave empty per user guidance
                     'Contains Image?': 'N',
                     'Safety Notice Type': 'None'
                 })
