@@ -1,41 +1,28 @@
 #!/bin/bash
 
-echo "🚀 Starting BikeRisk Application..."
-
-# Start FastAPI in background on port 8000
-echo "📡 Starting FastAPI backend on port 8000..."
-uvicorn main:app --host 0.0.0.0 --port 8000 --log-level info &
-
-# Wait for FastAPI
-sleep 3
-
-# Start Streamlit - PORT comes from Railway environment
-echo "🎨 Starting Streamlit on port $PORT..."
-exec streamlit run app.py \
-  --server.port $PORT \
-  --server.address 0.0.0.0 \
-  --server.headless true
-  #!/bin/bash
-
 set -e
 
-echo "🚀 Starting BikeRisk Application..."
+echo "Starting BikeRisk Application..."
 
-# Start FastAPI
-uvicorn main:app --host 0.0.0.0 --port 8000 &
+# Start FastAPI backend on port 8000
+echo "Starting FastAPI backend on port 8000..."
+uvicorn main:app --host 0.0.0.0 --port 8000 --log-level info &
 sleep 5
 
-# Start Streamlit
+# Start Streamlit frontend on Railway's assigned PORT
+echo "Starting Streamlit on port $PORT..."
 streamlit run app.py \
   --server.port $PORT \
   --server.address 0.0.0.0 \
   --server.headless true &
 
-# Wait for Streamlit to be ready
-sleep 15
+# Wait for services to be ready
+sleep 10
 
-echo "✅ Services started!"
-echo "🔄 Keeping container alive..."
+echo "Services started!"
+echo "FastAPI: http://localhost:8000"
+echo "Streamlit: http://localhost:$PORT"
+echo "Keeping container alive..."
 
-# THIS IS THE KEY - keeps container running!
+# Keep container running
 tail -f /dev/null
