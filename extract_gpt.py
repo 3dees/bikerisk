@@ -225,25 +225,31 @@ CRITICAL RULES (DO NOT DEVIATE):
 1. Extract EVERY item with a clause/section number
 2. Include numbered paragraphs even without "shall" (e.g., definitions, notes, examples)
 3. Extract ISO modification markers: "Replacement:", "Addition:", "Amendment:"
-4. Handle complex numbering: "5.1.101", "7.3.2.a.1", "Annex A.2.3.b"
-5. **IMPORTANT**: Extract ALL lettered sub-items as SEPARATE entries:
-   - (a), (b), (c), (d), etc.
-   - a), b), c), d), etc.
-   - a., b., c., d., etc.
-   - Each sub-item is a separate requirement - DO NOT combine them
-6. Include roman numerals: (i), (ii), (iii), i), ii), iii)
-7. Extract bullet points with em-dashes: "—", "–", "•"
-8. Keep FULL text - don't summarize or truncate
-9. Extract table/figure titles if they have clause numbers
-10. DO NOT skip items because they seem like headers or metadata
-11. When in doubt, INCLUDE IT
+4. **ADAPT to THIS document's numbering scheme** - handle ANY format:
+   - Numeric: "5.1.101", "7.3.2", "10.2.1.1"
+   - Alpha: "Annex A.2.3.b", "Section C.4.a"
+   - Mixed: "7.3.2.a.1", "BB.1.2.c"
+   - Whatever numbering THIS specific document uses
+5. **CRITICAL - Sub-items**: Extract ALL sub-items as SEPARATE entries:
+   - Recognize ANY sub-item format used in THIS document:
+     * Parentheses: (a), (b), (1), (i), (α), (A)
+     * Suffixes: a), b), 1), i), α), A)
+     * Periods: a., b., 1., i., α., A.
+     * Bullets: —, –, •, *, ►, ○, ●
+     * Plain: a, b, c (if clearly sub-items)
+   - Each sub-item = separate requirement (DO NOT combine into one entry)
+   - Append sub-marker to parent clause: "BB.1.1" + "(a)" → "BB.1.1.a"
+6. Keep FULL text for each item - don't summarize or truncate
+7. Extract table/figure/equation references if they have identifiers
+8. DO NOT skip items that seem like headers - they provide context
+9. **BE FLEXIBLE**: Every standard uses different conventions - adapt to what you see
+10. When in doubt, INCLUDE IT
 
-EXAMPLE for clause BB.1.1 with sub-bullets:
-If you see: "Each removable battery shall have: (a) graphical symbol; (b) polarity; (c) voltage"
-Extract as THREE separate items:
-- {"clause": "BB.1.1.a", "text": "graphical symbol for rechargeable Li or Li-ion"}
-- {"clause": "BB.1.1.b", "text": "polarity of terminals (unless standardized connectors used)"}
-- {"clause": "BB.1.1.c", "text": "nominal voltage"}
+EXTRACTION INTELLIGENCE:
+- First pass: Identify THIS document's numbering patterns
+- Second pass: Extract ALL items matching those patterns, including all nesting levels
+- If parent has sub-items → extract parent + each sub-item separately
+- Don't force a standard format - mirror the document's actual structure
 
 OUTPUT FORMAT: Return ONLY a JSON array (no markdown, no explanations):
 [
