@@ -46,8 +46,11 @@ Thumbs.db
 
 # Test files
 test_*.pdf
+test_*.csv
 *.test.pdf
 test_data/
+UI_TEST_PLAN.md
+nul
 
 # Logs
 *.log

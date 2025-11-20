@@ -1,17 +1,7 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git pull:*)",
-      "Bash(.start.bat)",
-      "Bash(cmd /c start.bat)",
-      "Bash(start.bat)",
-      "Bash(git add:*)",
-      "Bash(git commit:*)",
-      "Bash(git push)",
-      "Bash(git rm:*)",
-      "Bash(git checkout:*)",
-      "Bash(git push:*)",
-      "Bash(git merge:*)"
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []
