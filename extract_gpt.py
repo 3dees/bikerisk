@@ -187,20 +187,21 @@ def _extract_single_chunk(
     """
     # Build extraction instructions based on type
     if extraction_type == "all":
-        focus_instructions = """EXTRACT EVERYTHING WITH A CLAUSE NUMBER.
+        focus_instructions = """EXTRACT ALL NUMBERED CLAUSES INCLUDING:
 
-This is a PERMISSIVE extraction - extract ALL of:
-• Design, technical, and performance specifications
-• Test procedures, quality checks, and validation requirements
-• Manufacturing, production, and assembly requirements
-• User documentation, manuals, and instructions
-• Safety requirements, warnings, and notices
-• Installation, maintenance, and service requirements
-• Definitions, scope statements, and normative references
-• Tables, figures references, and appendices
-• Any numbered clause, even if it seems like metadata
+1. **Clause headings** - for parent section mapping (e.g., "6.1 Vibration")
+2. **Clause content with normative language** - shall/must/required
+3. **Manual-related clauses** - instructions/markings/warnings (even without shall/must)
+4. **Design, technical, and performance specifications**
+5. **Test procedures, quality checks, and validation requirements**
+6. **Manufacturing, production, and assembly requirements**
+7. **Safety requirements, warnings, and notices**
+8. **Installation, maintenance, and service requirements**
+9. **Definitions, scope statements, and normative references**
+10. **Tables, figures references, and appendices**
 
-DO NOT FILTER. If it has a clause number, extract it."""
+DO NOT FILTER. If it has a clause number, extract it.
+Maintain hierarchical structure for parent section tracking."""
     else:
         focus_instructions = """Extract ONLY requirements that relate to user manuals, instruction documentation,
 or information that must be communicated to users.
@@ -210,7 +211,8 @@ Include requirements about:
 • Information users need to know
 • Warnings, cautions, safety notices
 • Assembly/installation instructions
-• Symbols and pictograms for documentation"""
+• Symbols and pictograms for documentation
+• Marking and labeling requirements"""
 
     prompt = f"""You are extracting requirements from an e-bike safety standard.
 
