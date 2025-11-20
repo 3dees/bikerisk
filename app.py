@@ -2366,30 +2366,63 @@ def display_results(job_id):
             st.session_state.current_job_id = st.session_state.job_id
 
         # Instructions
-        st.info("💡 **Tips**: \n- Click any cell to edit\n- Add new rows using the **+** button at the bottom\n- Delete rows by clearing all cells in a row")
+        st.info("💡 **Edit extracted requirements below**: Use checkboxes to select rows, then merge or delete them.")
 
-        # Merge functionality
-        with st.expander("🔗 Merge Rows"):
-            st.markdown("**Select rows to merge** (by row number)")
+        # Initialize selection state
+        if 'selected_row_indices' not in st.session_state:
+            st.session_state.selected_row_indices = set()
 
-            # Let user select which rows to merge
-            available_rows = list(range(len(st.session_state.edited_data)))
-            selected_rows = st.multiselect(
-                "Choose 2 or more rows to merge:",
-                options=available_rows,
-                format_func=lambda x: f"Row {x}: {st.session_state.edited_data.iloc[x]['Description'][:50]}..."
-            )
+        # Action buttons row
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 3])
 
-            if len(selected_rows) >= 2:
-                st.write(f"**Selected {len(selected_rows)} rows for merging**")
+        with col1:
+            if st.button("☑️ Select All", use_container_width=True):
+                st.session_state.selected_row_indices = set(range(len(st.session_state.edited_data)))
+                st.rerun()
 
-                # Show preview of merge
+        with col2:
+            if st.button("☐ Deselect All", use_container_width=True):
+                st.session_state.selected_row_indices = set()
+                st.rerun()
+
+        with col3:
+            num_selected = len(st.session_state.selected_row_indices)
+            st.metric("Selected", num_selected)
+
+        st.divider()
+
+        # Action buttons for selected rows
+        if len(st.session_state.selected_row_indices) > 0:
+            action_col1, action_col2, action_col3 = st.columns([2, 2, 6])
+
+            with action_col1:
+                merge_button = st.button(
+                    f"🔗 Merge ({len(st.session_state.selected_row_indices)} rows)",
+                    type="primary" if len(st.session_state.selected_row_indices) >= 2 else "secondary",
+                    disabled=len(st.session_state.selected_row_indices) < 2,
+                    use_container_width=True
+                )
+
+            with action_col2:
+                delete_button = st.button(
+                    f"🗑️ Delete ({len(st.session_state.selected_row_indices)} rows)",
+                    type="secondary",
+                    use_container_width=True
+                )
+
+            # Handle merge action
+            if merge_button and len(st.session_state.selected_row_indices) >= 2:
+                selected_indices = sorted(list(st.session_state.selected_row_indices))
+
+                # Show merge preview
+                st.warning(f"**Merging {len(selected_indices)} rows**")
+
                 merge_descriptions = []
                 merge_clauses = []
                 merge_scopes = set()
                 merge_comments = []
 
-                for idx in selected_rows:
+                for idx in selected_indices:
                     row = st.session_state.edited_data.iloc[idx]
                     merge_descriptions.append(row['Description'])
                     if pd.notna(row['Clause/Requirement']):
@@ -2404,13 +2437,13 @@ def display_results(job_id):
                 merged_scope = ", ".join(merge_scopes)
                 merged_comments = "; ".join(merge_comments)
 
-                st.text_area("Merged Description Preview:", merged_desc, height=150)
+                st.text_area("📝 Merged Description Preview:", merged_desc, height=200)
 
-                col1, col2 = st.columns(2)
-                with col1:
-                    if st.button("✅ Merge These Rows", type="primary"):
+                confirm_col1, confirm_col2 = st.columns(2)
+                with confirm_col1:
+                    if st.button("✅ Confirm Merge", type="primary", key="confirm_merge"):
                         # Create merged row
-                        first_row = st.session_state.edited_data.iloc[selected_rows[0]].copy()
+                        first_row = st.session_state.edited_data.iloc[selected_indices[0]].copy()
                         first_row['Description'] = merged_desc
                         first_row['Clause/Requirement'] = merged_clause
                         first_row['Requirement scope'] = merged_scope
@@ -2418,55 +2451,79 @@ def display_results(job_id):
 
                         # Remove selected rows and add merged row
                         df_temp = st.session_state.edited_data.copy()
-                        df_temp = df_temp.drop(selected_rows)
+                        df_temp = df_temp.drop(selected_indices)
                         df_temp = pd.concat([df_temp, pd.DataFrame([first_row])], ignore_index=True)
 
                         st.session_state.edited_data = df_temp
-                        st.success(f"✅ Merged {len(selected_rows)} rows!")
+                        st.session_state.selected_row_indices = set()
+                        st.success(f"✅ Merged {len(selected_indices)} rows!")
                         st.rerun()
 
-                with col2:
-                    if st.button("❌ Cancel"):
+                with confirm_col2:
+                    if st.button("❌ Cancel Merge", key="cancel_merge"):
                         st.rerun()
 
-        # Delete functionality
-        with st.expander("🗑️ Delete Rows"):
-            st.markdown("**Select rows to delete** (by row number)")
+                st.stop()  # Don't show table when merge preview is active
 
-            # Let user select which rows to delete
-            available_rows_delete = list(range(len(st.session_state.edited_data)))
-            selected_rows_delete = st.multiselect(
-                "Choose one or more rows to delete:",
-                options=available_rows_delete,
-                format_func=lambda x: f"Row {x}: {st.session_state.edited_data.iloc[x]['Description'][:80]}...",
-                key="delete_rows_select"
-            )
+            # Handle delete action
+            if delete_button:
+                selected_indices = sorted(list(st.session_state.selected_row_indices))
 
-            if len(selected_rows_delete) > 0:
-                st.warning(f"⚠️ You are about to delete **{len(selected_rows_delete)} row(s)**")
+                st.error(f"⚠️ **You are about to delete {len(selected_indices)} row(s)**")
 
-                # Show preview of what will be deleted
-                with st.container():
-                    st.markdown("**Rows to be deleted:**")
-                    for idx in selected_rows_delete:
-                        row = st.session_state.edited_data.iloc[idx]
-                        st.markdown(f"- **Row {idx}**: `{row['Clause/Requirement']}` - {row['Description'][:100]}...")
+                # Show preview of rows to be deleted
+                st.markdown("**Rows to be deleted:**")
+                for idx in selected_indices:
+                    row = st.session_state.edited_data.iloc[idx]
+                    st.markdown(f"- **Row {idx}**: `{row['Clause/Requirement']}` - {row['Description'][:100]}...")
 
-                col1, col2 = st.columns(2)
-                with col1:
+                confirm_col1, confirm_col2 = st.columns(2)
+                with confirm_col1:
                     if st.button("⚠️ Confirm Delete", type="primary", key="confirm_delete"):
                         # Remove selected rows
                         df_temp = st.session_state.edited_data.copy()
-                        df_temp = df_temp.drop(selected_rows_delete)
+                        df_temp = df_temp.drop(selected_indices)
                         df_temp = df_temp.reset_index(drop=True)
 
                         st.session_state.edited_data = df_temp
-                        st.success(f"✅ Deleted {len(selected_rows_delete)} row(s)!")
+                        st.session_state.selected_row_indices = set()
+                        st.success(f"✅ Deleted {len(selected_indices)} row(s)!")
                         st.rerun()
 
-                with col2:
-                    if st.button("❌ Cancel", key="cancel_delete"):
+                with confirm_col2:
+                    if st.button("❌ Cancel Delete", key="cancel_delete"):
                         st.rerun()
+
+                st.stop()  # Don't show table when delete preview is active
+
+            st.divider()
+
+        # Display table with checkboxes
+        st.markdown("### Extracted Requirements")
+
+        # Create a container for the table with checkboxes
+        for idx, row in st.session_state.edited_data.iterrows():
+            col_checkbox, col_content = st.columns([0.3, 9.7])
+
+            with col_checkbox:
+                is_selected = idx in st.session_state.selected_row_indices
+                checkbox_key = f"checkbox_{idx}_{st.session_state.get('current_job_id', 'default')}"
+
+                if st.checkbox("", value=is_selected, key=checkbox_key, label_visibility="collapsed"):
+                    st.session_state.selected_row_indices.add(idx)
+                else:
+                    st.session_state.selected_row_indices.discard(idx)
+
+            with col_content:
+                with st.expander(f"**Row {idx}** | Clause: `{row['Clause/Requirement']}` | {row['Description'][:80]}...", expanded=False):
+                    st.markdown(f"**Clause/Requirement:** {row['Clause/Requirement']}")
+                    st.markdown(f"**Parent Section:** {row.get('Parent Section', 'N/A')}")
+                    st.markdown(f"**Description:**")
+                    st.text_area("", value=row['Description'], height=100, key=f"desc_{idx}", label_visibility="collapsed", disabled=True)
+                    st.markdown(f"**Comments:** {row.get('Comments', 'N/A')}")
+                    st.markdown(f"**Requirement Scope:** {row.get('Requirement scope', 'N/A')}")
+
+        st.divider()
 
         # Display DataFrame with text wrapping (read-only, cleaner)
         st.dataframe(
