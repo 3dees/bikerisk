@@ -2429,6 +2429,45 @@ def display_results(job_id):
                     if st.button("❌ Cancel"):
                         st.rerun()
 
+        # Delete functionality
+        with st.expander("🗑️ Delete Rows"):
+            st.markdown("**Select rows to delete** (by row number)")
+
+            # Let user select which rows to delete
+            available_rows_delete = list(range(len(st.session_state.edited_data)))
+            selected_rows_delete = st.multiselect(
+                "Choose one or more rows to delete:",
+                options=available_rows_delete,
+                format_func=lambda x: f"Row {x}: {st.session_state.edited_data.iloc[x]['Description'][:80]}...",
+                key="delete_rows_select"
+            )
+
+            if len(selected_rows_delete) > 0:
+                st.warning(f"⚠️ You are about to delete **{len(selected_rows_delete)} row(s)**")
+
+                # Show preview of what will be deleted
+                with st.container():
+                    st.markdown("**Rows to be deleted:**")
+                    for idx in selected_rows_delete:
+                        row = st.session_state.edited_data.iloc[idx]
+                        st.markdown(f"- **Row {idx}**: `{row['Clause/Requirement']}` - {row['Description'][:100]}...")
+
+                col1, col2 = st.columns(2)
+                with col1:
+                    if st.button("⚠️ Confirm Delete", type="primary", key="confirm_delete"):
+                        # Remove selected rows
+                        df_temp = st.session_state.edited_data.copy()
+                        df_temp = df_temp.drop(selected_rows_delete)
+                        df_temp = df_temp.reset_index(drop=True)
+
+                        st.session_state.edited_data = df_temp
+                        st.success(f"✅ Deleted {len(selected_rows_delete)} row(s)!")
+                        st.rerun()
+
+                with col2:
+                    if st.button("❌ Cancel", key="cancel_delete"):
+                        st.rerun()
+
         # Display DataFrame with text wrapping (read-only, cleaner)
         st.dataframe(
             st.session_state.edited_data,
