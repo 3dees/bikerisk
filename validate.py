@@ -9,6 +9,10 @@ MINIMAL filtering - only remove obvious non-requirements:
 2. Introductory preamble ("This clause of ISO X is applicable" with no additional content)
 3. Pure test methodology (no requirement language)
 4. "N/A" placeholder entries
+
+SUCCESS CRITERIA (based on manual ground truth):
+- SS_EN_50604: 142 clauses (manual count) → expect 130-150 after minimal filtering
+- Key: BB.2 has 32 sub-bullets (a-ff) for instruction requirements
 """
 import re
 import csv
