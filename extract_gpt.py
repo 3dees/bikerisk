@@ -226,12 +226,24 @@ CRITICAL RULES (DO NOT DEVIATE):
 2. Include numbered paragraphs even without "shall" (e.g., definitions, notes, examples)
 3. Extract ISO modification markers: "Replacement:", "Addition:", "Amendment:"
 4. Handle complex numbering: "5.1.101", "7.3.2.a.1", "Annex A.2.3.b"
-5. Include lettered sub-items: (a), (b), (c), etc.
-6. Include roman numerals: (i), (ii), (iii)
-7. Keep FULL text - don't summarize or truncate
-8. Extract table/figure titles if they have clause numbers
-9. DO NOT skip items because they seem like headers or metadata
-10. When in doubt, INCLUDE IT
+5. **IMPORTANT**: Extract ALL lettered sub-items as SEPARATE entries:
+   - (a), (b), (c), (d), etc.
+   - a), b), c), d), etc.
+   - a., b., c., d., etc.
+   - Each sub-item is a separate requirement - DO NOT combine them
+6. Include roman numerals: (i), (ii), (iii), i), ii), iii)
+7. Extract bullet points with em-dashes: "—", "–", "•"
+8. Keep FULL text - don't summarize or truncate
+9. Extract table/figure titles if they have clause numbers
+10. DO NOT skip items because they seem like headers or metadata
+11. When in doubt, INCLUDE IT
+
+EXAMPLE for clause BB.1.1 with sub-bullets:
+If you see: "Each removable battery shall have: (a) graphical symbol; (b) polarity; (c) voltage"
+Extract as THREE separate items:
+- {"clause": "BB.1.1.a", "text": "graphical symbol for rechargeable Li or Li-ion"}
+- {"clause": "BB.1.1.b", "text": "polarity of terminals (unless standardized connectors used)"}
+- {"clause": "BB.1.1.c", "text": "nominal voltage"}
 
 OUTPUT FORMAT: Return ONLY a JSON array (no markdown, no explanations):
 [
