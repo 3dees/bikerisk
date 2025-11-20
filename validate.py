@@ -295,6 +295,89 @@ def clean_comments_field(req: Dict) -> Dict:
     return req
 
 
+# ============================================================================
+# CLASSIFICATION TAGS (Mandate Level, Safety, Manual)
+# ============================================================================
+
+def classify_mandate_level(text: str) -> str:
+    """
+    Classify requirement by mandate level based on normative keywords.
+
+    Returns:
+        "High" - SHALL/MUST (mandatory compliance)
+        "Medium" - SHOULD/RECOMMENDED (recommended but not required)
+        "Informative" - MAY/CAN or no normative keywords
+    """
+    text_lower = text.lower()
+
+    # High priority - mandatory requirements
+    if 'shall' in text_lower or 'must' in text_lower or 'required' in text_lower:
+        return 'High'
+
+    # Medium priority - recommendations
+    if 'should' in text_lower or 'recommended' in text_lower:
+        return 'Medium'
+
+    # Informative - optional or no normative language
+    return 'Informative'
+
+
+def classify_safety_flag(text: str) -> str:
+    """
+    Flag requirements related to safety hazards.
+
+    Returns:
+        "y" if contains safety-related keywords
+        "n" otherwise
+    """
+    text_lower = text.lower()
+
+    safety_keywords = [
+        'injury', 'injuries', 'harm', 'hazard', 'hazards', 'danger', 'dangerous',
+        'fire', 'explosion', 'burn', 'electric shock', 'electrocution',
+        'death', 'fatal', 'fatality',
+        'risk', 'unsafe', 'safety',
+        'entrapment', 'crush', 'cut', 'laceration',
+        'toxic', 'poisoning', 'asphyxiation',
+        'radiation', 'electromagnetic',
+    ]
+
+    for keyword in safety_keywords:
+        if keyword in text_lower:
+            return 'y'
+
+    return 'n'
+
+
+def classify_manual_flag(text: str) -> str:
+    """
+    Flag requirements related to user manuals and documentation.
+
+    Returns:
+        "y" if contains manual/documentation keywords
+        "n" otherwise
+    """
+    text_lower = text.lower()
+
+    manual_keywords = [
+        'instruction', 'instructions',
+        'manual', 'documentation',
+        'warning', 'warnings', 'caution', 'notice',
+        'marking', 'label', 'labeling', 'labelling',
+        'pictogram', 'symbol', 'icon',
+        'user information', 'information to user',
+        'owner manual', 'operating instructions',
+        'maintenance instructions',
+        'assembly instructions', 'installation instructions',
+    ]
+
+    for keyword in manual_keywords:
+        if keyword in text_lower:
+            return 'y'
+
+    return 'n'
+
+
 def validate_requirement(req: Dict) -> Tuple[bool, str]:
     """
     Tag and validate requirements - INCLUDE everything except obvious junk.
@@ -344,6 +427,11 @@ def validate_requirement(req: Dict) -> Tuple[bool, str]:
         req['Parent Section'] = parent
     elif 'Parent Section' not in req:
         req['Parent Section'] = 'Unknown'
+
+    # 8. Add classification tags (mandate level, safety, manual)
+    req['Mandate_Level'] = classify_mandate_level(text)
+    req['Safety_Flag'] = classify_safety_flag(text)
+    req['Manual_Flag'] = classify_manual_flag(text)
 
     # INCLUDE IT with appropriate tag
     return True, ""
@@ -457,12 +545,12 @@ def validate_csv_file(
 
     # Write valid requirements
     if valid:
-        # Preserve all original fields + add Parent Section and Clause_Type if not present
+        # Preserve all original fields + add new classification columns if not present
         output_fieldnames = list(fieldnames) if fieldnames else ['clause', 'text']
-        if 'Parent Section' not in output_fieldnames:
-            output_fieldnames.append('Parent Section')
-        if 'Clause_Type' not in output_fieldnames:
-            output_fieldnames.append('Clause_Type')
+        new_columns = ['Parent Section', 'Clause_Type', 'Mandate_Level', 'Safety_Flag', 'Manual_Flag']
+        for col in new_columns:
+            if col not in output_fieldnames:
+                output_fieldnames.append(col)
 
         with open(output_csv, 'w', encoding='utf-8', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=output_fieldnames, extrasaction='ignore')
