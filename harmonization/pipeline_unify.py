@@ -14,13 +14,13 @@ import os
 import csv
 from typing import List, Callable, Optional
 import numpy as np
-import httpx
 from anthropic import Anthropic
 
 from harmonization.models import Clause, RequirementGroup
 from harmonization.grouping import load_and_group_clauses, load_clauses_from_tagged_csv, compute_embeddings, group_clauses_by_similarity
 from harmonization.consolidate import consolidate_groups, stub_call_llm
 from harmonization.report_builder import save_html_report
+from harmonization.anthropic_client import get_anthropic_client
 
 
 # =============================================================================
@@ -160,25 +160,8 @@ def call_llm_for_consolidation(prompt: str, api_key: str = None, use_claude: boo
             "Use ONLY Claude Sonnet 4.5."
         )
 
-    # Get API key
-    if api_key is None:
-        api_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("No API key provided and ANTHROPIC_API_KEY not set")
-
-    # Setup proxy bypass for Anthropic API
-    no_proxy = os.getenv('NO_PROXY', '')
-    if 'anthropic.com' not in no_proxy:
-        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com' if no_proxy else 'anthropic.com,*.anthropic.com'
-
-    # Initialize client with timeout
-    try:
-        http_client = httpx.Client(timeout=120.0)
-        client = Anthropic(api_key=api_key, http_client=http_client)
-        print("[LLM] Client initialized with 120s timeout")
-    except Exception as e:
-        print(f"[LLM] Client init with http_client failed: {e}, using simple init")
-        client = Anthropic(api_key=api_key)
+    # Initialize client with centralized helper
+    client = get_anthropic_client(api_key=api_key, timeout=120.0, verbose=True)
 
     # HARD LOCK: Only Claude Sonnet 4.5 is permitted
     model_name = "claude-sonnet-4-5-20250929"

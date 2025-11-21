@@ -12,6 +12,7 @@ from typing import List, Dict, Optional
 import pandas as pd
 from dataclasses import dataclass
 from dotenv import load_dotenv
+from harmonization.anthropic_client import get_anthropic_client
 
 load_dotenv()
 
@@ -98,18 +99,8 @@ def consolidate_with_smart_ai(
 def _consolidate_single_batch(requirements: List[Dict], api_key: str, min_group_size: int = 3, max_group_size: int = 12, progress_callback = None) -> Dict:
     """Process a single batch of requirements."""
 
-    # Setup client with long timeout
-    no_proxy = os.getenv('NO_PROXY', '')
-    if 'anthropic.com' not in no_proxy:
-        os.environ['NO_PROXY'] = no_proxy + ',anthropic.com,*.anthropic.com'
-
-    try:
-        http_client = httpx.Client(timeout=600.0)  # 10 minute timeout
-        client = anthropic.Anthropic(api_key=api_key, http_client=http_client)
-        print("[SMART AI] Client initialized with 10-minute timeout")
-    except Exception as e:
-        print(f"[SMART AI] Client init with http_client failed: {e}, using simple init")
-        client = anthropic.Anthropic(api_key=api_key)
+    # Initialize client with centralized helper (10-minute timeout for large batches)
+    client = get_anthropic_client(api_key=api_key, timeout=600.0, verbose=True)
 
     print(f"[SMART AI] Estimated time: 3-8 minutes for {len(requirements)} requirements")
     if progress_callback:
