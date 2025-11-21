@@ -144,14 +144,14 @@ Group: "Battery charging temperature"
   - EN 50604: "Charge between 0-45°C"
   - UL 2849: "Charge between 5-40°C"
   - 16 CFR: "Charge between 0-50°C"
-✅ 3 different standards - CREATE THIS GROUP
+OK 3 different standards - CREATE THIS GROUP
 
 Example of BAD group (skip this):
 Group: "Battery storage requirements"
   - EN 50604: "Store at -10°C to 30°C"
   - EN 50604: "Store away from heat"
   - EN 50604: "Store in dry place"
-❌ All same standard - DO NOT CREATE THIS GROUP
+X All same standard - DO NOT CREATE THIS GROUP
 
 1. **Group by Regulatory Intent:** Group requirements that achieve the SAME compliance goal ACROSS different standards:
    - "Provide assembly instructions" (from EN + UL + CFR)
@@ -167,9 +167,9 @@ Group: "Battery storage requirements"
 
 4. **CRITICAL: Create DETAILED Core Requirements**
    
-   ❌ DO NOT create vague summaries like: "Instructions must address stability"
+   X DO NOT create vague summaries like: "Instructions must address stability"
    
-   ✅ DO create detailed, structured requirements listing ALL elements:
+   OK DO create detailed, structured requirements listing ALL elements:
    
    Example Format:
    "Instructions shall address safe transport, handling, and storage, including:
@@ -247,10 +247,10 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
                 messages=[{"role": "user", "content": prompt}]
             )
         except httpx.TimeoutException as e:
-            print(f"[SMART AI] ✗ Timeout after 10 minutes: {e}")
+            print(f"[SMART AI] X Timeout after 10 minutes: {e}")
             raise Exception(f"API timeout after 10 minutes processing {len(requirements)} requirements") from e
         except httpx.ReadTimeout as e:
-            print(f"[SMART AI] ✗ Read timeout: {e}")
+            print(f"[SMART AI] X Read timeout: {e}")
             raise Exception(f"API read timeout processing {len(requirements)} requirements") from e
 
         response_text = message.content[0].text
@@ -371,7 +371,7 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
 
         # Skip tiny batches (too small to consolidate meaningfully)
         if len(batch_reqs) < 5:
-            print(f"\n[BATCH {batch_num + 1}/{num_batches}] ⚠️ Skipping (only {len(batch_reqs)} requirements - too small to consolidate)")
+            print(f"\n[BATCH {batch_num + 1}/{num_batches}] WARNING Skipping (only {len(batch_reqs)} requirements - too small to consolidate)")
             # Add them to ungrouped
             for req in batch_reqs:
                 all_ungrouped.append(req['index'])
@@ -389,7 +389,7 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
 
             # Verify groups were created
             if not batch_result.get('groups') or len(batch_result['groups']) == 0:
-                print(f"[BATCH {batch_num + 1}/{num_batches}] ⚠️ No groups created")
+                print(f"[BATCH {batch_num + 1}/{num_batches}] WARNING No groups created")
                 # Add batch requirements to ungrouped
                 for req in batch_reqs:
                     all_ungrouped.append(req['index'])
@@ -406,10 +406,10 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
 
             batch_analyses.append(batch_result.get('analysis_notes', ''))
 
-            print(f"[BATCH {batch_num + 1}/{num_batches}] ✓ Created {len(batch_result['groups'])} groups")
+            print(f"[BATCH {batch_num + 1}/{num_batches}] OK Created {len(batch_result['groups'])} groups")
 
         except IndexError as e:
-            print(f"[BATCH {batch_num + 1}/{num_batches}] ✗ IndexError: {e}")
+            print(f"[BATCH {batch_num + 1}/{num_batches}] X IndexError: {e}")
             print(f"[BATCH {batch_num + 1}/{num_batches}]   Batch size: {len(batch_reqs)}")
             print(f"[BATCH {batch_num + 1}/{num_batches}]   Continuing with next batch...")
             # Add batch requirements to ungrouped
@@ -417,7 +417,7 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
                 all_ungrouped.append(req['index'])
             continue
         except Exception as e:
-            print(f"[BATCH {batch_num + 1}/{num_batches}] ✗ Unexpected error: {e}")
+            print(f"[BATCH {batch_num + 1}/{num_batches}] X Unexpected error: {e}")
             print(f"[BATCH {batch_num + 1}/{num_batches}]   Continuing with next batch...")
             # Add batch requirements to ungrouped
             for req in batch_reqs:
