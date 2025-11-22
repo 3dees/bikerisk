@@ -205,12 +205,22 @@ def enrich_group_with_llm(
         category=category
     )
 
-    print(f"[CONSOLIDATE] Group {group_index}: SUCCESS - Created RequirementGroup")
-    print(f"  Title: {group_title}")
-    print(f"  Regulatory Intent: {regulatory_intent[:80]}...")
-    print(f"  Consolidated requirement: {consolidated_requirement[:100]}...")
-    if conflicts:
-        print(f"  ⚠️  CONFLICTS DETECTED: {conflicts[:80]}...")
+    # Use safe printing to handle Unicode characters (degree symbols, accents, etc.)
+    try:
+        print(f"[CONSOLIDATE] Group {group_index}: SUCCESS - Created RequirementGroup")
+        print(f"  Title: {group_title}")
+        print(f"  Regulatory Intent: {regulatory_intent[:80]}...")
+        print(f"  Consolidated requirement: {consolidated_requirement[:100]}...")
+        if conflicts:
+            print(f"  ⚠️  CONFLICTS DETECTED: {conflicts[:80]}...")
+    except UnicodeEncodeError:
+        # Windows console encoding issue - print ASCII-safe version
+        print(f"[CONSOLIDATE] Group {group_index}: SUCCESS - Created RequirementGroup")
+        print(f"  Title: {group_title.encode('ascii', 'replace').decode('ascii')}")
+        print(f"  Regulatory Intent: {regulatory_intent[:80].encode('ascii', 'replace').decode('ascii')}...")
+        print(f"  Consolidated requirement: {consolidated_requirement[:100].encode('ascii', 'replace').decode('ascii')}...")
+        if conflicts:
+            print(f"  WARNING: CONFLICTS DETECTED: {conflicts[:80].encode('ascii', 'replace').decode('ascii')}...")
 
     return group
 
@@ -238,6 +248,16 @@ def consolidate_groups(
     for i, group_indices in enumerate(groups):
         # Extract clauses for this group
         group_clauses = [all_clauses[idx] for idx in group_indices]
+
+        # Skip extremely large groups that would exceed API limits
+        # Empirically determined: prompts over ~100KB tend to fail with APIConnectionError
+        # A group with 100 clauses typically generates ~100KB prompt
+        MAX_CLAUSES_PER_GROUP = 100
+        if len(group_clauses) > MAX_CLAUSES_PER_GROUP:
+            print(f"[CONSOLIDATE] Group {i}: SKIPPING - Too large ({len(group_clauses)} clauses)")
+            print(f"[CONSOLIDATE] Group {i}: Exceeds maximum of {MAX_CLAUSES_PER_GROUP} clauses per group")
+            print(f"[CONSOLIDATE] Group {i}: Consider splitting this group or using a higher similarity threshold")
+            continue
 
         try:
             # Use LLM to create consolidated RequirementGroup

@@ -20,7 +20,7 @@ from harmonization.models import Clause, RequirementGroup
 from harmonization.grouping import load_and_group_clauses, load_clauses_from_tagged_csv, compute_embeddings, group_clauses_by_similarity
 from harmonization.consolidate import consolidate_groups, stub_call_llm
 from harmonization.report_builder import save_html_report
-from harmonization.anthropic_client import get_anthropic_client
+from harmonization.anthropic_client import get_anthropic_client, messages_create_with_retries
 
 
 # =============================================================================
@@ -160,14 +160,11 @@ def call_llm_for_consolidation(prompt: str, api_key: str = None, use_claude: boo
             "Use ONLY Claude Sonnet 4.5."
         )
 
-    # Initialize client with centralized helper
-    client = get_anthropic_client(api_key=api_key, timeout=120.0, verbose=True)
-
     # HARD LOCK: Only Claude Sonnet 4.5 is permitted
     model_name = "claude-sonnet-4-5-20250929"
 
     try:
-        response = client.messages.create(
+        response = messages_create_with_retries(
             model=model_name,
             max_tokens=4096,
             temperature=0,
@@ -198,8 +195,18 @@ def call_llm_for_consolidation(prompt: str, api_key: str = None, use_claude: boo
         print(f"[LLM] Cleaned JSON string was: {json_str[:500]}...")
         raise
     except Exception as e:
+        # Enhanced error logging for diagnostics
+        import traceback
+        print(f"[LLM] ERROR: LLM call failed")
+        print(f"[LLM] Exception type: {type(e).__name__}")
+        print(f"[LLM] Exception message: {e}")
+        print(f"[LLM] Prompt length: {len(prompt)} characters")
+        print(f"[LLM] Model: {model_name}")
+        print(f"[LLM] Timeout: 120.0 seconds")
+        print(f"[LLM] Full traceback:")
+        traceback.print_exc()
         raise RuntimeError(
-            f"LLM consolidation failed using required model {model_name}: {e}"
+            f"LLM consolidation failed using required model {model_name}: {type(e).__name__}: {e}"
         )
 
 
