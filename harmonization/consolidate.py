@@ -10,6 +10,7 @@ import json
 from typing import List, Callable, Optional, Dict, Any
 
 from harmonization.models import Clause, RequirementGroup
+from harmonization.grouping import CATEGORY_TITLE_MAP
 
 
 def build_llm_prompt_for_group(
@@ -55,9 +56,16 @@ def build_llm_prompt_for_group(
         diff_items.append(f'{{"standard": "{st}", "differences": ""}}')
     differences_schema = ",\n      ".join(diff_items)
 
+    # Determine category hint (optional)
+    category_hint = ""
+    if clauses and clauses[0].category:
+        category = clauses[0].category
+        category_title = CATEGORY_TITLE_MAP.get(category, category)
+        category_hint = f"\nREGULATORY CATEGORY: {category_title}\nUse this category as guidance when choosing the group_title.\n"
+
     prompt = f"""You are a senior regulatory compliance engineer specializing in multi-standard harmonization.
 Your task is to consolidate a group of similar clauses from different standards into one unified requirement.
-
+{category_hint}
 Source clauses:
 {clause_block}
 

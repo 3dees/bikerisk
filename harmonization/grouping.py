@@ -4,16 +4,209 @@ Embedding-based similarity grouping for cross-standard requirement harmonization
 This module uses TF-IDF vectorization and cosine similarity to identify clusters
 of similar requirements across different standards. It does NOT use LLMs - just
 pure vector similarity math.
+
+Phase 0: Rule-based category classification to partition clauses before clustering.
+Phase 1: TF-IDF + cosine similarity clustering within each category.
+Phase 2: Cross-standard group filtering.
 """
 
 import csv
 import re
 from typing import List, Tuple, Dict
+from collections import defaultdict
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from harmonization.models import Clause
+
+
+# =============================================================================
+# PHASE 0: REGULATORY CATEGORY CONSTANTS
+# =============================================================================
+
+CATEGORY_USER_DOCS = "user_documentation_and_instructions"
+CATEGORY_CHARGING_STORAGE = "battery_charging_and_storage"
+CATEGORY_MECHANICAL_ABUSE = "mechanical_and_abuse_tests"
+CATEGORY_ELECTRICAL_SAFETY = "electrical_safety_and_insulation"
+CATEGORY_ENVIRONMENTAL = "environmental_conditions"
+CATEGORY_LABELING_WARNINGS = "labeling_and_warnings"
+CATEGORY_DEFINITIONS_SCOPE = "definitions_and_scope"
+CATEGORY_BATTERY_DESIGN = "battery_design_and_construction"
+CATEGORY_PROTECTION_CIRCUITS = "protection_circuits_and_bms"
+CATEGORY_MISC = "miscellaneous_or_uncategorized"
+
+# Human-readable category titles for display/reporting
+CATEGORY_TITLE_MAP = {
+    CATEGORY_USER_DOCS: "User Documentation Requirements",
+    CATEGORY_CHARGING_STORAGE: "Battery Charging and Storage Requirements",
+    CATEGORY_MECHANICAL_ABUSE: "Mechanical and Abuse Test Requirements",
+    CATEGORY_ELECTRICAL_SAFETY: "Electrical Safety and Insulation Requirements",
+    CATEGORY_ENVIRONMENTAL: "Environmental Condition Requirements",
+    CATEGORY_LABELING_WARNINGS: "Labeling and Warning Requirements",
+    CATEGORY_DEFINITIONS_SCOPE: "Definitions and Scope",
+    CATEGORY_BATTERY_DESIGN: "Battery Design and Construction Requirements",
+    CATEGORY_PROTECTION_CIRCUITS: "Protection Circuit and BMS Requirements",
+    CATEGORY_MISC: "Miscellaneous Safety Requirements",
+}
+
+
+# =============================================================================
+# PHASE 0: RULE-BASED CATEGORY CLASSIFIER
+# =============================================================================
+
+def classify_clause_category(text: str) -> str:
+    """
+    Assign a coarse regulatory category to a clause based on its text.
+
+    This is deterministic, fast, and does NOT use any LLMs.
+    It uses keyword matching to partition clauses into regulatory categories
+    before TF-IDF clustering.
+
+    Args:
+        text: The full requirement text
+
+    Returns:
+        Category string constant (one of CATEGORY_*)
+    """
+    t = text.lower()
+
+    # User documentation / instructions
+    if any(k in t for k in [
+        "instructions for use",
+        "user manual",
+        "instruction manual",
+        "user instructions",
+        "shall be stated in the instructions",
+        "information shall be provided",
+        "marking in the instructions",
+        "included with the product",
+        "operating instructions",
+        "safety instructions"
+    ]):
+        # More specific sub-route for charging/storage instructions
+        if any(k in t for k in [
+            "charging temperature",
+            "charge temperature",
+            "storage temperature",
+            "store the battery",
+            "charging procedure",
+            "charger use",
+            "outdoor or indoor charging"
+        ]):
+            return CATEGORY_CHARGING_STORAGE
+        return CATEGORY_USER_DOCS
+
+    # Labeling / warnings / symbols
+    if any(k in t for k in [
+        "shall be marked",
+        "marking",
+        "warning",
+        "caution",
+        "danger",
+        "symbol",
+        "label",
+        "rating plate",
+        "marking on the battery",
+        "marking on the product"
+    ]):
+        return CATEGORY_LABELING_WARNINGS
+
+    # Mechanical / abuse / structural
+    if any(k in t for k in [
+        "drop test",
+        "impact test",
+        "shock test",
+        "vibration",
+        "mechanical strength",
+        "crush test",
+        "compression",
+        "abuse test",
+        "rollover",
+        "torsion",
+        "bending",
+        "mechanical damage"
+    ]):
+        return CATEGORY_MECHANICAL_ABUSE
+
+    # Electrical safety / insulation / dielectric
+    if any(k in t for k in [
+        "insulation resistance",
+        "dielectric strength",
+        "dielectric withstand",
+        "clearance",
+        "creepage distance",
+        "leakage current",
+        "electric shock",
+        "short-circuit",
+        "short circuit",
+        "overcurrent",
+        "earth connection",
+        "protective bonding"
+    ]):
+        return CATEGORY_ELECTRICAL_SAFETY
+
+    # Battery design & protection
+    if any(k in t for k in [
+        "battery pack",
+        "battery system",
+        "cells and batteries",
+        "cell arrangement",
+        "battery enclosure",
+        "venting",
+        "thermal runaway",
+        "protective circuit",
+        "protection circuit",
+        "bms",
+        "battery management system",
+        "overcharge protection",
+        "overdischarge protection"
+    ]):
+        return CATEGORY_BATTERY_DESIGN
+
+    if any(k in t for k in [
+        "protection circuit",
+        "protection device",
+        "battery management system",
+        "bms",
+        "overcharge",
+        "over-discharge",
+        "overcurrent protection",
+        "temperature cut-off",
+        "fault detection"
+    ]):
+        return CATEGORY_PROTECTION_CIRCUITS
+
+    # Environmental conditions
+    if any(k in t for k in [
+        "ambient temperature",
+        "temperature range",
+        "relative humidity",
+        "environmental conditions",
+        "ingress protection",
+        "ip code",
+        "dust and water",
+        "altitude",
+        "storage temperature",
+        "transport temperature"
+    ]):
+        return CATEGORY_ENVIRONMENTAL
+
+    # Definitions / scope
+    if any(k in t for k in [
+        "is defined as",
+        "for the purposes of this standard",
+        "definition",
+        "this standard applies to",
+        "scope",
+        "does not apply to",
+        "this part of",
+        "normative references"
+    ]):
+        return CATEGORY_DEFINITIONS_SCOPE
+
+    # Fallback
+    return CATEGORY_MISC
 
 
 def normalize_clause_number(clause_num: str) -> str:
@@ -86,10 +279,14 @@ def load_clauses_from_tagged_csv(csv_path: str) -> List[Clause]:
             # Determine standard name
             standard_name = row.get('Standard/Reg') or filename_standard or 'Unknown'
 
+            # PHASE 0: Classify clause category using rule-based classifier
+            category = classify_clause_category(text_content)
+
             clause = Clause(
                 clause_number=normalize_clause_number(clause_num),
                 text=text_content.strip(),
                 standard_name=standard_name.strip(),
+                category=category,
                 parent_section=row.get('Parent Section'),
                 clause_type=row.get('Clause_Type'),
                 mandate_level=row.get('Mandate_Level'),
@@ -104,7 +301,17 @@ def load_clauses_from_tagged_csv(csv_path: str) -> List[Clause]:
             )
             clauses.append(clause)
 
+    # Log category distribution
+    category_counts = defaultdict(int)
+    for clause in clauses:
+        category_counts[clause.category] += 1
+
     print(f"[GROUPING] Loaded {len(clauses)} clauses from {csv_path}")
+    print(f"[GROUPING] Category distribution:")
+    for cat, count in sorted(category_counts.items(), key=lambda x: -x[1]):
+        cat_title = CATEGORY_TITLE_MAP.get(cat, cat)
+        print(f"  - {cat_title}: {count} clauses")
+
     return clauses
 
 
@@ -249,6 +456,78 @@ def group_clauses_by_similarity(
     return cross_standard_groups
 
 
+def group_clauses_by_category_then_similarity(
+    clauses: List[Clause],
+    similarity_threshold: float = 0.3,
+    embed_fn=None
+) -> Tuple[List[List[int]], Dict[int, str]]:
+    """
+    PHASE 0 + PHASE 1: Partition clauses by category, then group within each category.
+
+    This prevents the TF-IDF clustering from creating mega-groups on homogeneous datasets.
+    Each category is clustered independently using the existing TF-IDF + graph logic.
+
+    Args:
+        clauses: List of Clause objects (with category already assigned)
+        similarity_threshold: Cosine similarity threshold for grouping
+        embed_fn: Optional embedding function. If None, uses TF-IDF.
+
+    Returns:
+        Tuple of (all_groups, group_to_category_map)
+        - all_groups: List of groups (each group is list of indices into original clauses list)
+        - group_to_category_map: Dict mapping group index to category string
+    """
+    print(f"\n[PHASE 0+1] Grouping {len(clauses)} clauses by category, then by similarity...")
+
+    # Partition clauses by category
+    clauses_by_category = defaultdict(list)
+    clause_idx_by_category = defaultdict(list)  # Track original indices
+
+    for idx, clause in enumerate(clauses):
+        cat = clause.category or CATEGORY_MISC
+        clauses_by_category[cat].append(clause)
+        clause_idx_by_category[cat].append(idx)
+
+    print(f"[PHASE 0] Partitioned into {len(clauses_by_category)} categories:")
+    for cat, cat_clauses in clauses_by_category.items():
+        cat_title = CATEGORY_TITLE_MAP.get(cat, cat)
+        print(f"  - {cat_title}: {len(cat_clauses)} clauses")
+
+    # Run grouping within each category
+    all_groups = []
+    group_to_category = {}
+
+    for category, cat_clauses in clauses_by_category.items():
+        if len(cat_clauses) < 2:
+            print(f"\n[PHASE 1] Skipping category '{category}' (only {len(cat_clauses)} clause)")
+            continue
+
+        cat_title = CATEGORY_TITLE_MAP.get(category, category)
+        print(f"\n[PHASE 1] Processing category: {cat_title} ({len(cat_clauses)} clauses)")
+
+        # Compute embeddings for this category's clauses
+        cat_embeddings, _ = compute_embeddings(cat_clauses, embed_fn=embed_fn)
+
+        # Group within category using existing logic
+        cat_groups = group_clauses_by_similarity(
+            cat_clauses,
+            cat_embeddings,
+            similarity_threshold
+        )
+
+        # Map local indices back to global indices
+        original_indices = clause_idx_by_category[category]
+        for local_group in cat_groups:
+            global_group = [original_indices[local_idx] for local_idx in local_group]
+            group_idx = len(all_groups)
+            all_groups.append(global_group)
+            group_to_category[group_idx] = category
+
+    print(f"\n[PHASE 1] Total groups created across all categories: {len(all_groups)}")
+
+    return all_groups, group_to_category
+
+
 def load_and_group_clauses(
     csv_paths: List[str],
     similarity_threshold: float = 0.3,
@@ -274,10 +553,11 @@ def load_and_group_clauses(
 
     print(f"[GROUPING] Loaded {len(all_clauses)} total clauses from {len(csv_paths)} files")
 
-    # Compute embeddings (real or TF-IDF)
-    embeddings, _ = compute_embeddings(all_clauses, embed_fn=embed_fn)
-
-    # Group by similarity
-    groups = group_clauses_by_similarity(all_clauses, embeddings, similarity_threshold)
+    # PHASE 0 + PHASE 1: Group by category first, then by similarity within category
+    groups, group_to_category = group_clauses_by_category_then_similarity(
+        all_clauses,
+        similarity_threshold=similarity_threshold,
+        embed_fn=embed_fn
+    )
 
     return all_clauses, groups
