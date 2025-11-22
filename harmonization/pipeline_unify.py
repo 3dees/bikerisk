@@ -657,8 +657,27 @@ if __name__ == "__main__":
     """
     import sys
 
+    # Allow overriding CSV input/output via simple CLI flags without argparse
+    # Usage examples:
+    #   python -m harmonization.pipeline_unify --consolidation --csv my.csv --out my_report.html
+    #   python -m harmonization.pipeline_unify --csv my.csv
+    csv_override = None
+    out_override = None
+    for flag in ("--csv", "-i"):
+        if flag in sys.argv:
+            try:
+                csv_override = sys.argv[sys.argv.index(flag) + 1]
+            except Exception:
+                pass
+    for flag in ("--out", "-o"):
+        if flag in sys.argv:
+            try:
+                out_override = sys.argv[sys.argv.index(flag) + 1]
+            except Exception:
+                pass
+
     # Check if test file exists
-    test_file = "tiny_test_clauses.csv"
+    test_file = csv_override or "tiny_test_clauses.csv"
     if not os.path.exists(test_file):
         print(f"ERROR: Test file not found: {test_file}")
         print(f"Current directory: {os.getcwd()}")
@@ -679,16 +698,17 @@ if __name__ == "__main__":
             if "--openai" in sys.argv or "--gpt" in sys.argv:
                 use_claude = False
 
+            output_file = out_override or "tiny_test_consolidation.html"
             groups = run_consolidation_test(
                 csv_path=test_file,
-                output_path="tiny_test_consolidation.html",
+                output_path=output_file,
                 similarity_threshold=0.05,  # TF-IDF threshold
                 use_claude=use_claude
             )
 
             if groups:
                 print(f"\nSUCCESS! Consolidated {len(groups)} requirement groups with REAL LLM.")
-                print("Open tiny_test_consolidation.html in your browser to view the report.")
+                print(f"Open {output_file} in your browser to view the report.")
             else:
                 print("\nNo groups created. Check the logs above for details.")
 
