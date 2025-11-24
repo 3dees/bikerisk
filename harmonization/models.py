@@ -24,6 +24,9 @@ class Clause:
     # Phase 0: Regulatory category (assigned by rule-based classifier)
     category: Optional[str] = None            # e.g., "user_documentation_and_instructions"
 
+    # Phase 0.5: Requirement type (assigned by rule-based classifier)
+    requirement_type: Optional[str] = None    # e.g., "test_method", "warnings", "labeling"
+
     # Optional metadata from validate.py tagging
     parent_section: Optional[str] = None      # e.g., "5.1", "BB.1"
     clause_type: Optional[str] = None         # Requirement/Definition/Test_Methodology/Preamble
@@ -55,6 +58,7 @@ class Clause:
             'text': self.text,
             'standard_name': self.standard_name,
             'category': self.category,
+                'requirement_type': self.requirement_type,
             'parent_section': self.parent_section,
             'clause_type': self.clause_type,
             'mandate_level': self.mandate_level,
@@ -76,6 +80,7 @@ class Clause:
             text=data['text'],
             standard_name=data['standard_name'],
             category=data.get('category'),
+                requirement_type=data.get('requirement_type'),
             parent_section=data.get('parent_section'),
             clause_type=data.get('clause_type'),
             mandate_level=data.get('mandate_level'),
