@@ -114,9 +114,12 @@ class RequirementGroup:
     group_title: Optional[str] = None       # Short title for this group (e.g., "Electric Shock Warnings")
     regulatory_intent: Optional[str] = None # Explanation of shared compliance goal
     consolidated_requirement: Optional[str] = None  # Alternative to core_requirement (richer format)
-    differences: List[dict] = field(default_factory=list)  # Differences across standards
+    differences_across_standards: List[dict] = field(default_factory=list)  # New schema: [{standard_id, clause_labels, difference_summary}]
     unique_requirements: Optional[str] = None  # Requirements unique to specific standards
     conflicts: Optional[str] = None         # Conflicting requirements across standards
+
+    # Legacy field for backwards compatibility (deprecated)
+    differences: List[dict] = field(default_factory=list)  # Old schema: [{standard, differences}]
 
     # Legacy metadata (keep for backwards compatibility)
     analysis_notes: Optional[str] = None    # LLM's explanation of why these were grouped
@@ -154,7 +157,7 @@ class RequirementGroup:
             'group_title': self.group_title,
             'regulatory_intent': self.regulatory_intent,
             'consolidated_requirement': self.consolidated_requirement,
-            'differences': self.differences,
+            'differences_across_standards': self.differences_across_standards,
             'unique_requirements': self.unique_requirements,
             'conflicts': self.conflicts,
             'analysis_notes': self.analysis_notes,

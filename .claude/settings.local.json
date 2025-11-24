@@ -6,7 +6,11 @@
       "Bash(taskkill //F //PID 51944)",
       "Bash(taskkill //F //PID 44592)",
       "Bash(taskkill //F //PID 36488)",
-      "Bash(taskkill //F //PID 27112)"
+      "Bash(taskkill //F //PID 27112)",
+      "Bash(python:*)",
+      "Bash(streamlit run:*)",
+      "Bash(pip install:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

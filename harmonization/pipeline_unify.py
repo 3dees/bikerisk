@@ -126,9 +126,9 @@ def get_openai_embedding(text: str, api_key: str = None) -> List[float]:
 # LLM CONSOLIDATION FUNCTION (Real LLM)
 # =============================================================================
 
-def call_llm_for_consolidation(prompt: str, api_key: str = None, use_claude: bool = True) -> str:
+def call_llm_for_consolidation(system_prompt: str, user_prompt: str, api_key: str = None, use_claude: bool = True) -> str:
     """
-    Call LLM to consolidate requirement groups.
+    Call LLM to consolidate requirement groups with system + user prompts.
 
     HARD LOCK POLICY:
     Consolidation MUST be performed with Claude Sonnet 4.5.
@@ -139,7 +139,8 @@ def call_llm_for_consolidation(prompt: str, api_key: str = None, use_claude: boo
       - Prevention of fallback hallucination behavior
 
     Args:
-        prompt: The consolidation prompt
+        system_prompt: The system message (persona/role)
+        user_prompt: The user message (task with data)
         api_key: API key (Anthropic). If None, reads from ANTHROPIC_API_KEY env var.
         use_claude: MUST be True. OpenAI models are NOT permitted.
 
@@ -168,9 +169,10 @@ def call_llm_for_consolidation(prompt: str, api_key: str = None, use_claude: boo
             model=model_name,
             max_tokens=4096,
             temperature=0,
+            system=system_prompt,
             messages=[{
                 "role": "user",
-                "content": prompt
+                "content": user_prompt
             }]
         )
 
@@ -200,7 +202,8 @@ def call_llm_for_consolidation(prompt: str, api_key: str = None, use_claude: boo
         print(f"[LLM] ERROR: LLM call failed")
         print(f"[LLM] Exception type: {type(e).__name__}")
         print(f"[LLM] Exception message: {e}")
-        print(f"[LLM] Prompt length: {len(prompt)} characters")
+        print(f"[LLM] System prompt length: {len(system_prompt)} characters")
+        print(f"[LLM] User prompt length: {len(user_prompt)} characters")
         print(f"[LLM] Model: {model_name}")
         print(f"[LLM] Timeout: 120.0 seconds")
         print(f"[LLM] Full traceback:")
@@ -397,7 +400,7 @@ def run_consolidation_test(
 
     # Step 2: Create REAL LLM function
     print("\n[CONSOLIDATION TEST] Step 2: Creating LLM consolidation function...")
-    llm_fn = lambda prompt: call_llm_for_consolidation(prompt, use_claude=use_claude)
+    llm_fn = lambda sys_prompt, usr_prompt: call_llm_for_consolidation(sys_prompt, usr_prompt, use_claude=use_claude)
     print(f"[CONSOLIDATION TEST] Using {'Claude' if use_claude else 'OpenAI'} for consolidation")
 
     # Step 3: Consolidate groups with REAL LLM
@@ -435,11 +438,13 @@ def run_consolidation_test(
         print()
 
         print(f"DIFFERENCES ACROSS STANDARDS:")
-        if req_group.differences:
-            for diff in req_group.differences:
-                std = diff.get('standard', 'Unknown')
-                diffs = diff.get('differences', 'N/A')
-                print(f"  • {std}:")
+        if req_group.differences_across_standards:
+            for diff in req_group.differences_across_standards:
+                std = diff.get('standard_id', 'Unknown')
+                diffs = diff.get('difference_summary', 'N/A')
+                clauses = diff.get('clause_labels', [])
+                clauses_str = ', '.join(str(c) for c in clauses) if clauses else 'N/A'
+                print(f"  • {std} (Clauses: {clauses_str}):")
                 # Indent multi-line differences
                 for line in diffs.split('\n'):
                     print(f"      {line}")

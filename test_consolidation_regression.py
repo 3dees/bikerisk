@@ -100,7 +100,7 @@ def test_consolidation_pipeline():
     print(f"\n[STEP 3] Consolidating groups with Claude...")
     try:
         # Create LLM function
-        llm_fn = lambda prompt: call_llm_for_consolidation(prompt, use_claude=True)
+        llm_fn = lambda sys_prompt, usr_prompt: call_llm_for_consolidation(sys_prompt, usr_prompt, use_claude=True)
         
         # Consolidate (needs all_clauses and index groups)
         consolidated_groups = consolidate_groups(clauses, groups, call_llm=llm_fn)

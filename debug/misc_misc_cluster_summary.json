@@ -1,0 +1,96 @@
+[
+  {
+    "group_id": 1,
+    "category": "miscellaneous_or_uncategorized",
+    "requirement_type": "misc",
+    "size": 96,
+    "standards_present": [
+      "IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf",
+      "SS_EN_50604_1_EN.pdf.pdf"
+    ],
+    "example_clause_ids": [
+      "5.4",
+      "A.6.10.2",
+      "A.6.10.3",
+      "6.104.1",
+      "FF.6.2"
+    ],
+    "example_snippets": [
+      "Temperature, voltage and current management",
+      "When the temperature of the wound core reaches the testing temperature, start pressurizing.",
+      "When the test is conducted at a high temperature, to minimize vaporization of the electrolyte, it is desirable to start ",
+      "The purpose of this test is to verify the mechanical stability of thermoplastic housings when exposed to sun light.",
+      "Test T.2: Thermal test"
+    ]
+  },
+  {
+    "group_id": 2,
+    "category": "miscellaneous_or_uncategorized",
+    "requirement_type": "misc",
+    "size": 10,
+    "standards_present": [
+      "IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf",
+      "SS_EN_50604_1_EN.pdf.pdf"
+    ],
+    "example_clause_ids": [
+      "D.2.b.3",
+      "EE.2.4",
+      "6.102.3",
+      "5.109",
+      "6.103.3"
+    ],
+    "example_snippets": [
+      "Step 3 – The measurement of internal AC resistance shall be performed as noted below.",
+      "Certificates for components and subsystems shall be delivered with the DUT. See Table 1 for details about required certi",
+      "During the test and for a 1 h post-test observation period, the DUT shall exhibit no evidence of leakage or DUT enclosur",
+      "Test result fire Cheesecloth shall be placed in 100 mm distance above the DUT. After the test, this cheesecloth shall re",
+      "During the test and for 6 h post-test observation period, the DUT shall exhibit no evidence of leakage, rupture, fire or"
+    ]
+  },
+  {
+    "group_id": 3,
+    "category": "miscellaneous_or_uncategorized",
+    "requirement_type": "misc",
+    "size": 25,
+    "standards_present": [
+      "IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf",
+      "SS_EN_50604_1_EN.pdf.pdf"
+    ],
+    "example_clause_ids": [
+      "Annex DD",
+      "A.5.4",
+      "A.5.4",
+      "A.5.5.1.2",
+      "A.5.4"
+    ],
+    "example_snippets": [
+      "Test probe. Figure DD.1 — Test probe “test finger” NOTE 1 The test finger is derived from EN 61032:1998, Figure 2, test ",
+      "Dimensions: Height: 0,2 mm; Thickness: 0,1 mm; L shape (Angle: 90° ± 10°): 1,0 mm for each side with 5 % tolerance. Mate",
+      "La forme de la particule de nickel doit être comme représentée à la Figure A.3. Dimensions: Hauteur: 0,2 mm; Épaisseur: ",
+      "Insérer la particule de nickel entre la matière active positive et le séparateur. L'alignement de la particule de nickel",
+      "Forme de la particule de nickel."
+    ]
+  },
+  {
+    "group_id": 4,
+    "category": "miscellaneous_or_uncategorized",
+    "requirement_type": "misc",
+    "size": 4,
+    "standards_present": [
+      "SS_EN_50604_1_EN.pdf.pdf",
+      "UL 2271 2023{Ed3} - Instructions for Batteries.pdf"
+    ],
+    "example_clause_ids": [
+      "47.1",
+      "47 General",
+      "8",
+      "8.3.101"
+    ],
+    "example_snippets": [
+      "An EESA shall be provided with complete instructions for installation and integration in the end use vehicle including i",
+      "General instructions for EESAs.",
+      "Simulated vehicle accidents",
+      "Simulates a water immersion which may occur when a vehicle is flooded."
+    ]
+  }
+]

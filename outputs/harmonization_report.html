@@ -1,0 +1,3873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cross-Standard Harmonization Report</title>
+    <style>
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        header {
+            border-bottom: 3px solid #2563eb;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #1e40af;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #6b7280;
+            font-size: 0.9em;
+        }
+
+        .summary {
+            background: #f8fafc;
+            border-left: 4px solid #2563eb;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .summary h2 {
+            color: #1e40af;
+            margin-bottom: 15px;
+        }
+
+        .summary-stats {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 15px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2563eb;
+        }
+
+        .stat-label {
+            font-size: 0.9em;
+            color: #6b7280;
+        }
+
+        .standards-covered {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+            color: #4b5563;
+        }
+
+        .group {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        .group-header {
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            padding: 20px;
+        }
+
+        .group-header h2 {
+            color: white;
+            margin-bottom: 10px;
+        }
+
+        .group-badges {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-high {
+            background: #10b981;
+            color: white;
+        }
+
+        .status-medium {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-low {
+            background: #6b7280;
+            color: white;
+        }
+
+        .badge-similarity {
+            background: #8b5cf6;
+            color: white;
+        }
+
+        .badge-count {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
+
+        .badge-standard {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .badge-high {
+            background: #dc2626;
+            color: white;
+        }
+
+        .badge-medium {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .badge-info {
+            background: #6b7280;
+            color: white;
+        }
+
+        .badge-safety {
+            background: #dc2626;
+            color: white;
+        }
+
+        .badge-manual {
+            background: #0891b2;
+            color: white;
+        }
+
+        .badge-type {
+            background: #8b5cf6;
+            color: white;
+        }
+
+        .badge-conflict {
+            background: #dc2626;
+            color: white;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .group-content {
+            padding: 20px;
+        }
+
+        .section {
+            margin-bottom: 25px;
+        }
+
+        .section h3 {
+            color: #1e40af;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+
+        .section.highlight {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .standards-list {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .regulatory-intent {
+            color: #4b5563;
+            font-style: italic;
+            line-height: 1.8;
+        }
+
+        .consolidated-requirement {
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            font-size: 1.05em;
+            line-height: 1.8;
+        }
+
+        .critical-differences ul {
+            list-style-position: inside;
+            color: #4b5563;
+        }
+
+        .critical-differences li {
+            margin-bottom: 5px;
+        }
+
+        .no-differences {
+            color: #6b7280;
+            font-style: italic;
+        }
+
+        .members {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .member {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            padding: 15px;
+        }
+
+        .member-header {
+            color: #1e40af;
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .member-header code {
+            background: #e0e7ff;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .member-text {
+            color: #374151;
+            margin-bottom: 8px;
+            line-height: 1.6;
+        }
+
+        .member-metadata {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.9em;
+        }
+
+        /* Phase 2 Consolidation Styles */
+        .conflicts-section {
+            background: #fee2e2;
+            border-left: 4px solid #dc2626;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .conflicts-section h3 {
+            color: #dc2626;
+        }
+
+        .conflicts-content {
+            color: #7f1d1d;
+            line-height: 1.8;
+        }
+
+        .unique-section {
+            background: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            border-radius: 4px;
+        }
+
+        .unique-section h3 {
+            color: #1e40af;
+        }
+
+        .unique-content {
+            color: #1e3a8a;
+            line-height: 1.8;
+        }
+
+        .differences-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .differences-table th {
+            background: #f3f4f6;
+            color: #1e40af;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #e5e7eb;
+            font-weight: 600;
+        }
+
+        .differences-table td {
+            padding: 12px;
+            border-bottom: 1px solid #e5e7eb;
+            vertical-align: top;
+        }
+
+        .differences-table tr:hover {
+            background: #f9fafb;
+        }
+
+        .diff-standard {
+            width: 150px;
+            font-weight: 600;
+            color: #1e40af;
+        }
+
+        .diff-text {
+            color: #4b5563;
+            line-height: 1.8;
+        }
+    
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Cross-Standard Harmonization Report</h1>
+            <p class="subtitle">Generated on 2025-11-24 17:22:23</p>
+        </header>
+
+        <div class="summary">
+            <h2>Summary</h2>
+            <div class="summary-stats">
+                <div class="stat">
+                    <div class="stat-value">15</div>
+                    <div class="stat-label">Requirement Groups</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">159</div>
+                    <div class="stat-label">Total Clauses</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-value">3</div>
+                    <div class="stat-label">Standards Covered</div>
+                </div>
+            </div>
+            <div class="standards-covered">
+                <strong>Standards:</strong> IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf, SS_EN_50604_1_EN.pdf.pdf, UL 2271 2023{Ed3} - Instructions for Batteries.pdf
+            </div>
+        </div>
+
+        <div class="groups-container">
+            
+    <div class="group" id="group-0">
+        <div class="group-header">
+            <h2>Group 1: Miscellaneous Safety Requirements: Testing Procedures, Safety Information, and Protective Measures</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 95%</span>
+                <span class="badge badge-count">96 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure comprehensive safety across battery and e-bike systems through proper testing procedures, protective equipment requirements, user and manufacturer guidance, and safe handling protocols. This includes temperature management, mechanical testing specifications, safety information dissemination, and protective measures during testing and normal use.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>The following miscellaneous safety requirements shall be implemented:<br><br>a) Temperature, Voltage, and Current Management: Systems shall incorporate temperature, voltage, and current management controls as specified in design requirements.<br><br>b) Testing Temperature Protocols:<br>   1) When conducting tests at elevated temperatures, pressurization shall commence within 3 minutes after placing the wound core on the testing machine to minimize electrolyte vaporization<br>   2) When conducting tests at low temperatures, testing shall commence within 10 minutes<br>   3) Pressurization shall begin only after the wound core reaches the specified testing temperature<br><br>c) Mechanical Testing Equipment Specifications:<br>   1) Pressing devices shall conform to recommended specifications including servo-motor or hydraulic press configurations<br>   2) Servo-motor presses are recommended over hydraulic presses due to immediate stopping capability<br>   3) Equipment shall follow specified distance/time ratios and jig configurations as detailed in technical drawings<br><br>d) Test-Specific Requirements:<br>   1) Mechanical stability tests for thermoplastic housings exposed to sunlight shall be performed without cells in the housing, with internal temperature recording<br>   2) Touch current tests shall verify switch-off device functionality where accessible conductive parts or contacts exist<br>   3) Over-temperature and under-temperature condition tests shall be conducted per specified protocols<br>   4) Thermal abuse tests shall verify that external cell temperature does not exceed 170°C and that no disassembly or fire occurs within 6 hours<br><br>e) Cell Assembly and Protection:<br>   1) Cells shall be assembled into batteries with appropriate mechanical protection for cells and battery components<br>   2) Multi-cell battery cases shall be designed to open only with the aid of a tool<br>   3) Equipment shall prohibit incorrect cell or battery insertion and display clear polarity marks<br><br>f) Internal Short Circuit Test Preparation (when applicable):<br>   1) Nickel particles shall be prepared according to specified shape, dimensions, and material requirements<br>   2) For cylindrical cells: Insert nickel particle 20mm from edge of cut aluminum foil, with L-shaped corner toward winding direction, between positive and negative active material coated areas OR between positive aluminum foil (uncoated) and negative coated area at 1.0mm from edge of positive active material coating<br>   3) For prismatic cells: Follow specified insertion positions between electrode layers as detailed in technical drawings<br>   4) Cell disassembly procedures shall follow documented methods for cylindrical and prismatic cell types<br><br>g) Safety Equipment and Protective Measures During Testing:<br>   1) Personnel shall wear long-sleeved protective clothing, protective glasses, mask, and gloves<br>   2) Unnecessary flammable materials shall not be placed in work areas<br>   3) Fire protection cloth or sand shall be available, with effective gas exhaust systems<br>   4) Countermeasures shall prevent cell contents from scattering if cells catch fire<br><br>h) Quality Control and Documentation:<br>   1) Test samples shall pass supplier quality control procedures<br>   2) Suppliers shall provide quality examination reports<br>   3) Suppliers shall provide cycling data, intended applications, and additional information needed by test laboratories<br>   4) Original cell and battery literature shall be retained for future reference<br><br>i) Safety Information for Equipment Manufacturers and Battery Assemblers:<br>   1) Do not dismantle, open, or shred cells; batteries shall be dismantled only by trained personnel<br>   2) Do not expose cells or batteries to heat or fire; avoid storage in direct sunlight<br>   3) Observe polarity marks on cells, batteries, and equipment to ensure correct use<br>   4) Do not mix cells of different manufacture, capacity, size, or type within a battery<br>   5) Consult cell or battery manufacturer on maximum number of cells for battery assembly and safest connection methods<br>   6) Wipe cell or battery terminals with clean dry cloth if dirty<br>   7) When disposing of secondary cells or batteries, keep cells or batteries of different electrochemical systems separate<br>   8) After extended storage periods, charge and discharge cells or batteries several times to obtain maximum performance<br><br>j) Safety Information for End-Users:<br>   1) Do not dismantle, open, or shred secondary cells or batteries<br>   2) Seek medical advice immediately if a cell or battery has been swallowed<br>   3) Do not expose cells or batteries to heat or fire; avoid storage in direct sunlight<br>   4) Observe plus (+) and minus (−) marks on cells, batteries, and equipment to ensure correct use<br>   5) Use only cells or batteries designed for use with the equipment<br>   6) Do not mix cells of different manufacture, capacity, size, or type within a device<br>   7) Purchase only batteries recommended by device manufacturer<br>   8) Wipe cell or battery terminals with clean dry cloth if dirty<br>   9) Do not leave battery on prolonged charge when not in use<br>   10) After extended storage, charge and discharge cells or batteries several times to obtain maximum performance<br>   11) Use cells or batteries only in applications for which they were intended<br>   12) When possible, remove battery from equipment when not in use<br><br>k) Regulatory Classification: Systems shall comply with applicable UN transport classifications including UN 3480 (lithium ion batteries), UN 3481 (lithium ion batteries contained in or packed with equipment), UN 3171 (battery powered vehicle), and UN 3166 (hybrid electric vehicle) as applicable to light electric vehicles.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">5.4, 5.6, 5.6.3, 5.8, 7.1.1, 7.1.2, 7.2, 7.3.4, 7.3.5, 7.3.7, 7.3.8, 8, 8.1.b, 8.2, 9.4, Annex A, Annex B, Annex C, Annex D</td>
+                <td class="diff-text">IEC 62133-2 provides extensive detail on cell-level testing procedures including internal short circuit test preparation with nickel particle insertion specifications, detailed disassembly procedures for cylindrical and prismatic cells, pressing device specifications, and comprehensive annexes with recommendations for manufacturers and end-users. Includes specific guidance on protective equipment and fire safety during testing. Provides both manufacturer (Annex B) and end-user (Annex C) safety recommendations as non-exhaustive lists.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">6, 6.104.1, 6.104.2, 7, 8.102, 8.103, 9, 9.101.1, 10, EE.2.5, EE.3.2, FF.2, FF.6.2, FF.6.6.2</td>
+                <td class="diff-text">EN 50604-1 focuses on system-level testing for e-bike applications including mechanical stability tests for thermoplastic housings exposed to sunlight (without cells, with temperature recording), touch current tests for switch-off device functionality, over/under-temperature condition tests, and thermal test acceptance criteria (170°C maximum external temperature, no disassembly/fire within 6 hours). Requires supplier quality control documentation and test laboratory information including cycling data and intended applications. Includes UN transport classification references specific to light electric vehicles.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    IEC 62133-2 contains highly detailed test preparation procedures for internal short circuit testing including nickel particle preparation, insertion procedures for different cell geometries, and cell disassembly methods that are specific to cell-level safety testing and not applicable to system-level requirements. EN 50604-1 contains specific requirements for sunlight exposure testing of thermoplastic housings and touch current testing that are unique to e-bike battery system applications. The internal AC resistance measurement procedure for coin cells (Annex D of IEC 62133-2) is specific to that cell type and not generalizable.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (96)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>5.4</code>
+            </div>
+            <div class="member-text">
+                Temperature, voltage and current management
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.10.2</code>
+            </div>
+            <div class="member-text">
+                When the temperature of the wound core reaches the testing temperature, start pressurizing.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.10.3</code>
+            </div>
+            <div class="member-text">
+                When the test is conducted at a high temperature, to minimize vaporization of the electrolyte, it is desirable to start pressurizing within 3 min after placing the wound core on the testing machine. When the test is conducted at a low temperature, it is desirable to start the test within 10 min.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>6.104.1</code>
+            </div>
+            <div class="member-text">
+                The purpose of this test is to verify the mechanical stability of thermoplastic housings when exposed to sun light.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>FF.6.2</code>
+            </div>
+            <div class="member-text">
+                Test T.2: Thermal test
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-type">Test_Methodology</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>9.101.1</code>
+            </div>
+            <div class="member-text">
+                The purpose of the touch current test is to check the functionality of the switch off device, if there are accessible conductive parts or contacts.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.11</code>
+            </div>
+            <div class="member-text">
+                Recommended specifications for the pressing device
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Table A.2</code>
+            </div>
+            <div class="member-text">
+                Recommended specifications of a pressing device
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure 2</code>
+            </div>
+            <div class="member-text">
+                Jig for pressing
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.13</code>
+            </div>
+            <div class="member-text">
+                Distance / time ratio of several types of pressing devices
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.11.a</code>
+            </div>
+            <div class="member-text">
+                The servo-motor press can stop immediately; however, the hydraulic press cannot. Therefore, the servo-motor press is recommended for the pressing device.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>6.104.2</code>
+            </div>
+            <div class="member-text">
+                The test has to be performed without cells in the housing, but the temperature inside the housing shall be recorded.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>8.102</code>
+            </div>
+            <div class="member-text">
+                Over-temperature condition test
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>8.103</code>
+            </div>
+            <div class="member-text">
+                Under-temperature condition test
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>FF.6.6.2</code>
+            </div>
+            <div class="member-text">
+                Cells and component cells meet this requirement if their external temperature does not exceed 170 °C and there is no disassembly and no fire within 6 h of this test.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.4</code>
+            </div>
+            <div class="member-text">
+                Thermal abuse (cells)
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>5.6</code>
+            </div>
+            <div class="member-text">
+                Assembly of cells into batteries
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.5</code>
+            </div>
+            <div class="member-text">
+                Crush (cells)
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>5.6.3</code>
+            </div>
+            <div class="member-text">
+                Mechanical protection for cells and components of batteries
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.7</code>
+            </div>
+            <div class="member-text">
+                Forced discharge (cells)
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex D</code>
+            </div>
+            <div class="member-text">
+                Measurement of the internal AC resistance for coin cells
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.9</code>
+            </div>
+            <div class="member-text">
+                Disassembly of prismatic cells
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.3</code>
+            </div>
+            <div class="member-text">
+                Disassembly of charged cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.6</code>
+            </div>
+            <div class="member-text">
+                Disassembly of cylindrical cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5</code>
+            </div>
+            <div class="member-text">
+                Insertion of nickel particle in cylindrical cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.6</code>
+            </div>
+            <div class="member-text">
+                Insertion of nickel particle in prismatic cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.2</code>
+            </div>
+            <div class="member-text">
+                Insertion procedure for nickel particle to generate internal short
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.1.1</code>
+            </div>
+            <div class="member-text">
+                First procedure
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.1.2</code>
+            </div>
+            <div class="member-text">
+                Second procedure
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.2</code>
+            </div>
+            <div class="member-text">
+                Example of a nickel particle preparation procedure
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.4</code>
+            </div>
+            <div class="member-text">
+                Shape of nickel particle
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.1</code>
+            </div>
+            <div class="member-text">
+                Material and tools for preparation of nickel particle
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.3</code>
+            </div>
+            <div class="member-text">
+                Positioning (or placement) of a nickel particle
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.3</code>
+            </div>
+            <div class="member-text">
+                Shape of nickel particle
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.10</code>
+            </div>
+            <div class="member-text">
+                Dimensions of a completed nickel particle
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.4</code>
+            </div>
+            <div class="member-text">
+                The shape of the nickel particle shall be as shown in Figure A.3.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.1.2</code>
+            </div>
+            <div class="member-text">
+                Insert nickel particle between positive active material and separator. The alignment of the nickel particle shall be as shown in Figure A.4. Position of the insertion of the nickel particle shall be 20 mm from the edge of the cut aluminium foil. Direction of L-shaped corner is towards the direction of winding.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.8</code>
+            </div>
+            <div class="member-text">
+                Nickel particle insertion position between positive aluminium foil and negative (active material) coated area of prismatic cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.5</code>
+            </div>
+            <div class="member-text">
+                Nickel particle insertion position between positive aluminium foil and negative active material coated area of cylindrical cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.4</code>
+            </div>
+            <div class="member-text">
+                Nickel particle insertion position between positive and negative active material coated area of cylindrical cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.7</code>
+            </div>
+            <div class="member-text">
+                Nickel particle insertion position between positive and negative (active material) coated area of prismatic cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.1</code>
+            </div>
+            <div class="member-text">
+                Insertion of nickel particle between positive (active material) coated area and negative (active material) coated area for cylindrical cell. (see Figure A.4).
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2</code>
+            </div>
+            <div class="member-text">
+                Insertion of nickel particle between positive aluminium foil (uncoated area) and negative (active material) coated area for cylindrical cell.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2.1</code>
+            </div>
+            <div class="member-text">
+                When aluminium foil of positive electrode is exposed at outer turn and the aluminium foil is facing the coated negative active material, the following procedure shall be used.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2.1.1</code>
+            </div>
+            <div class="member-text">
+                When aluminium foil of positive electrode is exposed at outer turn, cut off the aluminium foil 10 mm from the dividing line between aluminium foil and active material.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2.1.2</code>
+            </div>
+            <div class="member-text">
+                Insert Ni particle between aluminium foil and separator. The alignment of nickel particle shall be as shown in Figure A.5. Position of the insertion of nickel particle shall be at 1,0 mm from the edge of the coating of positive active material on aluminium foil.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.11</code>
+            </div>
+            <div class="member-text">
+                Positioning of the nickel particle when it cannot be placed in the specified area
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.9.a</code>
+            </div>
+            <div class="member-text">
+                To prevent fire spreading, unnecessary flammable materials should not be placed in the work area.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>EE.2.5</code>
+            </div>
+            <div class="member-text">
+                The samples should have passed the quality control procedure of the supplier. The supplier should provide a quality examination report.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.12</code>
+            </div>
+            <div class="member-text">
+                Cylindrical cell
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.e</code>
+            </div>
+            <div class="member-text">
+                Do not expose cells or batteries to heat or fire. Avoid storage in direct sunlight.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.a</code>
+            </div>
+            <div class="member-text">
+                Do not dismantle, open or shred cells. Batteries should be dismantled only by trained personnel. Multi-cell battery cases should be designed so that they can be opened only with the aid of a tool.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.h</code>
+            </div>
+            <div class="member-text">
+                Equipment should be designed to prohibit the incorrect insertion of cells or batteries and should have clear polarity marks. Always observe the polarity marks on the cell, battery and equipment and ensure correct use.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B</code>
+            </div>
+            <div class="member-text">
+                Recommendations to equipment manufacturers and battery assemblers
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.m</code>
+            </div>
+            <div class="member-text">
+                Always purchase the battery recommended by the device manufacturer for the equipment.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.u</code>
+            </div>
+            <div class="member-text">
+                When possible, remove the battery from the equipment when not in use.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.2</code>
+            </div>
+            <div class="member-text">
+                Intended use
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.k</code>
+            </div>
+            <div class="member-text">
+                Do not use any cell or battery which is not designed for use with the equipment.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.j</code>
+            </div>
+            <div class="member-text">
+                Observe the plus (+) and minus (−) marks on the cell, battery and equipment and ensure correct use.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.n</code>
+            </div>
+            <div class="member-text">
+                Wipe the cell or battery terminals with a clean dry cloth if they become dirty.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>8.2</code>
+            </div>
+            <div class="member-text">
+                Small cell and battery safety information
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>8</code>
+            </div>
+            <div class="member-text">
+                Information for safety
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>9.4</code>
+            </div>
+            <div class="member-text">
+                Other information
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.1</code>
+            </div>
+            <div class="member-text">
+                In order to provide more information regarding the sample preparation for test 7.3.9, the following additional details are provided.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>8.1.b</code>
+            </div>
+            <div class="member-text">
+                Guidance is provided in IEC TR 62188 on the design and manufacture of portable batteries, and non-exhaustive lists of good advice are provided for information in Annexes B and C. Conformity can be checked by examination of manufacturer&#x27;s documentation.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C</code>
+            </div>
+            <div class="member-text">
+                Recommendations to the end-users: The following represents a typical, but non-exhaustive, list of good advice to be provided by the equipment manufacturer to the end-user.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>EE.3.2</code>
+            </div>
+            <div class="member-text">
+                The supplier is suggested to provide following information to help laboratories understand the samples and conduct tests: – cycling data measured by the supplier; – intended application(s) or use of the battery; – additional information needed by test laboratories to understand the battery in order to setup and conduct tests of this manual.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7</code>
+            </div>
+            <div class="member-text">
+                Specific requirements and tests
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.8</code>
+            </div>
+            <div class="member-text">
+                Mechanical tests (batteries)
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>6</code>
+            </div>
+            <div class="member-text">
+                Mechanical tests Replacement:
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>7</code>
+            </div>
+            <div class="member-text">
+                Climatic tests
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>9</code>
+            </div>
+            <div class="member-text">
+                Electrical tests
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>10</code>
+            </div>
+            <div class="member-text">
+                System functionality tests
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>5.8</code>
+            </div>
+            <div class="member-text">
+                Battery safety components
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>5.8</code>
+            </div>
+            <div class="member-text">
+                Battery safety components See Annex F.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.2</code>
+            </div>
+            <div class="member-text">
+                Safety of lithium ion secondary battery
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>FF.2</code>
+            </div>
+            <div class="member-text">
+                – Lithium ion batteries UN 3480; – lithium ion batteries contained in equipment UN 3481; – lithium ion batteries packed with equipment UN 3481; – battery powered vehicle UN 3171; – hybrid electric vehicle (HEV) UN 3166; NOTE UN 3171 “Battery-powered vehicle or battery powered equipment“ applies as well to light EVs.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.8</code>
+            </div>
+            <div class="member-text">
+                Protective equipment for safety
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.8</code>
+            </div>
+            <div class="member-text">
+                Protective equipment for safety. Long sleeved protective clothing, protective glasses, a mask and gloves should be worn.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.j</code>
+            </div>
+            <div class="member-text">
+                Seek medical advice immediately if a cell or battery has been swallowed.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.k</code>
+            </div>
+            <div class="member-text">
+                Consult the cell or battery manufacturer on the maximum number of cells which may be assembled in a battery and on the safest way in which cells may be connected.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.i</code>
+            </div>
+            <div class="member-text">
+                Do not mix cells of different manufacture, capacity, size or type within a battery.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.l</code>
+            </div>
+            <div class="member-text">
+                Do not mix cells of different manufacture, capacity, size or type within a device.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.r</code>
+            </div>
+            <div class="member-text">
+                Retain the original cell and battery literature for future reference.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.c</code>
+            </div>
+            <div class="member-text">
+                Seek medical advice immediately if a cell or a battery has been swallowed.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.o</code>
+            </div>
+            <div class="member-text">
+                Wipe the cell or battery terminals with a clean dry cloth if they become dirty.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.t</code>
+            </div>
+            <div class="member-text">
+                Use the cell or battery only in the application for which it was intended.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.q</code>
+            </div>
+            <div class="member-text">
+                Do not leave a battery on prolonged charge when not in use.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.s</code>
+            </div>
+            <div class="member-text">
+                When disposing of secondary cells or batteries, keep cells or batteries of different electrochemical systems separate from each other.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex B.q</code>
+            </div>
+            <div class="member-text">
+                After extended periods of storage, it may be necessary to charge and discharge the cells or batteries several times to obtain maximum performance.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.r</code>
+            </div>
+            <div class="member-text">
+                After extended periods of storage, it may be necessary to charge and discharge the cells or batteries several times to obtain maximum performance.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.a</code>
+            </div>
+            <div class="member-text">
+                Do not dismantle, open or shred secondary cells or batteries.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.d</code>
+            </div>
+            <div class="member-text">
+                Do not expose cells or batteries to heat or fire. Avoid storage in direct sunlight.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.6.9.b</code>
+            </div>
+            <div class="member-text">
+                Take countermeasures to prevent the cell contents scattering when cells catch fire. For example, a fire protection cloth or sand should be available in the work area, and the gas should be exhausted effectively.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>1</code>
+            </div>
+            <div class="member-text">
+                Domaine d’application
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.4.5</code>
+            </div>
+            <div class="member-text">
+                Domaine d&#x27;application du courant de charge.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-1">
+        <div class="group-header">
+            <h2>Group 2: Test Acceptance Criteria and Documentation Requirements</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 95%</span>
+                <span class="badge badge-count">10 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To establish clear pass/fail criteria for safety testing of battery systems and e-bikes, ensuring no catastrophic failures occur during or after testing, and to ensure proper documentation and traceability of test samples and component certifications.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>Battery systems and e-bikes under test (DUT) shall meet the following acceptance criteria and documentation requirements:<br><br>a) Test Acceptance Criteria - During testing and applicable post-test observation periods, the DUT shall exhibit no evidence of:<br>   1) Leakage of electrolyte or other fluids<br>   2) Enclosure rupture or disassembly<br>   3) Fire or explosion<br>   4) For voltage class B DUT: loss of isolation resistance below 100 Ω/V (measured during test and 1 hour post-test observation period)<br><br>b) Post-Test Observation Periods:<br>   1) Standard observation: 1 hour post-test for fire, explosion, and isolation resistance verification<br>   2) Extended observation: 6 hours post-test for leakage, rupture, fire, or explosion assessment (where specified by test protocol)<br><br>c) Fire Test Specific Criteria:<br>   1) Cheesecloth (bleached cotton cloth of approximately 40 g/m²) shall be placed 100 mm above the DUT during fire testing<br>   2) After completion of fire test, the cheesecloth shall remain intact with no evidence of ignition or damage<br><br>d) Internal AC Resistance Measurement:<br>   1) When required by test protocol, measurement of internal AC resistance shall be performed as specified in the applicable test procedure<br><br>e) Documentation Requirements - The following documentation shall be delivered with the DUT:<br>   1) Certificates for all components and subsystems (refer to applicable standard&#x27;s component certification table for specific requirements)<br>   2) Overview of all provided test samples including:<br>      - Serial numbers for each sample<br>      - Cycle history for each sample<br>      - Sample identification and traceability information</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">D.2.b.3</td>
+                <td class="diff-text">Specifically addresses internal AC resistance measurement methodology as part of test procedures, which is not explicitly mentioned in EN 50604-1.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">6.102.3, 6.103.3, 8.3.103</td>
+                <td class="diff-text">Provides varying post-test observation periods (1 hour vs 6 hours) depending on the specific test being performed. Also includes specific isolation resistance requirement of 100 Ω/V for voltage class B DUT.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">5.109</td>
+                <td class="diff-text">Includes specific cheesecloth fire test criterion with defined material specification (40 g/m²) and placement distance (100 mm), derived from IEC 62368-1:2010.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">EE.2.4, EE.2.6</td>
+                <td class="diff-text">Requires delivery of component/subsystem certificates and detailed sample documentation (serial numbers, cycle history) with the DUT, which are administrative requirements not present in IEC 62133-2 clauses in this cluster.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    EN 50604-1 includes specific administrative and documentation requirements (component certificates per Table 1, sample serial numbers and cycle history overview) that are procedural in nature. IEC 62133-2 includes specific measurement methodology for internal AC resistance. The cheesecloth fire test criterion with specific material and distance specifications is unique to EN 50604-1.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (10)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>D.2.b.3</code>
+            </div>
+            <div class="member-text">
+                Step 3 – The measurement of internal AC resistance shall be performed as noted below.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>EE.2.4</code>
+            </div>
+            <div class="member-text">
+                Certificates for components and subsystems shall be delivered with the DUT. See Table 1 for details about required certificates.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>6.102.3</code>
+            </div>
+            <div class="member-text">
+                During the test and for a 1 h post-test observation period, the DUT shall exhibit no evidence of leakage or DUT enclosure rupture, fire, or explosion, and voltage class B DUT shall maintain an isolation resistance of at least 100 Ω/V.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>5.109</code>
+            </div>
+            <div class="member-text">
+                Test result fire Cheesecloth shall be placed in 100 mm distance above the DUT. After the test, this cheesecloth shall remain intact. NOTE Cheesecloth: bleached cotton cloth of approximately 40 g/m2 (derived from IEC 62368–1:2010).
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>6.103.3</code>
+            </div>
+            <div class="member-text">
+                During the test and for 6 h post-test observation period, the DUT shall exhibit no evidence of leakage, rupture, fire or explosion.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>10.1.103</code>
+            </div>
+            <div class="member-text">
+                The DUT shall not exhibit any evidence of disassembly or fire.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>8.101.3</code>
+            </div>
+            <div class="member-text">
+                The DUT shall not exhibit any evidence of rupture, fire or disassembly.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>8.3.103</code>
+            </div>
+            <div class="member-text">
+                During the test and for a 1 h post-test observation period, the DUT shall exhibit no evidence of fire or explosion.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>8.102.3</code>
+            </div>
+            <div class="member-text">
+                The DUT shall not exhibit any evidence of leakage, rupture, fire, or explosion.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>EE.2.6</code>
+            </div>
+            <div class="member-text">
+                An overview about provided samples with their serial numbers and their respective cycle history shall be delivered with the DUT.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-2">
+        <div class="group-header">
+            <h2>Group 3: Test Probe and Nickel Particle Specifications for Safety Testing</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 95%</span>
+                <span class="badge badge-count">25 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To define precise specifications for test equipment and materials used in safety testing procedures, including test finger probes for accessibility testing and nickel particle specifications for internal short circuit testing of battery cells, ensuring reproducible and standardized test conditions across laboratories.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>Test equipment and materials for safety testing shall conform to the following specifications:<br><br>a) Test Finger Probe (for accessibility testing):<br>   1) The test finger shall be derived from EN 61032:1998, Figure 2, test probe B, without joints<br>   2) Material: metal, except where otherwise specified<br>   3) Tolerances on dimensions without specified tolerances:<br>      - On angles: +0° / −10°<br>      - On linear dimensions ≤ 25 mm: +0 mm / −0.05 mm<br>      - On linear dimensions &gt; 25 mm: ±0.2 mm<br>   4) All linear dimensions are in millimetres<br>   5) Refer to applicable standard figure for complete dimensional specifications<br><br>b) Nickel Particle (for internal short circuit testing of battery cells):<br>   1) Shape: L-shaped as specified in applicable standard figures<br>   2) Dimensions:<br>      - Height: 0.2 mm<br>      - Thickness: 0.1 mm<br>      - L shape angle: 90° ± 10°<br>      - Each side of L: 1.0 mm with 5% tolerance<br>   3) Material: more than 99% pure nickel (mass fraction)<br><br>c) Nickel Particle Insertion Procedures for Cylindrical Cells:<br>   1) Insertion between positive active material zone and negative active material zone:<br>      i) IF the outer turn of the positive substrate is aluminum foil, cut the foil at the separation line between aluminum foil and active material to perform short circuit test between positive and negative active materials<br>      ii) Insert the nickel particle between positive active material and separator at 20 mm from the edge of the aluminum foil cut<br>      iii) Alignment of nickel particle shall be as shown in applicable standard figure<br>      iv) Direction of L-shaped corner is in the winding direction<br>   2) Insertion between positive aluminum foil (uncoated zone) and negative coated zone (active material):<br>      i) WHEN aluminum foil of positive electrode is exposed on outer turn and aluminum foil faces the coated negative active material, use the following procedure<br>      ii) Cut the aluminum foil at 10 mm from the separation line between aluminum foil and active material<br>      iii) Insert nickel particle between aluminum foil and separator<br>      iv) Alignment of nickel particle shall be as shown in applicable standard figure<br>      v) Insert nickel particle at 1.0 mm from edge of positive active material coating on aluminum foil<br>   3) Mark the position of nickel particle on both ends of the separator winding using the following procedure:<br>      i) Place insulating sheet between separator facing the nickel particle and negative electrode to protect against short circuits<br>      ii) Manually wind electrodes and separator while maintaining nickel particle in place and apply adhesive tape to winding<br>      iii) Mark position of nickel particle on winding<br>      iv) Place winding in polyethylene bag with tight seal and close hermetically<br>      v) Place polyethylene bag in aluminum-coated bag to prevent drying<br>      vi) Complete procedure within 30 minutes<br><br>d) Nickel Particle Insertion Procedures for Prismatic Cells:<br>   1) Before inserting nickel particle, place insulating sheet between negative electrode and separator located below nickel particle and negative electrode as shown in applicable standard figure to protect against short circuits<br>   2) Insertion of nickel particle in winding:<br>      i) Insert nickel particle between positive coated zone (active material) and negative coated zone (active material)<br>      ii) Insert nickel particle between positive coated zone (active material) and separator OR between separator and negative coated zone (active material)<br>      iii) IN CASE OF aluminum cell case, insert nickel particle between positive coated zone (active material) and separator<br>      iv) Alignment of nickel particle shall be as shown in applicable standard figure<br>      v) Nickel particle is positioned at center (diagonally) of winding<br>      vi) Direction of L-shaped corner of nickel particle is in winding direction<br><br>e) Test Preparation with Nickel Particle:<br>   1) Oven temperature is set as specified in applicable test table<br>   2) Place winding and nickel particle in aluminum foil bag and place in oven for 45 minutes ± 15 minutes<br>   3) Remove winding from sealed bag and attach voltage measurement leads and thermocouple for temperature to surface of winding<br>   4) Place winding in mounting fixture to locate nickel particle position under press<br>   5) Remove insulating sheet and close oven door<br><br>f) Explosion Test Result Criteria:<br>   1) Rupturing is considered to have occurred WHERE solid parts of the device under test have penetrated a wire mesh screen placed 25 cm away from the device under test<br>   2) Wire mesh screen specifications:<br>      - Material: annealed aluminum wire<br>      - Wire diameter: 0.25 mm<br>      - Grid density: 6 to 7 wires per cm</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">Annex DD, 5.108</td>
+                <td class="diff-text">Specifies test finger probe dimensions and tolerances for accessibility testing, and defines explosion test result criteria with wire mesh screen specifications. Does not address nickel particle specifications.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">A.5.4, A.5.5, A.5.6, 7.3.9.b.3</td>
+                <td class="diff-text">Provides detailed nickel particle specifications and insertion procedures for internal short circuit testing of both cylindrical and prismatic battery cells. Includes extensive procedural details for sample preparation, winding procedures, and test setup. Does not address test finger probe specifications.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    EN 50604-1 uniquely specifies the test finger probe for accessibility testing and explosion test result criteria with wire mesh screen. IEC 62133-2 uniquely specifies nickel particle dimensions, material purity requirements, and detailed insertion procedures for internal short circuit testing of battery cells including cylindrical and prismatic configurations. These represent completely different test equipment for different test purposes and cannot be meaningfully consolidated beyond documentation in a single specification.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (25)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>Annex DD</code>
+            </div>
+            <div class="member-text">
+                Test probe. Figure DD.1 — Test probe “test finger” NOTE 1 The test finger is derived from EN 61032:1998, Figure 2, test probe B. However, no joints are provided. NOTE 2 Linear dimensions are in millimetres. NOTE 3 Material of finger: metal, except where otherwise specified. NOTE 4 Tolerances on dimensions without specified tolerances: - on angles: +0 / −10° - on linear dimensions: ≤ 25 mm: +0 mm / −0,05 mm &gt; 25 mm: ±0,2 mm.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.4</code>
+            </div>
+            <div class="member-text">
+                Dimensions: Height: 0,2 mm; Thickness: 0,1 mm; L shape (Angle: 90° ± 10°): 1,0 mm for each side with 5 % tolerance. Material: more than 99 % (mass fraction) pure nickel.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.4</code>
+            </div>
+            <div class="member-text">
+                La forme de la particule de nickel doit être comme représentée à la Figure A.3. Dimensions: Hauteur: 0,2 mm; Épaisseur: 0,1 mm; Forme en L (Angle: 90° ± 10 °): 1,0 mm pour chaque côté avec une tolérance de 5 %. Matière: plus de 99 % de nickel pur en fraction massique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.1.2</code>
+            </div>
+            <div class="member-text">
+                Insérer la particule de nickel entre la matière active positive et le séparateur. L&#x27;alignement de la particule de nickel doit être comme représenté à la Figure A.4. La particule de nickel doit être insérée à 20 mm du bord de la coupe de la feuille d&#x27;aluminium. La direction du coin en forme de L est dans le sens de l&#x27;enroulement.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.4</code>
+            </div>
+            <div class="member-text">
+                Forme de la particule de nickel.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.3</code>
+            </div>
+            <div class="member-text">
+                Forme de la particule de nickel.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.10</code>
+            </div>
+            <div class="member-text">
+                Dimensions de la particule de nickel obtenue.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2.3</code>
+            </div>
+            <div class="member-text">
+                Insérer la particule de nickel entre la feuille d&#x27;aluminium et le séparateur. L&#x27;alignement de la particule de nickel doit être comme représenté à la Figure A.5. La particule de nickel doit être insérée à 1,0 mm du bord du revêtement de matière active positive sur la feuille d&#x27;aluminium.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.6</code>
+            </div>
+            <div class="member-text">
+                Insertion de la particule de nickel dans l&#x27;élément parallélépipédique. a) Avant d’insérer la particule de nickel, placer une feuille isolante entre l&#x27;électrode négative et le séparateur situé en dessous de la particule de nickel et l&#x27;électrode négative, comme représenté à la Figure A.7, pour la protéger contre les courts-circuits. b) Insertion de la particule de nickel dans le bobineau. 1) Insertion de la particule de nickel entre la zone enduite positive (matière active) et la zone enduite négative (matière active) pour l&#x27;élément parallélépipédique (voir Figure A.9). i) Insérer la particule de nickel entre la zone enduite positive (matière active) et le séparateur ou entre le séparateur et la zone enduite négative (matière active). Dans le cas d&#x27;un boîtier d&#x27;élément en aluminium, insérer la particule de nickel entre la zone enduite positive (matière active) et le séparateur. ii) Insérer la particule de nickel entre la matière active positive et le séparateur. L&#x27;alignement de la particule de nickel doit être comme représenté à la Figure A.7. La particule de nickel est positionnée au centre (diagonalement) du bobineau. La direction du coin en forme de L de la particule de nickel est dans la direction de l&#x27;enroulement.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.5</code>
+            </div>
+            <div class="member-text">
+                Position d&#x27;insertion de la particule de nickel entre la feuille d&#x27;aluminium positive et la zone imprégnée de matière active négative de l&#x27;élément cylindrique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.4</code>
+            </div>
+            <div class="member-text">
+                Position d&#x27;insertion de la particule de nickel entre les zones enduites de matière active positive et négative dans un élément cylindrique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5</code>
+            </div>
+            <div class="member-text">
+                Insertion de la particule de nickel dans l&#x27;élément cylindrique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.6</code>
+            </div>
+            <div class="member-text">
+                Insertion de la particule de nickel dans l&#x27;élément parallélépipédique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.7</code>
+            </div>
+            <div class="member-text">
+                Position d&#x27;insertion de la particule de nickel entre les zones positive et négative enduites (de matière active) de l&#x27;élément parallélépipédique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Figure A.8</code>
+            </div>
+            <div class="member-text">
+                Position d&#x27;insertion de la particule de nickel entre la feuille d&#x27;aluminium positive et la zone enduite (de matière active) négative de l&#x27;élément parallélépipédique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.1</code>
+            </div>
+            <div class="member-text">
+                Insertion de la particule de nickel entre la zone enduite positive (matière active) et la zone enduite négative (matière active) pour l&#x27;élément cylindrique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2</code>
+            </div>
+            <div class="member-text">
+                Insertion de la particule de nickel entre la feuille d&#x27;aluminium positive (zone non enduite) et la zone enduite négative (matière active) dans un élément cylindrique.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.1.1</code>
+            </div>
+            <div class="member-text">
+                Si la spire extérieure du substrat positif est une feuille d&#x27;aluminium, couper la feuille au niveau de la ligne de séparation entre la feuille d&#x27;aluminium et la matière active afin d&#x27;effectuer l&#x27;essai de court-circuit entre la matière active positive et la matière active négative.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2.1</code>
+            </div>
+            <div class="member-text">
+                Lorsque la feuille d&#x27;aluminium de l&#x27;électrode positive est exposée sur la spire extérieure et que la feuille d&#x27;aluminium est tournée vers la matière active négative enduite, la procédure suivante doit être utilisée.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2.2</code>
+            </div>
+            <div class="member-text">
+                Lorsque la feuille d&#x27;aluminium de l&#x27;électrode positive est exposée sur la spire extérieure, couper la feuille d&#x27;aluminium à 10 mm de la ligne de séparation entre la feuille d&#x27;aluminium et la matière active.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>A.5.5.2</code>
+            </div>
+            <div class="member-text">
+                Marquer la position de la particule de nickel sur les deux extrémités du bobineau du séparateur. La procédure est la suivante. a) Placer la feuille isolante entre le séparateur tourné vers la particule de nickel et l&#x27;électrode négative pour la protéger contre les court-circuits. b) Enrouler manuellement les électrodes et le séparateur en maintenant en place la particule de nickel et appliquer un ruban adhésif au bobineau. c) Marquer la position de la particule de nickel sur le bobineau. d) Mettre le bobineau dans un sac en polyéthylène avec une fermeture étanche et le fermer hermétiquement. Mettre le sac en polyéthylène dans un sac recouvert d&#x27;aluminium pour l&#x27;empêcher de sécher. Remarque: La procédure doit être achevée en 30 min.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.9.b.3.B</code>
+            </div>
+            <div class="member-text">
+                Enlever le bobineau du sac étanche et fixer les prises de mesures de la tension et du thermocouple pour la température, à la surface du bobineau. Placer le bobineau dans le gabarit de montage pour localiser l&#x27;emplacement de la particule de nickel sous la presse.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.9.b.3.C</code>
+            </div>
+            <div class="member-text">
+                Retirer la feuille isolante et fermer la porte de l&#x27;étuve.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>5.108</code>
+            </div>
+            <div class="member-text">
+                Test result explosion Rupturing occurred where solid parts of the DUT have penetrated a wire mesh screen (annealed aluminium wire with a diameter of 0,25 mm and a grid density of 6 to 7 wires per cm) placed 25 cm away from the DUT. NOTE In other publications the term explosion is used in the same meaning. [SOURCE: Batso 1]
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.9.b.3.A</code>
+            </div>
+            <div class="member-text">
+                Préparation pour l&#x27;essai
+ A La température de l&#x27;étuve est réglée comme spécifié dans le Tableau 5. Des indications concernant la préparation des échantillons sont fournies à l’Article A.5 et à la Figure A.6 et à la Figure A.9. Placer le bobineau et la particule de nickel dans un sac en feuille d&#x27;aluminium et mettre dans l’étuve pendant 45 min ± 15 min.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-3">
+        <div class="group-header">
+            <h2>Group 4: Battery Installation Instructions and Vehicle Accident Simulation</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 90%</span>
+                <span class="badge badge-count">4 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span> <span class="badge badge-standard">UL 2271 2023{Ed3} - Instructions for Batteries.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure that battery systems are provided with complete installation instructions that prevent mechanical stress and movement, and that battery systems are tested for resilience in simulated vehicle accident scenarios including water immersion to verify safety under foreseeable accident conditions.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>Battery systems shall be provided with complete instructions and shall be tested for accident scenarios as follows:<br><br>a) Installation and Integration Instructions: The battery system shall be provided with complete instructions for installation and integration in the end-use vehicle, including:<br>   1) Instructions for how to secure the battery system in the end-use vehicle to prevent movement during operation, transport, and foreseeable use conditions<br>   2) Instructions to prevent stress on electrical connections and mechanical parts<br>   3) All necessary specifications and procedures for proper mounting and fixation<br><br>b) Simulated Vehicle Accident Testing: The battery system shall be subjected to simulated vehicle accident testing to verify safety performance under accident conditions, including:<br>   1) Mechanical impact and crash simulation testing as applicable to the vehicle type<br>   2) Water immersion testing that simulates flooding conditions which may occur when a vehicle is submerged or flooded<br><br>c) Documentation: All installation instructions shall be complete, clear, and sufficient to enable proper installation by qualified personnel without creating safety hazards related to movement, mechanical stress, or connection integrity.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>UL 2271</strong></td>
+                <td class="diff-clauses">47, 47.1</td>
+                <td class="diff-text">UL 2271 focuses exclusively on the provision of installation and integration instructions, with specific emphasis on securing the battery system (referred to as EESA - Electrical Energy Storage Assembly) to prevent movement and stress on connections and parts. Does not explicitly require accident simulation testing.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">8, 8.3.101</td>
+                <td class="diff-text">EN 50604-1 focuses on simulated vehicle accident testing requirements, including water immersion testing to simulate flooding scenarios. Does not explicitly address installation instruction requirements in the provided clauses.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    UL 2271 uniquely requires complete installation and integration instructions as a mandatory deliverable with the battery system. EN 50604-1 uniquely requires simulated vehicle accident testing including water immersion testing (clause 8.3.101) to simulate flooding conditions. These represent different compliance domains: documentation/instructions versus physical testing requirements.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (4)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>UL 2271 2023{Ed3} - Instructions for Batteries.pdf</strong> -
+                <code>47.1</code>
+            </div>
+            <div class="member-text">
+                An EESA shall be provided with complete instructions for installation and integration in the end use vehicle including instructions for how to secure the EESA in the end use vehicle to prevent movement and stress on connections and parts.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>UL 2271 2023{Ed3} - Instructions for Batteries.pdf</strong> -
+                <code>47 General</code>
+            </div>
+            <div class="member-text">
+                General instructions for EESAs.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>8</code>
+            </div>
+            <div class="member-text">
+                Simulated vehicle accidents
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>8.3.101</code>
+            </div>
+            <div class="member-text">
+                Simulates a water immersion which may occur when a vehicle is flooded.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-4">
+        <div class="group-header">
+            <h2>Group 5: External Short Circuit Testing Requirements for Cells and Batteries</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 90%</span>
+                <span class="badge badge-count">4 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure that cells and batteries can withstand external short circuit conditions without fire, explosion, or rupture, thereby protecting users and equipment from catastrophic failure during accidental short circuit events.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>Cells and batteries shall be tested for external short circuit resistance to verify safe behavior under fault conditions. The following requirements apply:<br><br>a) Cell-level external short circuit test:<br>   i) Test each cell type individually for external short circuit conditions<br>   ii) Apply test conditions as specified in IEC 62133-2 clause 7.3.1<br>   iii) Cells shall not catch fire or explode during or after the test<br><br>b) Battery-level external short circuit test:<br>   i) Test complete battery assemblies for external short circuit conditions<br>   ii) Apply test conditions as specified in IEC 62133-2 clause 7.3.2<br>   iii) Batteries shall not catch fire or explode during or after the test<br><br>c) Short circuit test procedure (applicable to both cells and batteries):<br>   i) Stabilize the test sample at 55 ± 2 °C ambient temperature<br>   ii) Apply an external resistance of less than 0.1 Ω across the terminals<br>   iii) Maintain the short circuit condition for 1 hour<br>   iv) After removing the short circuit, observe the sample for an additional 6 hours<br>   v) During the entire test duration (short circuit period plus observation period), the sample shall not exhibit fire, explosion, or rupture<br><br>d) Pass criteria:<br>   i) No fire occurrence<br>   ii) No explosion<br>   iii) No rupture or venting that could lead to safety hazards<br>   iv) Sample may exhibit temperature rise, swelling, or leakage, but must not create immediate safety hazards</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">7.3.1, 7.3.2</td>
+                <td class="diff-text">Explicitly separates cell-level testing (7.3.1) from battery-level testing (7.3.2), requiring both types of tests to be performed independently. Does not provide detailed test procedure parameters in the clause titles provided.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">9.1, FF.6.5.1</td>
+                <td class="diff-text">Provides specific detailed test parameters including stabilization temperature (55 ± 2 °C), external resistance threshold (less than 0.1 Ω), short circuit duration (1 hour), and observation period (6 hours). Clause FF.6.5.1 appears to be an informative annex providing simulation details.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Member Requirements (4)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.1</code>
+            </div>
+            <div class="member-text">
+                External short-circuit (cell)
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.2</code>
+            </div>
+            <div class="member-text">
+                External short-circuit (battery)
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>9.1</code>
+            </div>
+            <div class="member-text">
+                Short circuit
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>FF.6.5.1</code>
+            </div>
+            <div class="member-text">
+                Simulates an external short circuit. After stabilizing at 55 ± 2 °C apply an external resistance of less than 0,1 Ω for 1 h and then observe for 6 h.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-5">
+        <div class="group-header">
+            <h2>Group 6: Battery External Short-Circuit Protection and Response</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure that battery management systems and protection circuits prevent fire, explosion, or excessive temperature rise when the battery terminals are externally short-circuited, either through inherent design or active protection mechanisms that disconnect the short-circuit current.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>The battery and its protection system shall prevent fire or explosion during external short-circuit conditions and comply with the following:<br>a) Protection requirement: The battery management system or overcurrent protection function shall disconnect the short-circuit current when an external short-circuit occurs.<br>b) Test conditions for batteries without active protection or with single-fault simulation: A fully charged battery (charged according to manufacturer&#x27;s standard charging procedure) shall be stored at ambient temperature of 20 °C ± 5 °C, then short-circuited by connecting the positive and negative terminals with a total external resistance of 80 mΩ ± 20 mΩ.<br>c) Test duration: The battery shall remain on test for 24 hours OR until the case temperature of the battery declines by 20% of the maximum temperature rise, whichever occurs sooner. However, in case of rapid decline in short-circuit current, the battery shall remain on test for an additional one hour after the current reaches a low-end steady state condition.<br>d) Single fault condition testing: For batteries with discharge protection circuits, a single fault in the discharge protection circuit shall be conducted on one to four samples (depending upon the protection circuit configuration) before conducting the short-circuit test.<br>e) Acceptance criteria: The device under test shall exhibit:<br>   i) No fire<br>   ii) No explosion<br>   iii) No disassembly<br>   iv) Battery casing temperature shall not exceed 150 °C within 6 hours of the short-circuit event.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">7.3.2</td>
+                <td class="diff-text">Focuses on battery-level testing with detailed test duration criteria including temperature decline monitoring and steady-state current conditions. Does not specify maximum casing temperature limit. Requires single-fault testing on 1-4 samples depending on protection circuit complexity.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">9.1.102</td>
+                <td class="diff-text">Applies specifically to &#x27;option 2&#x27; overcurrent protection function. Adds explicit requirement that protection shall disconnect short-circuit current. Specifies maximum casing temperature of 150 °C within 6 hours. Includes &#x27;no disassembly&#x27; as an additional acceptance criterion. Does not specify detailed test setup parameters (resistance, ambient temperature) or test duration beyond the 6-hour temperature monitoring window.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    IEC 62133-2 uniquely specifies the exact short-circuit resistance (80 mΩ ± 20 mΩ), ambient storage temperature (20 °C ± 5 °C), and detailed test duration logic based on temperature decline percentage and steady-state current conditions. EN 50604-1 uniquely specifies the 150 °C maximum casing temperature limit within 6 hours and the &#x27;no disassembly&#x27; criterion, and applies specifically to &#x27;option 2&#x27; protection implementations.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>7.3.2</code>
+            </div>
+            <div class="member-text">
+                External short-circuit (battery) a) Requirements Short-circuiting of the positive and negative terminals of the battery shall not cause fire or explosion. b) Test A fully charged battery according to the procedure in 7.1.1 is stored in an ambient temperature of 20 °C ± 5 °C. The battery is then short-circuited by connecting the positive and negative terminals with a total external resistance of 80 mΩ ± 20 mΩ. The battery remains on test for 24 h or until the case temperature of battery declines by 20 % of the maximum temperature rise, whichever is the sooner. However, in case of a rapid decline in the short-circuit current, the battery should remain on test for an additional one hour after the current reaches a low end steady state condition. A single fault in the discharge protection circuit should be conducted on one to four (depending upon the protection circuit) of the five samples before conducting the short-circuit test. c) Acceptance criteria No fire, no explosion.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>9.1.102</code>
+            </div>
+            <div class="member-text">
+                The overcurrent protection function for option 2, if any, shall disconnect the short circuit current. The DUT shall not exhibit any evidence of: disassembly or fire. The temperature of the battery casing shall not exceed 150 °C within 6 h.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-6">
+        <div class="group-header">
+            <h2>Group 7: Referenced Terms and Definitions</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To establish a common vocabulary and definitional framework by referencing authoritative external standards and guides, ensuring consistent interpretation of technical and safety-related terminology throughout the document.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>For the purposes of this document, the terms and definitions given in the following referenced standards shall apply:<br>a) IEC 60050-482 (International Electrotechnical Vocabulary)<br>b) ISO/IEC Guide 51 (Safety aspects – Guidelines for their inclusion in standards)<br>c) ISO/TR 8713 (Cycles – Vocabulary)<br>d) ISO 12405-3 (Electrically propelled road vehicles – Test specification for lithium-ion traction battery packs and systems)<br>e) Any additional terms and definitions provided in subsequent clauses of this document<br><br>Where terms are defined in multiple referenced standards, the definition most specific to the application context shall take precedence. Where conflicts exist between referenced standards, the definition shall be explicitly clarified within this document.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">3</td>
+                <td class="diff-text">References IEC 60050-482 (electrotechnical vocabulary) and ISO/IEC Guide 51 (safety guidelines), reflecting a focus on battery cell and battery pack terminology and general safety principles.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">3</td>
+                <td class="diff-text">References ISO/TR 8713 (cycles vocabulary) and ISO 12405-3 (lithium-ion traction battery test specifications), reflecting a focus on e-bike/cycle-specific terminology and battery system integration. Includes explicit &#x27;Addition:&#x27; notation suggesting supplementary definitions follow.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    EN 50604-1 includes an &#x27;Addition:&#x27; marker indicating that supplementary definitions beyond the referenced standards are provided in subsequent text, whereas IEC 62133-2 uses &#x27;and the following apply&#x27; without the explicit &#x27;Addition&#x27; label. The substantive difference is minimal, but the formatting convention differs.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>3</code>
+            </div>
+            <div class="member-text">
+                For the purposes of this document, the terms and definitions given in IEC 60050-482, ISO/IEC Guide 51 and the following apply.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>3</code>
+            </div>
+            <div class="member-text">
+                For the purposes of this document, the terms and definitions given in ISO/TR 8713 and ISO 12405-3 and the following apply. Addition:
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-7">
+        <div class="group-header">
+            <h2>Group 8: Battery Current Sign Convention and Reference Test Current Definition</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To establish standardized definitions for expressing battery current measurements and test parameters, ensuring consistent interpretation of charge/discharge current values and enabling reproducible test conditions based on rated capacity.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>Battery current measurements and test parameters shall be defined and expressed as follows:<br><br>a) Reference test current (I): The charge or discharge current shall be expressed as a multiple of IA, where IA = CAh/1 h (as defined in IEC 61434), based on the rated capacity (CAh) of the cell or battery. This reference current provides the basis for specifying test conditions relative to the battery&#x27;s rated capacity.<br><br>b) Sign convention for battery current: The sign of battery current shall be specified such that:<br>   1) Discharge current is designated as positive (+)<br>   2) Charge current is designated as negative (-)<br><br>All technical documentation, test specifications, and user manuals shall apply these definitions consistently when referencing battery current values and test parameters.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">3.18</td>
+                <td class="diff-text">Provides the mathematical definition and calculation method for reference test current (I) based on rated capacity, with explicit reference to IEC 61434 for the IA parameter definition.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">3.23</td>
+                <td class="diff-text">Specifies the sign convention for battery current direction (positive for discharge, negative for charge) without addressing reference test current calculation.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    IEC 62133-2 uniquely provides the reference test current calculation methodology (I = multiple of CAh/1 h) which is essential for test parameter specification but not addressed in EN 50604-1. EN 50604-1 uniquely establishes the sign convention for current direction which is not specified in IEC 62133-2.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>3.18</code>
+            </div>
+            <div class="member-text">
+                reference test current I charge or discharge current expressed as a multiple of I A, where I A = C Ah/1 h, as defined in IEC 61434, and based on the rated capacity (C Ah) of the cell or battery
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-type">Definition</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>3.23</code>
+            </div>
+            <div class="member-text">
+                sign of battery current discharge current is specified as positive and the charge current as negative
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-type">Definition</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-8">
+        <div class="group-header">
+            <h2>Group 9: Battery Venting Definition</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To establish a common understanding of &#x27;venting&#x27; as a controlled, design-intended release of excessive internal pressure from a battery or cell that prevents catastrophic failure modes such as rupture, explosion, or uncontrolled disassembly.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>Venting is defined as the release of excessive internal pressure from a cell, battery, or device under test (DUT) in a manner intended by design to preclude:<br>a) Rupture of the cell or battery enclosure<br>b) Explosion<br>c) Disassembly of the battery or device components<br><br>This definition applies to pressure relief mechanisms that are deliberately incorporated into the battery design to manage internal pressure buildup in a controlled manner, thereby preventing uncontrolled failure modes that could result in safety hazards.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">3.10</td>
+                <td class="diff-text">Uses the term &#x27;rupture or explosion&#x27; as the failure modes that venting is intended to prevent. Applies specifically to cells or batteries.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">3.27</td>
+                <td class="diff-text">Uses the term &#x27;rupture or disassembly&#x27; as the failure modes that venting is intended to prevent (replacing &#x27;explosion&#x27; with &#x27;disassembly&#x27; from the ISO 12405-3:2014 source). Applies to &#x27;DUT&#x27; (device under test) rather than specifically cells or batteries. Notes this is a modified version of ISO 12405-3:2014, 3.25.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>3.10</code>
+            </div>
+            <div class="member-text">
+                venting release of excessive internal pressure from a cell or battery in a manner intended by design to preclude rupture or explosion
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span> <span class="badge badge-type">Definition</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>3.27</code>
+            </div>
+            <div class="member-text">
+                venting release of excessive pressure from a DUT intended by design to preclude rupture or disassembly [SOURCE: ISO 12405-3:2014, 3.25, modified — “Explosion” was replaced with “disassembly” into the present definition.]
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span> <span class="badge badge-type">Definition</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-9">
+        <div class="group-header">
+            <h2>Group 10: Test Measurement Accuracy and Instrumentation Requirements</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure that all safety testing is conducted with sufficient measurement accuracy and precision to produce reliable, reproducible results. This establishes minimum accuracy tolerances for test equipment and measurement techniques to ensure consistent evaluation of battery and e-bike safety compliance across different testing facilities.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>All safety testing shall be conducted using instrumentation and measurement techniques that meet the following accuracy tolerances, measured relative to the specified or actual parameters:<br>a) Voltage measurements: ± 1% accuracy<br>b) Current measurements: ± 1% accuracy<br>c) Temperature measurements: ± 2°C accuracy<br>d) Time measurements: ± 0.1% accuracy<br>e) Dimension measurements: ± 1% accuracy<br>f) Capacity measurements: ± 1% accuracy<br><br>These tolerances shall account for the combined accuracy of all sources of error, including:<br>- Measuring instrument accuracy<br>- Measurement technique uncertainties<br>- All other sources of error in the test procedure<br><br>Test reports shall include detailed documentation of the instrumentation used, including instrument specifications and calibration status.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">4</td>
+                <td class="diff-text">Provides complete and explicit accuracy tolerances for all six measurement parameters (voltage, current, temperature, time, dimension, capacity) with specific numeric values. Explicitly requires instrumentation details in test reports.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">9.1.101</td>
+                <td class="diff-text">References test procedure requirements but does not provide specific accuracy tolerance values in the clause text provided. The clause appears to be a section header or reference point rather than a complete requirement statement.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    EN 50604-1 clause 9.1.101 appears to be a test procedure section reference without detailed accuracy specifications in the provided text. The full requirements may be contained in subsequent subclauses not included in this cluster.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>4</code>
+            </div>
+            <div class="member-text">
+                The overall accuracy of controlled or measured values, relative to the specified or actual parameters, shall be within these tolerances: a) ± 1 % for voltage; b) ± 1 % for current; c) ± 2 °C for temperature; d) ± 0,1 % for time; e) ± 1 % for dimension; f) ± 1 % for capacity. These tolerances comprise the combined accuracy of the measuring instruments, the measurement techniques used, and all other sources of error in the test procedure. The details of the instrumentation used shall be provided in any report of results.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>9.1.101</code>
+            </div>
+            <div class="member-text">
+                Test procedure
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-10">
+        <div class="group-header">
+            <h2>Group 11: Warnings for Ingestion Hazards and Test Safety Precautions</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure that appropriate warnings are provided to protect end users from ingestion hazards associated with small batteries, and to ensure that personnel conducting tests are protected from chemical, burn, or explosion hazards during testing procedures.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>Warning and precautionary statements shall be provided as follows:<br><br>a) Ingestion Hazard Warning: Coin cells and batteries identified as small batteries (according to the applicable standard&#x27;s definition of small batteries) shall include a caution statement regarding the hazards of ingestion. This warning shall address the specific risks associated with swallowing or ingesting small cells and batteries.<br><br>b) Test Safety Precautions: When conducting tests specified in the applicable safety standards, appropriate measures shall be taken to protect personnel and the affected environment from possible chemical, burn, or explosion hazards. All persons carrying out tests shall be informed of the hazardous nature of the tests and provided with adequate safety precautions and protective equipment.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">9.3</td>
+                <td class="diff-text">Specifically addresses ingestion hazards for coin cells and small batteries, with reference to clause 8.2 for identification criteria. This is a product labeling requirement for end-user safety.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">5.103.2</td>
+                <td class="diff-text">Addresses safety precautions for test personnel conducting hazardous tests, not end-user warnings. Includes a note referencing additional details in Annex BB.2. This is a test procedure safety requirement, not a product labeling requirement.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    IEC 62133-2 clause 9.3 uniquely requires ingestion hazard warnings specifically for coin cells and small batteries as defined in clause 8.2. EN 50604-1 clause 5.103.2 uniquely requires test safety precautions for personnel conducting tests, with additional guidance provided in Annex BB.2. These requirements serve fundamentally different purposes (end-user product safety vs. test personnel safety) and cannot be meaningfully merged beyond the general concept of &#x27;warnings&#x27;.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>9.3</code>
+            </div>
+            <div class="member-text">
+                Caution for ingestion of small cells and batteries Coin cells and batteries identified as small batteries according to 8.2 shall include a caution statement regarding the hazards of ingestion in accordance with 8.2.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>5.103.2</code>
+            </div>
+            <div class="member-text">
+                Precautions when conducting tests Some of the tests specified can be hazardous to the persons carrying them out; all appropriate measures to protect personnel and affected environment from possible chemical, burn or explosion hazards should be taken. NOTE More details are provided in BB.2.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-medium">Medium</span> <span class="badge badge-safety">Safety</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-11">
+        <div class="group-header">
+            <h2>Group 12: Battery Disposal and Recycling Instructions</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure that users receive clear instructions for the safe storage, handling, and disposal of battery systems, including recycling information, to prevent environmental harm and safety hazards associated with improper battery disposal.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>The following disposal and recycling information shall be marked on or supplied with the battery system:<br><br>a) Storage and disposal instructions shall be provided;<br><br>b) Special disposal instructions about the battery system shall be included, emphasizing proper recycling and disposal procedures;<br><br>c) Instructions shall state that users should heed enclosed special disposal instructions about the battery system;<br><br>d) Recommended storage conditions shall be specified:<br>   1) Recommended storage temperature: −10 °C to below 30 °C (if not otherwise specified by the supplier);<br>   2) Store at dry places, away from open flames and food;<br>   3) Avoid large temperature changes;<br>   4) Do not store close to heating devices, avoid direct sunlight;<br>   5) Preferred storage at 50% of the nominal capacity (if not otherwise specified by the supplier);<br>   6) Temperature above 70 °C may result in battery leakage and rupture (if not otherwise specified by the supplier);<br><br>e) Instructions shall state: do not open, chop up or disassemble rechargeable battery systems at any times;<br><br>f) Keep original printed papers with product information for later consultation;<br><br>g) IF the battery system is removed from the device: if possible, remove battery systems from device if they are not being needed;<br><br>h) Recommended charging instructions shall be provided.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">9.4</td>
+                <td class="diff-text">Requires both storage/disposal instructions and recommended charging instructions to be marked on or supplied with the battery, but does not specify detailed content requirements for these instructions.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">BB.2</td>
+                <td class="diff-text">Provides extensive detailed requirements for disposal-related instructions including specific storage temperature ranges (−10 °C to below 30 °C), storage capacity recommendations (50% nominal capacity), temperature limits (above 70 °C may cause leakage/rupture), and explicit prohibition against disassembly. Also includes broader safety instructions beyond disposal (e.g., usage restrictions, charging, handling) as part of the overall instruction set.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    EN 50604-1 includes extensive additional instruction requirements beyond disposal/recycling that are part of the same clause but cover broader safety topics: user capability restrictions, altitude limitations (&gt;2000m), functional earth warnings, prohibition of exposure to heat/fire/mechanical impacts/short circuits, solvent/chemical contact warnings, charging procedures, performance optimization at room temperature (20°C ± 5K), proper application usage, transport requirements for &gt;100Wh batteries per UN-T 3480, and detailed emergency response procedures for inhalation, skin contact, eye contact, ingestion, and fire scenarios. These broader instructions are intermingled with disposal instructions in the source clause but extend well beyond the disposal/recycling scope.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>9.4</code>
+            </div>
+            <div class="member-text">
+                Other information The following information shall be marked on or supplied with the battery: • storage and disposal instructions; • recommended charging instructions.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>BB.2</code>
+            </div>
+            <div class="member-text">
+                Instructions Instructions shall be provided with the battery system so that the battery system can be used safely. Instructions may be marked on the battery system. If it is necessary to take precautions during user maintenance, appropriate details shall be given. The instructions shall state the substance of the following: a) this battery system is not intended for use by persons (including children) with reduced physical, sensory or mental capabilities, or lack of experience and knowledge, unless they have been given supervision or instruction concerning use of the battery system by a person responsible for their safety; b) children should be supervised to ensure that they do not play with the battery system; c) for battery system s intended for use at altitudes exceeding 2 000 m, the maximum altitude of use shall be stated; d) The instructions for battery system incorporating a functional earth shall state the substance of the following: e) this battery system incorporates an earth connection for functional purposes only; f) do not open, chop up or disassemble rechargeable battery systems at any times; g) do not expose battery systems to great heat or fire; h) do not short circuit battery system; i) do not expose battery systems to strong mechanical impacts; j) do not use a charging device other than the one made for use with your device; k) keep batteries systems dry and clean; l) battery systems shall not be in contact with solvent materials (i.e. dilution, alcohol, oil, anti-corrosive) or chemicals that impact surfaces (i.e. detergents); m) rechargeable Battery systems shall be charged before being used. Only the proper, correct charging device may be used. For charging, please heed the producer’s instructions or the instructions in the manual of the device; n) after a prolonged storage time, it may be necessary to charge and discharge the battery system multiple times to get back to performance; o) rechargeable battery systems have the greatest performance when kept and used at normal room temperature (20 °C ± 5 K); p) keep original printed papers with product information for later consultation; q) only put battery systems to applications that they were designed for; r) if possible, remove battery systems from device, if they are not being needed; s) please heed enclosed special disposal instructions about battery system; t) for battery systems with more than 100 Wh a safety instruction according to UN-T 3480 is needed. Such battery system shall only be transported by professionals as dangerous goods; u) recommended storage temperature: −10 °C to below 30 °C (if not otherwise specified by the supplier); v) store at dry places, away from open flames and food; w) avoid big temperature changes; x) do not store close to heating devices, avoid direct sunlight; y) preferred storage at 50 % of the nominal capacity (if not otherwise specified by the supplier); z) temperature above 70 °C may result in battery leakage and rupture (if not otherwise specified by the supplier); aa) medical aid will be required in case of symptoms obviously caused by respiration or swallowing of combustion gases or contact with skin or eyes; bb) after inhalation: leave area immediately. Fresh air. Seek for medical assistance; cc) after skin contact: remove solid particles immediately. Flush affected areas with plenty of water (at least for 15 min). Remove contaminated clothes immediately. Seek for medical attention; dd) after eye contact: flush the eye gently with plenty of water (at least for 15 min). Shield unaffected eye. Seek for medical assistance; ee) after ingestion: drink plenty of milk or water and induce vomiting. Seek for medical attention; ff) fire: 1) cautiously remove other batteries if possible; 2) evacuate all persons from immediate area of fire; 3) use plenty of cold water (min. 10 times pack weight). Compliance is checked by inspection.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-safety">Safety</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-12">
+        <div class="group-header">
+            <h2>Group 13: Battery Disposal and Recycling Instructions</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">UL 2271 2023{Ed3} - Instructions for Batteries.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure that users receive clear instructions for the proper disposal of batteries and energy storage systems, preventing environmental harm and safety hazards that could result from improper disposal methods.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>The battery or energy storage system assembly (EESA) shall be provided with instructions for proper disposal and recycling. These instructions shall include:<br>a) A clear statement to dispose of the battery/EESA properly in accordance with local regulations<br>b) Guidance on proper use throughout the product lifecycle, including:<br>   i) Installation procedures<br>   ii) Charging and discharging procedures with applicable limits<br>   iii) Storage requirements and temperature limits<br>   iv) Disposal and recycling procedures<br>c) Temperature limits for operation and storage<br>d) Charging limits (voltage, current, and/or other applicable parameters)<br>e) Discharging limits (voltage, current, and/or other applicable parameters)<br>f) IF the product contains user-replaceable fuses, instructions for replacement of such fuses shall be provided</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2</strong></td>
+                <td class="diff-clauses">Annex C.v</td>
+                <td class="diff-text">Provides only a brief directive to &#x27;dispose of properly&#x27; without specifying the scope or detail of disposal instructions required.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>UL 2271</strong></td>
+                <td class="diff-clauses">47.2</td>
+                <td class="diff-text">Requires comprehensive instructions covering the entire product lifecycle (installation, charging, discharging, storage, and disposal) with specific inclusion of temperature limits, charging/discharging limits, and user-replaceable fuse replacement instructions. This is a significantly more detailed requirement than IEC 62133-2.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    UL 2271 uniquely requires instructions for user-replaceable fuse replacement, and explicitly mandates that temperature limits and charging/discharging limits be included in the instructions. IEC 62133-2 provides only a general disposal directive without specifying the breadth of lifecycle instructions required.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>Annex C.v</code>
+            </div>
+            <div class="member-text">
+                Dispose of properly.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>UL 2271 2023{Ed3} - Instructions for Batteries.pdf</strong> -
+                <code>47.2</code>
+            </div>
+            <div class="member-text">
+                An EESA shall be provided with instructions for the proper use including installation, charging and discharging, storage and disposal. These instructions shall include temperature limits, charging and discharging limits. Instructions for replacement of user replaceable fuses shall also be provided.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-13">
+        <div class="group-header">
+            <h2>Group 14: Safety-Related Definitions for Battery Systems</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</span> <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To establish standardized terminology for safety-critical concepts related to battery systems, ensuring consistent understanding of hazard sources and protective mechanisms across documentation, design specifications, and operational procedures.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>The following definitions shall be used consistently throughout all documentation, specifications, and communications related to battery system safety:<br><br>a) Danger: A potential source of harm or damage that could result in injury, property damage, or system failure.<br><br>b) Active Protective Device: A device integral to the battery pack or vehicle control unit (VCU) that requires active external controls and is intended for protection from or mitigation of abusive or out-of-range conditions experienced by the cell or battery. The active device cuts the connection to the VCU or to a consumer (e.g., a motor) if the controls detect a situation under which the battery pack/system could be damaged or become dangerous. Examples include MOSFETs and integrated circuits.</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>IEC 62133-2 {ed1.0} - 2017</strong></td>
+                <td class="diff-clauses">3.4</td>
+                <td class="diff-text">Provides a basic definition of &#x27;danger&#x27; in French (&#x27;source potentielle de dommage&#x27;) focusing on potential source of damage, without specific application context to battery protective systems.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">3.31</td>
+                <td class="diff-text">Provides a detailed, application-specific definition of &#x27;active protective device&#x27; with explicit scope (battery pack/VCU integration), functional description (cutting connections upon detection of dangerous conditions), and concrete examples (MOSFET, integrated circuits). Includes a normative note explaining the operational trigger conditions.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    EN 50604-1 uniquely defines &#x27;active protective device&#x27; with specific technical characteristics and examples relevant to e-bike battery systems. IEC 62133-2 uniquely provides a general definition of &#x27;danger&#x27; applicable across broader battery safety contexts.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>IEC 62133-2 {ed1.0} - 2017 - Secondary cells and batteries... – Safety requirements.pdf</strong> -
+                <code>3.4</code>
+            </div>
+            <div class="member-text">
+                danger: source potentielle de dommage
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>3.31</code>
+            </div>
+            <div class="member-text">
+                active protective device devices integral to the battery pack or the VCU requiring active external controls, that are intended for protection from or mitigation of abusive, out of range conditions experienced by the cell or battery Note 1 to entry: The active device cuts the connection to the VCU or to a consumer (e.g. a motor) if the controls detect a situation under which the battery pack/system could be damaged or become dangerous. EXAMPLE: MOSFET, integrated circuits.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+
+    <div class="group" id="group-14">
+        <div class="group-header">
+            <h2>Group 15: Charger Compatibility Marking for Non-Removable Batteries</h2>
+            <div class="group-badges">
+                <span class="badge status-medium">Medium Coverage</span>
+                <span class="badge badge-similarity">Similarity: 80%</span>
+                <span class="badge badge-count">2 clauses from 2 standards</span>
+                
+            </div>
+        </div>
+
+        <div class="group-content">
+            <div class="section">
+                <h3>Standards Covered</h3>
+                <div class="standards-list">
+                    <span class="badge badge-standard">SS_EN_50604_1_EN.pdf.pdf</span> <span class="badge badge-standard">UL 2271 2023{Ed3} - Instructions for Batteries.pdf</span>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3>Regulatory Intent</h3>
+                <p class="regulatory-intent">To ensure that users of electric vehicles with non-removable battery systems are clearly informed about charger compatibility requirements at the point of charging, preventing use of incompatible chargers that could create safety hazards.</p>
+            </div>
+
+            <div class="section highlight">
+                <h3>Consolidated Requirement</h3>
+                <div class="consolidated-requirement">
+                    <p>For battery systems that are not removed from the vehicle for charging and are intended to be used with a specific charger:<br><br>a) Installation instructions shall indicate that a charger compatibility marking be located near the accessible charging port of the vehicle<br><br>b) The marking shall be positioned where it will be visible to the user when charging the vehicle<br><br>c) The marking shall identify the specific charger(s) approved for use with the battery system<br><br>d) Installation documentation shall specify the exact location and visibility requirements for this marking to ensure it is accessible and readable during normal charging operations</p>
+                </div>
+            </div>
+
+            
+
+            <div class="section">
+                <h3>Differences Across Standards</h3>
+                <div class="critical-differences">
+                    
+        <table class="differences-table">
+            <thead>
+                <tr>
+                    <th>Standard</th>
+                    <th>Clauses</th>
+                    <th>Specific Differences / Stricter Requirements</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+            <tr>
+                <td class="diff-standard"><strong>UL 2271 2023 Ed3</strong></td>
+                <td class="diff-clauses">47.3</td>
+                <td class="diff-text">Explicitly cross-references clause 46.5 for the specific marking requirements and charger specification details. Requires installation instructions to mandate the marking placement rather than just recommending it.</td>
+            </tr>
+        
+            <tr>
+                <td class="diff-standard"><strong>EN 50604-1</strong></td>
+                <td class="diff-clauses">2</td>
+                <td class="diff-text">This clause is a normative references section that lists applicable standards including IEC/TS 61851-3-1 and IEC/TS 62196-4 for light electric vehicle charging systems, but does not directly specify marking requirements. It establishes the broader regulatory framework for charging system compatibility.</td>
+            </tr>
+        
+            </tbody>
+        </table>
+    
+                </div>
+            </div>
+
+            
+            <div class="section unique-section">
+                <h3>Unique Requirements</h3>
+                <div class="unique-content">
+                    EN 50604-1 Clause 2 provides an extensive list of normative references that establish the broader safety and compatibility framework for battery systems, chargers, and charging interfaces, including environmental testing standards (EN 60068-2-47, EN ISO 4892-2), battery charger safety standards (EN 60335-2-29), functional safety standards (EN ISO 13849, IEC 61508), and electric vehicle charging system standards (IEC/TS 61851-3-1, IEC/TS 62196-4). These references are indispensable for full application of the standard but do not directly translate to specific marking requirements.
+                </div>
+            </div>
+        
+
+            <div class="section">
+                <h3>Member Requirements (2)</h3>
+                <div class="members">
+                    
+        <div class="member">
+            <div class="member-header">
+                <strong>UL 2271 2023{Ed3} - Instructions for Batteries.pdf</strong> -
+                <code>47.3</code>
+            </div>
+            <div class="member-text">
+                For EESAs that are not removed from the vehicle for charging and are intended to be used with a specific charger per 46.5, installation instructions shall indicate that a marking per 46.5 be located near the accessible charging port of the vehicle where the marking will be visible to the user charging the vehicle.
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-high">High</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+
+        <div class="member">
+            <div class="member-header">
+                <strong>SS_EN_50604_1_EN.pdf.pdf</strong> -
+                <code>2</code>
+            </div>
+            <div class="member-text">
+                The following documents, in whole or in part, are normatively referenced in this document and are indispensable for its application. For dated references, only the edition cited applies. For undated references, the latest edition of the referenced document (including any amendments) applies. ISO 12405-3:2014, Electrically propelled road vehicles — Test specification for lithium-ion traction battery packs and systems — Part 3: Safety performance requirements This clause of ISO 12405-3:2014 is applicable except as follows: Additions: EN 60068-2-47, Environmental testing — Part 2-47: Test — Mounting of specimens for vibration, impact and similar dynamic tests (IEC 60068-2-47) EN 60335-2-29, Household and similar electrical appliances — Safety — Part 2-29: Particular requirements for battery chargers (IEC 60335-2-29) EN ISO 14021, Environmental labels and declarations — Self-declared environmental claims (Type II environmental labelling) (ISO 14021) EN ISO 4892-2, Plastics — Methods of exposure to laboratory light sources — Part 2: Xenon-arc lamps (ISO 4892-2) SEK Svensk Elstandard SIS single user license: Trek Bicycle Corporation, Ordered by: stefan_berggren@trekbikes.com. Date: 2019-11-26 EN 50604-1:2016 (E) EN ISO 7010:2012, Graphical symbols - Safety colours and safety signs - Registered safety signs (ISO 7010:2011) EN ISO 13849 (all parts), Safety of machinery — Safety-related parts of control systems (ISO 13849, all parts) IEC 60335-1, Household and similar electrical appliances — Safety — Part 1: General requirements IEC 60417:2002, Graphical symbols for use on equipment — 12-month subscription to online database comprising all graphical symbols published in IEC 60417 IEC/TS 60479-2:2007, Effects of current on human beings and livestock — Part 2: Special aspects IEC 61140, Protection against electric shock — Common aspects for installation and equipment IEC 61508 (all parts), Functional safety of electrical/electronic/programmable electronic safety-related systems IEC/TS 61851-3-1:20161), Electric Vehicles conductive power supply system — Part 3-1: General Requirements for Light Electric Vehicles (LEV) AC and DC conductive power supply systems IEC/TS 61851-32), Electric Vehicles conductive power supply system IEC/TS 62196-43), Plugs, socket-outlets, and vehicle couplers — Conductive charging of electric vehicles — Part 4: Dimensional compatibility and interchangeability requirements for a.c., d.c. and a.c./d.c. vehicle couplers for Class II or Class III light electric vehicles (LEV) IEC 62660 (all parts), Secondary lithium-ion cells for the propulsion of electric road vehicles
+            </div>
+            <div class="member-metadata">
+                <span class="badge badge-info">Informative</span> <span class="badge badge-safety">Safety</span> <span class="badge badge-manual">Manual</span>
+            </div>
+        </div>
+        
+                </div>
+            </div>
+        </div>
+    </div>
+    
+        </div>
+
+        <footer>
+            <p>Generated by Harmonization Layer - BikeRisk Compliance Tool</p>
+        </footer>
+    </div>
+</body>
+</html>

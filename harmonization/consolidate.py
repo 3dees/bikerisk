@@ -16,22 +16,19 @@ from harmonization.grouping import CATEGORY_TITLE_MAP
 def build_llm_prompt_for_group(
     clauses: List[Clause],
     group_index: int
-) -> str:
+) -> tuple[str, str]:
     """
-    Build a SAFE, Sonnet-4.5-optimized prompt for consolidating cross-standard
-    requirement groups. This version:
-    - Uses standard_name (not standard_id per patch, but we use what's available)
-    - Avoids markdown formatting
-    - Dynamically generates JSON schema per group
-    - Prevents hallucinations and invented technical details
-    - Forces strict JSON output only
+    Build system + user prompts for consolidating cross-standard requirement groups.
+    
+    Returns a tuple of (system_prompt, user_prompt) for Anthropic API.
+    Uses new differences_across_standards schema with standard_id, clause_labels, difference_summary.
 
     Args:
         clauses: List of similar Clause objects to consolidate
         group_index: Index of this group (for logging/tracking)
 
     Returns:
-        Formatted prompt string for the LLM
+        Tuple of (system_prompt_string, user_prompt_string)
     """
     # Verify this is a cross-standard group
     standards = [cl.standard_name for cl in clauses]
@@ -50,56 +47,119 @@ def build_llm_prompt_for_group(
         numbered.append(line)
     clause_block = "\n".join(numbered)
 
-    # Dynamically generate differences schema for the exact standards in this group
-    diff_items = []
-    for st in unique_standards:
-        diff_items.append(f'{{"standard": "{st}", "differences": ""}}')
-    differences_schema = ",\n      ".join(diff_items)
-
-    # Determine category hint (optional)
-    category_hint = ""
+    # Extract category and requirement_type metadata
+    category_label = "Unknown"
+    requirement_type_label = "unknown"
     if clauses and clauses[0].category:
         category = clauses[0].category
-        category_title = CATEGORY_TITLE_MAP.get(category, category)
-        category_hint = f"\nREGULATORY CATEGORY: {category_title}\nUse this category as guidance when choosing the group_title.\n"
+        category_label = CATEGORY_TITLE_MAP.get(category, category)
+    if clauses and clauses[0].requirement_type:
+        requirement_type_label = clauses[0].requirement_type
 
-    prompt = f"""You are a senior regulatory compliance engineer specializing in multi-standard harmonization.
-Your task is to consolidate a group of similar clauses from different standards into one unified requirement.
-{category_hint}
-Source clauses:
+    # System prompt: persona/role
+    system_prompt = """You are a senior regulatory compliance engineer specializing in multi-standard harmonization for e-bike and battery safety standards.
+
+Your job:
+- Take one cluster of closely related clauses from one or more safety standards.
+- Understand the shared regulatory intent.
+- Produce a consolidated requirement that is detailed, manual-ready text which can be pasted directly into a user manual or internal requirement specification.
+- Preserve traceability to the original standards and clauses.
+- Never weaken safety requirements or discard stricter conditions.
+- Do not invent technical details or requirements that are not implied by the input clauses."""
+
+    # User prompt: task with data
+    user_prompt = f"""You are consolidating one pre-grouped cluster of similar clauses.
+
+Cluster metadata:
+- Regulatory category: {category_label}
+- Requirement type: {requirement_type_label}
+
+Source clauses (each line is one clause from a safety standard):
+
 {clause_block}
 
-Follow these rules carefully:
-- Identify the shared regulatory intent across all clauses.
-- Produce a detailed consolidated requirement containing all mandatory elements.
-- Do NOT invent technical details. Use only information present in the clauses.
-- Identify differences per standard (terminology, thresholds, extra requirements).
-- Identify unique requirements (appear in only one standard).
-- Identify conflicts (statements that cannot both be true).
-- If no unique requirements or conflicts exist, return "" for those fields.
-- Output STRICT JSON ONLY.
+Where each clause is formatted like:
+"1. [UL 2271] 5.1.101: Full requirement text…"
+"2. [EN 50604-1] 7.3.2: Full requirement text…"
+"3. [IEC 62133-2] 8.2.1: Full requirement text…"
 
-Provide JSON using this EXACT schema:
+Your tasks:
+
+1. Identify the shared REGULATORY INTENT:
+   - What safety or compliance outcome are these clauses collectively trying to ensure?
+
+2. Write ONE CONSOLIDATED REQUIREMENT that is:
+   - Detailed and manual-ready: someone can copy-paste it into a user manual or requirement spec.
+   - Structured: use a list format inside the text (e.g. a), b), c) or 1), 2), 3)) to enumerate all required elements.
+   - Complete: include ALL mandatory elements and conditions that appear in any of the source clauses.
+   - Precise: preserve all specific measurements, limits, temperatures, voltages, time durations, etc.
+   - Conditional: preserve any "IF X THEN Y" logic explicitly.
+
+   Avoid vague summaries like:
+   - "Instructions must address stability."
+
+   Prefer detailed, actionable text like:
+   - "Instructions shall address safe transport, handling, and storage, including:
+     a) Stability conditions during use, transportation, assembly, dismantling, testing, and foreseeable breakdowns
+     b) Mass information for the machinery/product and component parts regularly transported separately
+     c) Moving and storage procedures - IF moving or storage could result in damage creating risk of fire, electric shock, or injury during subsequent use, describe proper procedures preceded by warning statement
+     d) Prevention of sudden movements or hazards due to instability when handled per instructions"
+
+3. Identify and describe DIFFERENCES ACROSS STANDARDS:
+   - Note differences in:
+     - terminology,
+     - thresholds or numeric limits,
+     - required formats (e.g. paper vs digital),
+     - requirement strength (e.g. "shall" vs "should"),
+     - any standard-specific extra obligations.
+   - Represent these as a list of structured entries per standard.
+
+4. Identify UNIQUE REQUIREMENTS:
+   - Requirements that appear ONLY in a single standard in this cluster and cannot be cleanly rolled into the consolidated requirement.
+   - Summarize them briefly.
+
+5. Identify CONFLICTS:
+   - Only if there are true contradictions (statements that cannot both be true at the same time).
+   - If there are no conflicts, return an empty string for conflicts.
+
+VERY IMPORTANT CONSTRAINTS:
+- Do NOT invent technical details or new requirements that are not implied by the input clauses.
+- If a detail is ambiguous or missing in all clauses, do not guess.
+
+OUTPUT FORMAT:
+
+Return STRICT JSON ONLY using this EXACT schema:
+
 {{
-  "group_title": "",
-  "regulatory_intent": "",
-  "consolidated_requirement": "",
+  "group_title": "Short human readable title for this cluster, e.g. 'Battery charging temperature limits'",
+  "regulatory_intent": "One or two sentences describing the shared intent.",
+  "consolidated_requirement": "One detailed, manual-ready, structured requirement string that can be pasted into a manual.",
   "differences_across_standards": [
-      {differences_schema}
+    {{
+      "standard_id": "e.g. 'UL 2271' or 'EN 50604-1'",
+      "clause_labels": ["list", "of", "clause", "ids", "if known"],
+      "difference_summary": "Short description of how this standard differs (e.g. stricter limits, additional notes, or different format)."
+    }}
   ],
-  "unique_requirements": "",
-  "conflicts": ""
+  "unique_requirements": "Short description of any unique requirements that cannot be fully merged into the consolidated requirement. Empty string if none.",
+  "conflicts": "Short description of true conflicts between standards, or empty string if none."
 }}
 
-Return JSON only."""
+Constraints:
+- The top-level value MUST be a single JSON object with exactly these keys.
+- Do NOT include markdown, comments, or extra text outside JSON.
+- Do NOT add any extra keys.
+- If there are no differences, use an empty list for differences_across_standards.
+- If there are no unique requirements or conflicts, use empty strings for those fields.
+"""
 
-    return prompt
+    return system_prompt, user_prompt
 
 
 def enrich_group_with_llm(
     clauses: List[Clause],
     group_index: int,
-    call_llm: Callable[[str], str]
+    call_llm: Callable[[str, str], str]
 ) -> RequirementGroup:
     """
     Use LLM to consolidate a group of clauses into a RequirementGroup with unified core requirement.
@@ -113,15 +173,15 @@ def enrich_group_with_llm(
       - Prevention of fallback hallucination behavior
 
     This function:
-    1. Builds a prompt for the LLM
-    2. Calls the LLM (via dependency injection)
+    1. Builds system + user prompts for the LLM
+    2. Calls the LLM (via dependency injection with system + user messages)
     3. Parses the JSON response
     4. Creates a RequirementGroup object
 
     Args:
         clauses: List of Clause objects to consolidate
         group_index: Index of this group (used for group_id)
-        call_llm: Function that takes a prompt string and returns LLM response string
+        call_llm: Function that takes (system_prompt, user_prompt) and returns LLM response string
                   MUST use Claude Sonnet 4.5
 
     Returns:
@@ -144,12 +204,12 @@ def enrich_group_with_llm(
 
     print(f"[CONSOLIDATE] Group {group_index}: Consolidating {len(clauses)} clauses from {len(standards)} standards")
 
-    # Build prompt
-    prompt = build_llm_prompt_for_group(clauses, group_index)
+    # Build system + user prompts
+    system_prompt, user_prompt = build_llm_prompt_for_group(clauses, group_index)
 
-    # Call LLM
+    # Call LLM with system + user messages
     print(f"[CONSOLIDATE] Group {group_index}: Calling LLM...")
-    llm_response = call_llm(prompt)
+    llm_response = call_llm(system_prompt, user_prompt)
     print(f"[CONSOLIDATE] Group {group_index}: Received LLM response ({len(llm_response)} chars)")
 
     # Parse JSON response
@@ -174,11 +234,11 @@ def enrich_group_with_llm(
         print(f"[CONSOLIDATE] Response was: {llm_response[:500]}...")
         raise
 
-    # Extract fields (new Phase 2 schema)
+    # Extract fields (new Phase 2 schema with differences_across_standards)
     group_title = result.get('group_title', '').strip()
     regulatory_intent = result.get('regulatory_intent', '').strip()
     consolidated_requirement = result.get('consolidated_requirement', '').strip()
-    differences = result.get('differences_across_standards', [])
+    differences_across_standards = result.get('differences_across_standards', [])
     unique_requirements = result.get('unique_requirements', '').strip()
     conflicts = result.get('conflicts', '').strip()
 
@@ -198,7 +258,7 @@ def enrich_group_with_llm(
         group_title=group_title,
         regulatory_intent=regulatory_intent,
         consolidated_requirement=consolidated_requirement,
-        differences=differences,
+        differences_across_standards=differences_across_standards,
         unique_requirements=unique_requirements if unique_requirements else None,
         conflicts=conflicts if conflicts else None,
         analysis_notes=analysis_notes,
@@ -228,7 +288,7 @@ def enrich_group_with_llm(
 def consolidate_groups(
     all_clauses: List[Clause],
     groups: List[List[int]],
-    call_llm: Callable[[str], str]
+    call_llm: Callable[[str, str], str]
 ) -> List[RequirementGroup]:
     """
     Consolidate multiple groups using LLM enrichment.
@@ -236,7 +296,7 @@ def consolidate_groups(
     Args:
         all_clauses: Complete list of all Clause objects
         groups: List of groups (each group is a list of indices into all_clauses)
-        call_llm: Function that takes a prompt string and returns LLM response string
+        call_llm: Function that takes (system_prompt, user_prompt) and returns LLM response string
 
     Returns:
         List of RequirementGroup objects with consolidated core requirements
@@ -273,7 +333,7 @@ def consolidate_groups(
 
 
 # Stub LLM function for testing (can be replaced with real implementation)
-def stub_call_llm(prompt: str) -> str:
+def stub_call_llm(system_prompt: str, user_prompt: str) -> str:
     """
     Stub LLM function for testing. Returns a placeholder JSON response.
 

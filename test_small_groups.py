@@ -32,7 +32,7 @@ def test_small_groups_only():
         print(f"  Group {i}: {len(group_clauses)} clauses")
 
     # Create LLM function
-    llm_fn = lambda prompt: call_llm_for_consolidation(prompt, use_claude=True)
+    llm_fn = lambda sys_prompt, usr_prompt: call_llm_for_consolidation(sys_prompt, usr_prompt, use_claude=True)
 
     # Consolidate with retries
     print("\n" + "=" * 80)

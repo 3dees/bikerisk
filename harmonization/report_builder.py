@@ -32,7 +32,7 @@ def build_group_html(group: RequirementGroup) -> str:
     group_title = group.group_title or group.category or "Uncategorized"
     regulatory_intent = group.regulatory_intent or group.analysis_notes or "No regulatory intent provided."
     consolidated_requirement = group.consolidated_requirement or group.core_requirement
-    differences = group.differences or []
+    differences_across_standards = group.differences_across_standards or []
     unique_requirements = group.unique_requirements
     conflicts = group.conflicts
     standards = group.get_standards()
@@ -98,8 +98,8 @@ def build_group_html(group: RequirementGroup) -> str:
             </div>
         """
 
-    # Build differences table (Phase 2)
-    differences_html = _build_differences_table(differences) if differences else _extract_critical_differences(group.clauses)
+    # Build differences table (Phase 2 new schema)
+    differences_html = _build_differences_table(group.differences_across_standards) if group.differences_across_standards else _extract_critical_differences(group.clauses)
 
     # Build complete group HTML (Phase 2 structure)
     group_html = f"""
@@ -203,30 +203,35 @@ def _format_requirement_text(text: str) -> str:
     return f'<p>{text}</p>'
 
 
-def _build_differences_table(differences: List[dict]) -> str:
+def _build_differences_table(differences_across_standards: List[dict]) -> str:
     """
-    Build HTML table showing differences across standards (Phase 2).
+    Build HTML table showing differences across standards (Phase 2 new schema).
 
     Args:
-        differences: List of dicts with 'standard' and 'differences' keys
+        differences_across_standards: List of dicts with 'standard_id', 'clause_labels', and 'difference_summary' keys
 
     Returns:
         HTML table string
     """
-    if not differences:
+    if not differences_across_standards:
         return '<p class="no-differences">No differences specified.</p>'
 
     rows = []
-    for diff in differences:
-        standard = diff.get('standard', 'Unknown')
-        diffs_text = diff.get('differences', 'N/A')
+    for diff in differences_across_standards:
+        standard_id = diff.get('standard_id', 'Unknown')
+        clause_labels = diff.get('clause_labels', [])
+        difference_summary = diff.get('difference_summary', 'N/A')
+
+        # Format clause labels as comma-separated list
+        clauses_str = ', '.join(str(c) for c in clause_labels) if clause_labels else 'N/A'
 
         # Format multi-line differences
-        diffs_html = escape_html(diffs_text).replace('\n', '<br>')
+        diffs_html = escape_html(difference_summary).replace('\n', '<br>')
 
         rows.append(f"""
             <tr>
-                <td class="diff-standard"><strong>{escape_html(standard)}</strong></td>
+                <td class="diff-standard"><strong>{escape_html(standard_id)}</strong></td>
+                <td class="diff-clauses">{escape_html(clauses_str)}</td>
                 <td class="diff-text">{diffs_html}</td>
             </tr>
         """)
@@ -236,6 +241,7 @@ def _build_differences_table(differences: List[dict]) -> str:
             <thead>
                 <tr>
                     <th>Standard</th>
+                    <th>Clauses</th>
                     <th>Specific Differences / Stricter Requirements</th>
                 </tr>
             </thead>
@@ -363,6 +369,25 @@ def build_html_report(
 """
 
     return html_doc
+
+
+def save_json_report(groups: List[RequirementGroup], output_path: str) -> None:
+    """Save consolidated groups as JSON array to a file.
+
+    Each group is serialized via RequirementGroup.to_dict(), including member clauses
+    and Phase 2 consolidation fields (group_title, regulatory_intent, differences, etc.).
+
+    Args:
+        groups: List of consolidated RequirementGroup objects
+        output_path: Destination JSON file path
+    """
+    import json
+    import os
+
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    payload = [g.to_dict() for g in groups]
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
 
 
 def _get_css_styles() -> str:
