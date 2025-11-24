@@ -1,0 +1,51 @@
+{
+  "Claude Stream Extraction": {
+    "scope": "python",
+    "prefix": "claudeStreamExtract",
+    "description": "Minimal streamed messages.create with retry wrapper usage.",
+    "body": [
+      "from harmonization.anthropic_client import messages_create_with_retries", 
+      "prompt = \"Extract manual communication requirements only. Return JSON with 'requirements'.\"", 
+      "resp = messages_create_with_retries(",
+      "    model='${1:claude-sonnet-4-5-20250929}',",
+      "    messages=[{ 'role': 'user', 'content': prompt }],",
+      "    max_tokens=${2:4000},",
+      "    temperature=0",
+      ")",
+      "text = ''.join(block.text for block in resp.content if hasattr(block, 'text'))",
+      "print(text[:500])" 
+    ]
+  },
+  "Claude Retry Wrapper": {
+    "scope": "python",
+    "prefix": "claudeRetryWrapper",
+    "description": "Template for robust Anthropic call with custom backoff.",
+    "body": [
+      "from harmonization.anthropic_client import messages_create_with_retries", 
+      "def run_claude(prompt: str):", 
+      "    return messages_create_with_retries(",
+      "        model='${1:claude-sonnet-4-5-20250929}',",
+      "        messages=[{ 'role': 'user', 'content': prompt }],",
+      "        max_tokens=${2:8000},",
+      "        temperature=0",
+      "    )",
+      "resp = run_claude('List warning label manual inclusion rules as JSON array.')",
+      "print(resp)" 
+    ]
+  },
+  "Claude Section Batch": {
+    "scope": "python",
+    "prefix": "claudeSectionBatch",
+    "description": "Build a batch prompt for multiple sections with numbered separators.",
+    "body": [
+      "sections = [(${1:'7.1.2'}, ${2:'Safety instructions'}, ${3:'Full section text here...'}),]",
+      "parts = []",
+      "for idx,(clause, heading, content) in enumerate(sections,1):",
+      "    parts.append(f'---SECTION {idx}---\nClause: {clause}\nHeading: {heading}\n{content}')",
+      "batch_text = '\n\n'.join(parts)",
+      "prompt = f'Extract manual communication requirements ONLY. Return JSON {"requirements": [...]}\n{batch_text}'",
+      "resp = messages_create_with_retries(model='${4:claude-sonnet-4-5-20250929}', messages=[{'role':'user','content':prompt}], max_tokens=${5:12000}, temperature=0)",
+      "print(resp)" 
+    ]
+  }
+}
