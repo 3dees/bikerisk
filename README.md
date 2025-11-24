@@ -246,6 +246,17 @@ Recommended public standards to test:
 - May need to add custom patterns in `detect.py`
 - Check `_confidence` field in results for quality indicators
 
+### VS Code Extension Errors (Claude Code)
+If you encounter errors like `spawn claude.exe ENOENT` or similar VS Code extension issues:
+- The `.vscode` directory is **intentionally not tracked** in git
+- Each developer should maintain their own local `.vscode` configuration
+- If the directory was accidentally committed, remove it from tracking:
+  ```bash
+  git rm -r --cached .vscode
+  git commit -m "Remove .vscode from tracking"
+  ```
+- Your local `.vscode` folder will remain intact for your development environment
+
 ---
 
 ## Contributing
