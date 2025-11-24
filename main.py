@@ -15,7 +15,6 @@ import threading
 
 from extract import extract_from_file
 from extract_ai import extract_requirements_with_ai, extract_from_detected_sections, extract_from_detected_sections_batched
-from extract_gpt import extract_requirements_gpt
 from detect import detect_manual_sections, detect_all_sections, merge_small_sections
 from classify import rows_to_csv_dicts
 
@@ -71,19 +70,8 @@ def _process_upload_background(
     Background processing function for PDF extraction.
     Updates RESULTS_STORE with progress and final results.
     """
-    import time
-    start_time = time.time()
-
     try:
         # Step 1: Extract text (always needed for both modes)
-        with results_lock:
-            RESULTS_STORE[job_id].update({
-                'status': 'processing',
-                'step': 'Extracting text from PDF',
-                'progress': 10,
-                'start_time': start_time
-            })
-
         extraction_result = extract_from_file(file_bytes, filename)
 
         if not extraction_result['success']:
@@ -97,113 +85,9 @@ def _process_upload_background(
             return
 
         # Branch based on extraction mode
-        if extraction_mode == "gpt":
-            # GPT-4o-mini MODE: Direct extraction, no section detection
-            print(f"[EXTRACTION] Using GPT-4o-mini mode (direct extraction)")
-
-            # Step 2: Extract full text
-            with results_lock:
-                RESULTS_STORE[job_id].update({
-                    'step': 'Preparing text for GPT extraction',
-                    'progress': 20
-                })
-
-            pdf_text = extraction_result.get('text', '')
-            if not pdf_text:
-                blocks = extraction_result['blocks']
-                pdf_text = '\n'.join([block['raw'] for block in blocks])
-
-            # Step 3: GPT Extraction with progress callback
-            with results_lock:
-                RESULTS_STORE[job_id].update({
-                    'step': 'Extracting requirements with GPT-4o-mini',
-                    'progress': 30
-                })
-
-            def update_gpt_progress(completed_chunks, total_chunks, requirements_count):
-                progress = 30 + int((completed_chunks / total_chunks) * 50)  # 30-80% range
-                with results_lock:
-                    RESULTS_STORE[job_id].update({
-                        'step': f'Processing chunk {completed_chunks}/{total_chunks}',
-                        'progress': progress,
-                        'requirements_extracted': requirements_count
-                    })
-
-            # Extract with GPT (clause + text only)
-            raw_requirements = extract_requirements_gpt(
-                pdf_text=pdf_text,
-                filename=standard_name or filename,
-                extraction_type=extraction_type,
-                api_key=api_key,
-                max_workers=5,
-                progress_callback=update_gpt_progress
-            )
-
-            # Step 4: Classify requirements using existing classify.py
-            with results_lock:
-                RESULTS_STORE[job_id].update({
-                    'step': 'Classifying requirements',
-                    'progress': 85
-                })
-
-            # Convert GPT format to classified format
-            # GPT returns: [{"clause": "X", "text": "Y"}]
-            # We need: [{"Clause/Requirement": "X", "Description": "Y", "Standard/Reg": ...}]
-            classified_rows = []
-            for req in raw_requirements:
-                classified_rows.append({
-                    'Clause/Requirement': req.get('clause', ''),
-                    'Description': req.get('text', ''),
-                    'Standard/Reg': standard_name or 'Unknown',
-                    'Requirement scope': '',  # Will be filled by classify.py if needed
-                    'Formatting required?': 'N/A',
-                    'Required in Print?': 'n',
-                    'Parent Section': 'Unknown',  # GPT doesn't extract hierarchy yet
-                    'Sub-section': 'N/A',
-                    'Comments': 'GPT extraction',
-                    'Contains Image?': 'N',
-                    'Safety Notice Type': 'None'
-                })
-
-            # Convert to CSV format
-            csv_rows = rows_to_csv_dicts(classified_rows)
-
-            stats = {
-                'total_detected': len(classified_rows),
-                'classified_rows': len(classified_rows),
-                'extraction_method': 'gpt-4o-mini'
-            }
-            confidence = 'high'
-            consolidations = []
-            extraction_method = "gpt-4o-mini"
-
-            elapsed_time = time.time() - start_time
-
-            # Store completed results
-            with results_lock:
-                RESULTS_STORE[job_id].update({
-                    'status': 'completed',
-                    'step': 'Complete',
-                    'extraction_method': extraction_method,
-                    'extraction_confidence': confidence,
-                    'rows': classified_rows,
-                    'csv_rows': csv_rows,
-                    'consolidations': consolidations,
-                    'stats': stats,
-                    'progress': 100,
-                    'elapsed_time': round(elapsed_time, 2)
-                })
-
-        elif extraction_mode == "ai":
+        if extraction_mode == "ai":
             # HYBRID AI MODE: Rules find sections, AI extracts requirements
             print(f"[EXTRACTION] Using HYBRID AI mode (rules + Claude Opus)")
-
-            # Step 2: Detect sections
-            with results_lock:
-                RESULTS_STORE[job_id].update({
-                    'step': 'Detecting sections',
-                    'progress': 20
-                })
 
             # Step 1: Use appropriate detection based on extraction_type
             blocks = extraction_result['blocks']
@@ -226,12 +110,6 @@ def _process_upload_background(
 
             if not sections:
                 # No sections found by rules - fallback to full AI extraction
-                with results_lock:
-                    RESULTS_STORE[job_id].update({
-                        'step': 'No sections found, using full document extraction',
-                        'progress': 30
-                    })
-
                 print(f"[EXTRACTION] No sections found, trying full AI extraction as fallback")
                 pdf_text = extraction_result.get('text', '')
                 if not pdf_text:
@@ -240,46 +118,24 @@ def _process_upload_background(
 
                 ai_result = extract_requirements_with_ai(pdf_text, standard_name, extraction_type, api_key)
             else:
-                # Step 3: AI Extraction with progress updates
-                with results_lock:
-                    RESULTS_STORE[job_id].update({
-                        'step': f'Extracting requirements from {len(sections)} sections',
-                        'progress': 40
-                    })
+                # Step 2: Pass detected sections to AI for intelligent extraction (batched for performance)
+                # Auto-adjust batch size based on document size
+                if len(sections) > 100:
+                    batch_size = 3  # Large docs: small batches for reliability
+                elif len(sections) > 50:
+                    batch_size = 5  # Medium docs: balanced
+                else:
+                    batch_size = 10  # Small docs: larger batches for speed
 
-                # Step 2: Pass detected sections to AI for intelligent extraction (clause-level batching)
-                # Using optimal batch size of 30 clauses to stay under 5-minute timeout
-                # (Phase 1 clause segmentation = 6-9x speed improvement)
-                clauses_per_batch = 30
-
-                print(f"[EXTRACTION] Processing {len(sections)} sections with clause-level batching (30 clauses/batch)")
-
-                # Create a progress callback
-                def update_extraction_progress(completed_batches, total_batches, requirements_count):
-                    progress = 40 + int((completed_batches / total_batches) * 40)  # 40-80% range
-                    with results_lock:
-                        RESULTS_STORE[job_id].update({
-                            'step': f'Extracting batch {completed_batches}/{total_batches}',
-                            'progress': progress,
-                            'requirements_extracted': requirements_count
-                        })
+                print(f"[EXTRACTION] Using batch_size={batch_size} for {len(sections)} sections")
 
                 ai_result = extract_from_detected_sections_batched(
                     sections,
                     standard_name,
                     extraction_type,
                     api_key,
-                    clauses_per_batch=clauses_per_batch,
-                    progress_callback=update_extraction_progress,
-                    job_id=job_id
+                    batch_size=batch_size
                 )
-
-            # Step 4: Finalization
-            with results_lock:
-                RESULTS_STORE[job_id].update({
-                    'step': 'Finalizing results',
-                    'progress': 90
-                })
 
             classified_rows = ai_result['rows']
             stats = ai_result['stats']
@@ -291,21 +147,17 @@ def _process_upload_background(
 
             extraction_method = "hybrid_ai_rules"
 
-            elapsed_time = time.time() - start_time
-
             # Store completed results
             with results_lock:
                 RESULTS_STORE[job_id].update({
                     'status': 'completed',
-                    'step': 'Complete',
                     'extraction_method': extraction_method,
                     'extraction_confidence': confidence,
                     'rows': classified_rows,
                     'csv_rows': csv_rows,
                     'consolidations': consolidations,
                     'stats': stats,
-                    'progress': 100,
-                    'elapsed_time': round(elapsed_time, 2)
+                    'progress': 100
                 })
 
     except anthropic.APIStatusError as e:
@@ -343,7 +195,7 @@ async def upload_file(
     file: UploadFile = File(...),
     standard_name: Optional[str] = None,
     custom_section_name: Optional[str] = None,
-    extraction_mode: Optional[str] = "gpt",  # "gpt", "ai", or "rules"
+    extraction_mode: Optional[str] = "ai",  # "ai" or "rules"
     extraction_type: Optional[str] = "manual",  # "manual" or "all"
     authorization: Optional[str] = Header(None)
 ):
@@ -354,9 +206,9 @@ async def upload_file(
         file: PDF file
         standard_name: Optional name of the standard (e.g., "EN 15194")
         custom_section_name: Optional custom section name to search for (e.g., "Instruction for use")
-        extraction_mode: "gpt" (default, GPT-4o-mini), "ai" (Claude hybrid), or "rules" (regex only)
+        extraction_mode: "ai" (default) or "rules" for extraction method
         extraction_type: "manual" (default) for manual requirements only, "all" for all requirements
-        authorization: Authorization header with Bearer token (OpenAI API key for gpt mode, Anthropic for ai mode)
+        authorization: Authorization header with Bearer token (API key)
 
     Returns:
         Job ID and status='processing' (use /status/{job_id} to poll for completion)
@@ -381,21 +233,13 @@ async def upload_file(
 
     # Fallback to env var if no header provided
     if not api_key:
-        if extraction_mode == "gpt":
-            api_key = os.getenv('OPENAI_API_KEY')
-        else:  # "ai" mode
-            api_key = os.getenv('ANTHROPIC_API_KEY')
+        api_key = os.getenv('ANTHROPIC_API_KEY')
 
-    # Validate API key based on extraction mode
-    if extraction_mode == "gpt" and not api_key:
+    # Validate API key for AI mode
+    if extraction_mode == "ai" and not api_key:
         raise HTTPException(
             status_code=400,
-            detail="OpenAI API key required for GPT extraction mode. Please provide it via Authorization header or set OPENAI_API_KEY env var."
-        )
-    elif extraction_mode == "ai" and not api_key:
-        raise HTTPException(
-            status_code=400,
-            detail="Anthropic API key required for AI extraction mode. Please provide it via Authorization header or set ANTHROPIC_API_KEY env var."
+            detail="API key required for AI extraction mode. Please provide it via Authorization header or set ANTHROPIC_API_KEY env var."
         )
 
     # Initialize job in RESULTS_STORE with status='processing'

@@ -331,54 +331,31 @@ def render_settings_menu():
     # API Configuration
     st.markdown("#### 🔑 API Key")
 
-    # Check if API keys exist in session state or env
+    # Check if API key exists in session state or env
     if 'anthropic_api_key' not in st.session_state:
         st.session_state.anthropic_api_key = os.getenv('ANTHROPIC_API_KEY', '')
-    if 'openai_api_key' not in st.session_state:
-        st.session_state.openai_api_key = os.getenv('OPENAI_API_KEY', '')
-
-    # Show status for both API keys
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.session_state.openai_api_key:
-            st.success("✅ OpenAI Key")
-        else:
-            st.warning("⚠️ No OpenAI Key")
-    with col2:
-        if st.session_state.anthropic_api_key:
-            st.success("✅ Claude Key")
-        else:
-            st.warning("⚠️ No Claude Key")
 
     use_different_key = st.checkbox(
-        "Configure API Keys",
+        "Use different API key",
         value=False,
         key="use_different_key_menu"
     )
 
     if use_different_key:
-        openai_key = st.text_input(
-            "OpenAI API Key (for GPT mode)",
-            type="password",
-            value=st.session_state.openai_api_key,
-            key="openai_key_input_menu",
-            help="Required for GPT-4o-mini extraction mode"
-        )
-        if openai_key:
-            st.session_state.openai_api_key = openai_key
-
-        anthropic_key = st.text_input(
-            "Anthropic API Key (for Claude mode)",
+        api_key = st.text_input(
+            "Enter API Key",
             type="password",
             value=st.session_state.anthropic_api_key,
-            key="anthropic_key_input_menu",
-            help="Required for Claude Hybrid extraction mode"
+            key="api_key_input_menu"
         )
-        if anthropic_key:
-            st.session_state.anthropic_api_key = anthropic_key
-
-        if openai_key or anthropic_key:
-            st.success("✅ API keys updated")
+        if api_key:
+            st.session_state.anthropic_api_key = api_key
+            st.success("✅ API key updated")
+    else:
+        if st.session_state.anthropic_api_key:
+            st.success("✅ API key loaded")
+        else:
+            st.warning("⚠️ No API key found")
 
     st.divider()
 
@@ -668,40 +645,9 @@ def render_extraction_tab():
     # File upload in main area (like consolidation tab)
     st.divider()
 
-    # Extraction engine selector
-    col1, col2 = st.columns([2, 1])
-
-    with col1:
-        extraction_engine = st.selectbox(
-            "🤖 Extraction Engine",
-            ["GPT-4o-mini (Recommended)", "Claude Hybrid (Legacy)", "Rules Only"],
-            help="""
-            **GPT-4o-mini**: Fast, cost-effective extraction using OpenAI GPT-4o-mini. Best for all document formats.
-
-            **Claude Hybrid**: Uses regex to find sections, then Claude for extraction. Good quality but slower and more expensive.
-
-            **Rules Only**: Regex-based extraction. Fastest but may miss non-standard formats.
-            """
-        )
-
-    with col2:
-        # Show API key status based on selected engine
-        if extraction_engine.startswith("GPT"):
-            if 'openai_api_key' in st.session_state and st.session_state.openai_api_key:
-                st.success("✅ OpenAI Key")
-            else:
-                st.warning("⚠️ No OpenAI Key")
-        elif extraction_engine.startswith("Claude"):
-            if 'anthropic_api_key' in st.session_state and st.session_state.anthropic_api_key:
-                st.success("✅ Claude Key")
-            else:
-                st.warning("⚠️ No Claude Key")
-        else:
-            st.info("ℹ️ No key needed")
-
-    # Extraction type selector (what to extract)
+    # Extraction mode selector
     extraction_mode = st.selectbox(
-        "📋 Extraction Type",
+        "📋 Extraction Mode",
         ["Manual Requirements Only", "All Requirements"],
         help="""
         **Manual Requirements Only**: Extract only requirements about user manuals, instructions, and documentation.
@@ -750,20 +696,10 @@ def render_extraction_tab():
             # Show connection warning for long processing
             st.info("⏱️ **Large PDFs take 5-10 minutes.** Keep this tab open. If Streamlit asks to reconnect, click 'Always rerun' to see results when complete.")
 
-            # Actually run the processing - use stored parameters from session state
+            # Actually run the processing - use stored extraction_type from session state
             stored_extraction_type = st.session_state.get('extraction_type', 'manual')
-            stored_extraction_engine = st.session_state.get('extraction_engine', 'GPT-4o-mini (Recommended)')
-
-            # Map UI label to backend parameter
-            if stored_extraction_engine.startswith("GPT"):
-                backend_mode = "gpt"
-            elif stored_extraction_engine.startswith("Claude"):
-                backend_mode = "ai"
-            else:  # Rules Only
-                backend_mode = "rules"
-
-            print(f"[DEBUG] Processing started - extraction_type={stored_extraction_type}, engine={stored_extraction_engine}, backend_mode={backend_mode}")
-            process_multiple_documents(uploaded_files, standard_name, extraction_mode=backend_mode)
+            print(f"[DEBUG] Processing started - extraction_type in session state: {stored_extraction_type}")
+            process_multiple_documents(uploaded_files, standard_name, extraction_mode="ai")
             st.session_state.processing_active = False
             st.rerun()
         else:
@@ -777,8 +713,7 @@ def render_extraction_tab():
             if process_button:
                 st.session_state.processing_active = True
                 st.session_state.extraction_type = extraction_type  # Store for API call
-                st.session_state.extraction_engine = extraction_engine  # Store engine choice
-                print(f"[DEBUG] Button clicked - storing extraction_type={extraction_type}, extraction_engine={extraction_engine} in session state")
+                print(f"[DEBUG] Button clicked - storing extraction_type={extraction_type} in session state")
                 st.rerun()  # Trigger re-render to show loading state
 
     # Show existing results if available
@@ -1441,99 +1376,7 @@ def render_consolidation_tab():
 
         # Show current settings (small text)
         st.caption(f"Current settings: Min={st.session_state.get('min_group_size', 3)}, Max={st.session_state.get('max_group_size', 12)}")
-
-        st.divider()
-
-        # Alternative: Standards Comparison Tool
-        st.markdown("### 📊 Alternative: Compare Standards (No Consolidation)")
-        st.markdown("Identify which requirements appear across multiple standards without creating consolidated groups.")
-
-        if st.button("📊 Compare Standards Across Dataset", use_container_width=True, key="compare_standards_btn"):
-            # Create progress placeholders
-            progress_bar = st.progress(0)
-            status_text = st.empty()
-
-            # Define progress callback
-            def update_comparison_progress(message: str, progress_pct: float):
-                """Update UI progress indicators"""
-                status_text.text(f"📊 {message}")
-                progress_bar.progress(int(progress_pct))
-
-            try:
-                from compare_standards import compare_standards
-                import tempfile
-
-                # Save current DataFrame to temp CSV
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False, newline='', encoding='utf-8') as tmp:
-                    df.to_csv(tmp.name, index=False)
-                    tmp_path = tmp.name
-
-                # Run comparison (no API key needed - uses SequenceMatcher)
-                result = compare_standards(
-                    tmp_path,
-                    output_dir="./",
-                    progress_callback=update_comparison_progress
-                )
-
-                # Clean up temp file
-                os.unlink(tmp_path)
-
-                # Clear progress indicators
-                progress_bar.empty()
-                status_text.empty()
-
-                # Show results
-                st.success(f"✅ Comparison complete!")
-
-                # Stats
-                stat_col1, stat_col2, stat_col3, stat_col4 = st.columns(4)
-                with stat_col1:
-                    st.metric("Total Requirements", result['total_requirements'])
-                with stat_col2:
-                    st.metric("In All 3 Standards", result['cross_standard_3'])
-                with stat_col3:
-                    st.metric("In 2 Standards", result['cross_standard_2'])
-                with stat_col4:
-                    st.metric("Unique to 1 Standard", result['unique'])
-
-                # Download buttons
-                st.markdown("### 📥 Download Reports")
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    # CSV report
-                    with open(result['csv_path'], 'rb') as f:
-                        st.download_button(
-                            label="📄 Download CSV Report",
-                            data=f.read(),
-                            file_name="requirements_comparison_report.csv",
-                            mime="text/csv",
-                            use_container_width=True
-                        )
-
-                with col2:
-                    # Summary text
-                    with open(result['summary_path'], 'rb') as f:
-                        st.download_button(
-                            label="📝 Download Summary Text",
-                            data=f.read(),
-                            file_name="comparison_summary.txt",
-                            mime="text/plain",
-                            use_container_width=True
-                        )
-
-                st.info("💡 **Tip:** The CSV report includes match groups and similarity scores. The summary text provides a human-readable overview.")
-
-            except Exception as e:
-                # Clear progress indicators on error
-                progress_bar.empty()
-                status_text.empty()
-
-                st.error(f"❌ Error during comparison: {e}")
-                import traceback
-                st.code(traceback.format_exc())
-
-
+        
         # Display results
         if 'smart_consolidation' in st.session_state:
             result = st.session_state.smart_consolidation
@@ -2082,9 +1925,7 @@ def process_multiple_documents(uploaded_files, standard_name, extraction_mode="a
 
         # Prepare headers with API key (secure - not in URL)
         headers = {}
-        if extraction_mode == "gpt" and st.session_state.get('openai_api_key'):
-            headers['Authorization'] = f"Bearer {st.session_state.openai_api_key}"
-        elif extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
+        if extraction_mode == "ai" and st.session_state.get('anthropic_api_key'):
             headers['Authorization'] = f"Bearer {st.session_state.anthropic_api_key}"
 
         # Submit job to backend (should return immediately with job_id)
@@ -2239,44 +2080,16 @@ def process_document(uploaded_file, standard_name, custom_section_name, extracti
                 mode_emoji = "🤖" if result.get('extraction_mode') == 'ai' else "⚙️"
                 st.success(f"✅ Document processed successfully using {mode_emoji} {str(result.get('extraction_mode', 'unknown')).upper()} mode!")
 
-                # Show extraction stats dashboard
-                st.markdown("---")
-                st.subheader("📊 Extraction Statistics")
-
-                stats = result.get('stats', {})
-                elapsed_time = result.get('elapsed_time', 0)
-
-                # First row of metrics
+                # Show extraction stats
                 col1, col2, col3, col4 = st.columns(4)
                 with col1:
-                    st.metric("Total Requirements", stats.get('total_detected', 0))
+                    st.metric("Extraction Method", result.get('extraction_method', 'unknown'))
                 with col2:
-                    st.metric("Sections Processed", stats.get('sections_processed', 0))
+                    st.metric("Confidence", result.get('extraction_confidence', 'unknown').upper())
                 with col3:
-                    st.metric("Batches Processed", stats.get('batches_processed', 0))
+                    st.metric("Total Detected", result['stats'].get('total_detected', 0))
                 with col4:
-                    st.metric("Processing Time", f"{elapsed_time:.1f}s" if elapsed_time > 0 else "N/A")
-
-                # Second row of metrics
-                col5, col6, col7, col8 = st.columns(4)
-                with col5:
-                    duplicates = stats.get('duplicates_removed', 0)
-                    st.metric("Duplicates Removed", duplicates, delta=f"-{duplicates}" if duplicates > 0 else None)
-                with col6:
-                    clause_chunks = stats.get('clause_chunks_processed', 0)
-                    if clause_chunks > 0:
-                        st.metric("Clause Chunks", clause_chunks)
-                    else:
-                        st.metric("Clause Chunks", "N/A")
-                with col7:
-                    req_per_sec = stats.get('total_detected', 0) / elapsed_time if elapsed_time > 0 else 0
-                    st.metric("Requirements/sec", f"{req_per_sec:.1f}" if req_per_sec > 0 else "N/A")
-                with col8:
-                    confidence = result.get('extraction_confidence', 'unknown')
-                    st.metric("Confidence", confidence.title())
-
-                # Show extraction method
-                st.caption(f"Extraction method: {result.get('extraction_method', 'unknown')}")
+                    st.metric("Classified Rows", result['stats'].get('classified_rows', 0))
 
                 # Clear processing flag and rerun to display results immediately
                 st.session_state.processing_active = False
@@ -2354,9 +2167,8 @@ def display_results(job_id):
                     stats = result.get('stats', {})
                     st.json(stats)
 
-            # Use csv_rows for properly formatted column names
-            csv_rows = result.get('csv_rows', result.get('rows', []))
-            df = pd.DataFrame(csv_rows) if csv_rows else pd.DataFrame()
+            rows = result.get('rows', [])
+            df = pd.DataFrame(rows) if rows else pd.DataFrame()
 
         else:
             # Multiple documents - combine results
@@ -2384,11 +2196,10 @@ def display_results(job_id):
                     response = requests.get(f"{API_BASE_URL}/results/{jid}")
                     if response.status_code == 200:
                         result = response.json()
-                        # Use csv_rows for properly formatted column names
-                        csv_rows = result.get('csv_rows', result.get('rows', []))
-                        all_rows.extend(csv_rows)
+                        rows = result.get('rows', [])
+                        all_rows.extend(rows)
                         all_filenames.append(result.get('filename', 'Unknown'))
-                        doc_row_counts.append(len(csv_rows))
+                        doc_row_counts.append(len(rows))
                     else:
                         st.warning(f"⚠️ Failed to fetch job {jid}: Status {response.status_code}")
                 except Exception as e:
@@ -2411,7 +2222,7 @@ def display_results(job_id):
             st.info("No requirements found in the document(s).")
             return
 
-        # Keep all schema columns (now 11 columns with section hierarchy)
+        # Keep only the 9 schema columns
         display_columns = [
             'Description',
             'Standard/Reg',
@@ -2419,11 +2230,9 @@ def display_results(job_id):
             'Requirement scope',
             'Formatting required?',
             'Required in Print?',
-            'Parent Section',       # NEW - top-level section
-            'Sub-section',          # NEW - sub-section within parent
             'Comments',
-            'Contains Image?',      # Flags figure references
-            'Safety Notice Type'    # Marks WARNING/DANGER/CAUTION
+            'Contains Image?',      # NEW - flags figure references
+            'Safety Notice Type'    # NEW - marks WARNING/DANGER/CAUTION
         ]
 
         # Ensure all required columns exist (defensive programming)
@@ -2434,10 +2243,6 @@ def display_results(job_id):
                     df[col] = 'N'
                 elif col == 'Safety Notice Type':
                     df[col] = 'None'
-                elif col == 'Parent Section':
-                    df[col] = 'Unknown'
-                elif col == 'Sub-section':
-                    df[col] = 'N/A'
                 else:
                     df[col] = ''
 

@@ -35,7 +35,7 @@ def consolidate_with_smart_ai(
     api_key: str,
     min_group_size: int = 3,
     max_group_size: int = 12,
-    batch_size: int = 50,  # Auto-batch if more than this (reduced from 150 to prevent timeouts)
+    batch_size: int = 150,  # Auto-batch if more than this
     progress_callback = None  # Optional callback for progress updates
 ) -> Dict:
     """
@@ -47,7 +47,7 @@ def consolidate_with_smart_ai(
         api_key: Anthropic API key
         min_group_size: Minimum requirements per group (default 3)
         max_group_size: Maximum requirements per group (default 12)
-        batch_size: Maximum requirements per batch (default 50, reduced from 150 to prevent timeouts)
+        batch_size: Maximum requirements per batch (default 150)
         progress_callback: Optional function(message, progress_pct) for UI updates
 
     Returns:
@@ -72,18 +72,13 @@ def consolidate_with_smart_ai(
     total_requirements = len(requirements)
     print(f"[SMART AI] Processing {total_requirements} requirements")
 
-    # Debug: Show unique standards
-    unique_standards = set(req['standard'] for req in requirements)
-    print(f"[DEBUG] Unique standards found: {unique_standards}")
-    print(f"[DEBUG] Number of unique standards: {len(unique_standards)}")
-
     if progress_callback:
         progress_callback(f"Processing {total_requirements} requirements...", 0)
 
     # Check if we need to batch
     if total_requirements > batch_size:
         print(f"[SMART AI] Dataset is large ({total_requirements} requirements)")
-        print(f"[SMART AI] Using automatic batching ({batch_size} requirements per batch - reduced from 150 to prevent timeouts)")
+        print(f"[SMART AI] Using automatic batching ({batch_size} requirements per batch)")
         if progress_callback:
             num_batches = (total_requirements + batch_size - 1) // batch_size
             progress_callback(f"Using automatic batching ({num_batches} batches)...", 5)
@@ -237,21 +232,13 @@ Be thorough and detailed. Create consolidations that help reduce manual size whi
         if progress_callback:
             progress_callback("Claude is analyzing requirements by regulatory intent...", 20)
 
-        # Add explicit timeout handling with httpx.TimeoutException
-        try:
-            message = client.messages.create(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=16000,
-                temperature=0,
-                timeout=600.0,  # 10 minute timeout
-                messages=[{"role": "user", "content": prompt}]
-            )
-        except httpx.TimeoutException as e:
-            print(f"[SMART AI] ✗ Timeout after 10 minutes: {e}")
-            raise Exception(f"API timeout after 10 minutes processing {len(requirements)} requirements") from e
-        except httpx.ReadTimeout as e:
-            print(f"[SMART AI] ✗ Read timeout: {e}")
-            raise Exception(f"API read timeout processing {len(requirements)} requirements") from e
+        message = client.messages.create(
+            model="claude-sonnet-4-5-20250929",
+            max_tokens=16000,
+            temperature=0,
+            timeout=600.0,  # 10 minute timeout
+            messages=[{"role": "user", "content": prompt}]
+        )
 
         response_text = message.content[0].text
         print(f"[SMART AI] Received response ({len(response_text)} chars)")
@@ -463,10 +450,7 @@ def _consolidate_batched(requirements: List[Dict], api_key: str, batch_size: int
     print(f"  - Total groups created: {len(all_groups)}")
     print(f"  - Cross-standard groups (kept): {len(cross_standard_groups)}")
     print(f"  - Single-standard groups (discarded): {len(single_standard_groups)}")
-    if len(all_groups) > 0:
-        print(f"  - Filter rate: {len(single_standard_groups)/len(all_groups)*100:.1f}% removed")
-    else:
-        print(f"  - Filter rate: N/A (no groups created)")
+    print(f"  - Filter rate: {len(single_standard_groups)/len(all_groups)*100:.1f}% removed")
 
     if progress_callback:
         progress_callback(f"Complete! Created {len(cross_standard_groups)} cross-standard groups", 100)
