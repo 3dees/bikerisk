@@ -29,7 +29,7 @@ venv/
 ENV/
 
 # IDEs
-# .vscode/ - now tracked for Claude Code setup
+.vscode/
 .idea/
 *.swp
 *.swo
