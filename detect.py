@@ -21,26 +21,37 @@ def is_english_text(text: str, min_confidence: float = 0.8) -> bool:
         return True
     
     try:
-        from langdetect import detect_langs
+        from langdetect import detect_langs, LangDetectException
         
-        # Get language probabilities
-        langs = detect_langs(text)
-        
-        # Check if English is detected with sufficient confidence
-        for lang in langs:
-            if lang.lang == 'en' and lang.prob >= min_confidence:
-                return True
-        
-        # Log non-English detection
-        top_lang = langs[0] if langs else None
-        if top_lang:
-            print(f"[LANGUAGE FILTER] Skipping non-English text (detected: {top_lang.lang}, confidence: {top_lang.prob:.2f})")
-        
-        return False
+        try:
+            # Get language probabilities
+            langs = detect_langs(text)
+            
+            # Check if English is detected with sufficient confidence
+            for lang in langs:
+                if lang.lang == 'en' and lang.prob >= min_confidence:
+                    return True
+            
+            # Log non-English detection
+            top_lang = langs[0] if langs else None
+            if top_lang:
+                print(f"[LANGUAGE FILTER] Skipping non-English text (detected: {top_lang.lang}, confidence: {top_lang.prob:.2f})")
+            
+            return False
+            
+        except LangDetectException as e:
+            # langdetect failed - assume English to be safe
+            print(f"[LANGUAGE FILTER] Detection failed ({str(e)}), assuming English")
+            return True
+    
+    except ImportError:
+        # langdetect not available - assume English to avoid breaking extraction
+        print("[LANGUAGE FILTER] langdetect not installed, assuming English")
+        return True
     
     except Exception as e:
-        # If detection fails, assume English to avoid false positives
-        print(f"[LANGUAGE FILTER] Detection error, assuming English: {e}")
+        # Unexpected error - assume English to avoid breaking extraction
+        print(f"[LANGUAGE FILTER] Unexpected error: {str(e)}, assuming English")
         return True
 
 
@@ -197,9 +208,13 @@ def detect_manual_sections(blocks: List[Dict], custom_section_names: List[str] =
 
         # Filter out non-English sections
         section_text = '\n'.join(section_content)
-        if not is_english_text(section_text):
-            print(f"[LANGUAGE FILTER] Skipped section '{heading_text[:50]}...' (non-English)")
-            continue
+        try:
+            if not is_english_text(section_text):
+                print(f"[LANGUAGE FILTER] Skipped section '{heading_text[:50]}...' (non-English)")
+                continue
+        except Exception as e:
+            print(f"[LANGUAGE FILTER] Error checking language for section, including it anyway: {e}")
+            # If language check fails, include the section anyway (safe fallback)
 
         sections.append({
             'start_line': block['lineno'],
@@ -316,9 +331,13 @@ def detect_all_sections(blocks: List[Dict], custom_section_names: List[str] = No
         section_text = '\n'.join(section_content)
 
         # Filter out non-English sections
-        if not is_english_text(section_text):
-            print(f"[LANGUAGE FILTER] Skipped section '{heading_text[:50]}...' (non-English)")
-            continue
+        try:
+            if not is_english_text(section_text):
+                print(f"[LANGUAGE FILTER] Skipped section '{heading_text[:50]}...' (non-English)")
+                continue
+        except Exception as e:
+            print(f"[LANGUAGE FILTER] Error checking language for section, including it anyway: {e}")
+            # If language check fails, include the section anyway (safe fallback)
 
         sections.append({
             'start_line': block['lineno'],
@@ -355,10 +374,14 @@ def _split_by_pages(blocks: List[Dict], lines_per_page: int = 50) -> List[Dict]:
         page_text = '\n'.join(page_content)
         
         # Filter out non-English pages
-        if not is_english_text(page_text):
-            print(f"[LANGUAGE FILTER] Skipped page {page_num} (non-English)")
-            page_num += 1
-            continue
+        try:
+            if not is_english_text(page_text):
+                print(f"[LANGUAGE FILTER] Skipped page {page_num} (non-English)")
+                page_num += 1
+                continue
+        except Exception as e:
+            print(f"[LANGUAGE FILTER] Error checking language for page, including it anyway: {e}")
+            # If language check fails, include the page anyway (safe fallback)
 
         sections.append({
             'start_line': blocks[start_idx]['lineno'],
