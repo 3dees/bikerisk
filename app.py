@@ -702,11 +702,11 @@ def render_extraction_tab():
     # Extraction type selector (what to extract)
     extraction_mode = st.selectbox(
         "📋 Extraction Type",
-        ["Manual Requirements Only", "All Requirements"],
+        ["All Requirements", "Manual Requirements Only"],
         help="""
-        **Manual Requirements Only**: Extract only requirements about user manuals, instructions, and documentation.
-
         **All Requirements**: Extract ALL requirements including design specs, test procedures, manufacturing requirements, and user documentation.
+        
+        **Manual Requirements Only**: Extract only requirements about user manuals, instructions, and documentation.
         """
     )
 
