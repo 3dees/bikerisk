@@ -491,8 +491,12 @@ def validate_requirements(
         print("VALIDATION RESULTS (MINIMAL FILTERING)")
         print("=" * 80)
         print(f"Input:   {stats['total_input']} requirements")
-        print(f"Valid:   {stats['valid_output']} requirements ({stats['valid_output']/stats['total_input']*100:.1f}%)")
-        print(f"Removed: {stats['removed_total']} requirements ({stats['removed_total']/stats['total_input']*100:.1f}%)")
+        if stats['total_input'] > 0:
+            print(f"Valid:   {stats['valid_output']} requirements ({stats['valid_output']/stats['total_input']*100:.1f}%)")
+            print(f"Removed: {stats['removed_total']} requirements ({stats['removed_total']/stats['total_input']*100:.1f}%)")
+        else:
+            print(f"Valid:   {stats['valid_output']} requirements (0.0%)")
+            print(f"Removed: {stats['removed_total']} requirements (0.0%)")
         print()
 
         if stats['removal_reasons']:
@@ -609,3 +613,4 @@ if __name__ == "__main__":
     else:
         print("\n[ERROR] No valid requirements found!")
         sys.exit(1)
+
