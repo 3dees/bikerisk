@@ -1383,6 +1383,13 @@ def render_consolidation_tab():
 
         st.info(f"⏱️ Estimated processing time: {estimate}{batches_info}")
 
+        # Email notification input
+        user_email = st.text_input(
+            "📧 Email for completion notification (optional)",
+            placeholder="your.email@example.com",
+            help="We'll send you an email when the analysis is complete"
+        )
+
         with col1:
             # Run consolidation button - use session state defaults
             if st.button("🧠 Analyze with Smart AI", type="primary", use_container_width=True, key="analyze_main"):
@@ -1425,19 +1432,24 @@ def render_consolidation_tab():
 
                         # Send completion email notification
                         try:
-                            email_message = f"""
-                            <p><strong>Smart AI Consolidation Complete!</strong></p>
-                            <ul>
-                                <li>Total Requirements Analyzed: {result['total_requirements']}</li>
-                                <li>Groups Created: {len(result['groups'])}</li>
-                                <li>Ungrouped Requirements: {result['ungrouped_count']}</li>
-                            </ul>
-                            <p>Your analysis results are ready for review.</p>
-                            """
-                            send_completion_email(
-                                subject="BikeRisk: Smart AI Analysis Complete",
-                                message=email_message
-                            )
+                            # Only send if user provided an email
+                            if user_email and user_email.strip():
+                                email_message = f"""
+                                <p><strong>Smart AI Consolidation Complete!</strong></p>
+                                <ul>
+                                    <li>Total Requirements Analyzed: {result['total_requirements']}</li>
+                                    <li>Groups Created: {len(result['groups'])}</li>
+                                    <li>Ungrouped Requirements: {result['ungrouped_count']}</li>
+                                </ul>
+                                <p>Your analysis results are ready for review in the BikeRisk app.</p>
+                                """
+                                success, msg = send_completion_email(
+                                    subject="BikeRisk: Smart AI Analysis Complete",
+                                    message=email_message,
+                                    recipient_email=user_email.strip()
+                                )
+                                if success:
+                                    st.info(f"📧 Notification email sent to {user_email}")
                         except Exception as email_error:
                             # Don't fail the whole operation if email fails
                             print(f"Email notification failed: {email_error}")
