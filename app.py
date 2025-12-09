@@ -32,6 +32,54 @@ load_dotenv()
 API_BASE_URL = "http://localhost:8000"
 
 
+def send_completion_email(subject, message, recipient_email=None):
+    """Send completion notification email."""
+    if not recipient_email:
+        recipient_email = os.getenv('FEEDBACK_RECIPIENT_EMAIL', 'vanessajambois@gmail.com')
+    
+    import smtplib
+    from email.mime.text import MIMEText
+    from email.mime.multipart import MIMEMultipart
+    
+    smtp_user = os.getenv('FEEDBACK_EMAIL_USER')
+    smtp_password = os.getenv('FEEDBACK_EMAIL_PASSWORD')
+    
+    if not smtp_user or not smtp_password:
+        return False, "Email not configured"
+    
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = smtp_user
+        msg['To'] = recipient_email
+        
+        html = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2 style="color: #0d6efd;">BikeRisk Analysis Complete</h2>
+            <div style="background-color: #f8f9fa; padding: 15px; border-left: 4px solid #28a745; margin: 10px 0;">
+                {message}
+            </div>
+            <p style="color: #6c757d; margin-top: 20px;">
+                <small>Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>
+            </p>
+        </body>
+        </html>
+        """
+        
+        msg.attach(MIMEText(html, 'html'))
+        
+        with smtplib.SMTP('smtp.gmail.com', 587, timeout=10) as server:
+            server.starttls()
+            server.login(smtp_user, smtp_password)
+            server.send_message(msg)
+        
+        return True, "Email sent successfully"
+    
+    except Exception as e:
+        return False, f"Email error: {str(e)}"
+
+
 def send_feedback_email(feedback_data):
     """Send feedback via email using Resend (primary) or SendGrid (fallback)."""
 
@@ -1374,6 +1422,25 @@ def render_consolidation_tab():
                             st.metric("Groups Created", len(result['groups']))
                         with stat_col3:
                             st.metric("Ungrouped", result['ungrouped_count'])
+
+                        # Send completion email notification
+                        try:
+                            email_message = f"""
+                            <p><strong>Smart AI Consolidation Complete!</strong></p>
+                            <ul>
+                                <li>Total Requirements Analyzed: {result['total_requirements']}</li>
+                                <li>Groups Created: {len(result['groups'])}</li>
+                                <li>Ungrouped Requirements: {result['ungrouped_count']}</li>
+                            </ul>
+                            <p>Your analysis results are ready for review.</p>
+                            """
+                            send_completion_email(
+                                subject="BikeRisk: Smart AI Analysis Complete",
+                                message=email_message
+                            )
+                        except Exception as email_error:
+                            # Don't fail the whole operation if email fails
+                            print(f"Email notification failed: {email_error}")
 
                     except Exception as e:
                         st.error(f"❌ Error during consolidation: {e}")
