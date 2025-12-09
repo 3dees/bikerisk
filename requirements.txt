@@ -17,6 +17,7 @@ anthropic>=0.7.0
 openai>=1.0.0
 tiktoken>=0.5.0
 google-cloud-vision>=3.7.0
+langdetect>=1.0.9
 
 # Environment & Config
 python-dotenv>=1.0.0

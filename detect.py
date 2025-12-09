@@ -5,6 +5,45 @@ import re
 from typing import Dict, List, Tuple
 
 
+def is_english_text(text: str, min_confidence: float = 0.8) -> bool:
+    """
+    Check if text is in English using langdetect.
+    
+    Args:
+        text: Text to check
+        min_confidence: Minimum confidence threshold (0.0-1.0)
+    
+    Returns:
+        True if text is likely English, False otherwise
+    """
+    if not text or len(text.strip()) < 20:
+        # Too short to detect reliably - assume English to avoid false positives
+        return True
+    
+    try:
+        from langdetect import detect_langs
+        
+        # Get language probabilities
+        langs = detect_langs(text)
+        
+        # Check if English is detected with sufficient confidence
+        for lang in langs:
+            if lang.lang == 'en' and lang.prob >= min_confidence:
+                return True
+        
+        # Log non-English detection
+        top_lang = langs[0] if langs else None
+        if top_lang:
+            print(f"[LANGUAGE FILTER] Skipping non-English text (detected: {top_lang.lang}, confidence: {top_lang.prob:.2f})")
+        
+        return False
+    
+    except Exception as e:
+        # If detection fails, assume English to avoid false positives
+        print(f"[LANGUAGE FILTER] Detection error, assuming English: {e}")
+        return True
+
+
 # Patterns for detecting manual/instructions sections (Pass A)
 MANUAL_SECTION_PATTERNS = [
     r'instructions?\s+for\s+use',
@@ -156,12 +195,18 @@ def detect_manual_sections(blocks: List[Dict], custom_section_names: List[str] =
         if end_line is None:
             end_line = blocks[-1]['lineno']
 
+        # Filter out non-English sections
+        section_text = '\n'.join(section_content)
+        if not is_english_text(section_text):
+            print(f"[LANGUAGE FILTER] Skipped section '{heading_text[:50]}...' (non-English)")
+            continue
+
         sections.append({
             'start_line': block['lineno'],
             'end_line': end_line,
             'heading': heading_text,
             'clause_number': clause_number,
-            'content': '\n'.join(section_content)
+            'content': section_text
         })
 
     return sections
@@ -268,13 +313,19 @@ def detect_all_sections(blocks: List[Dict], custom_section_names: List[str] = No
             end_line = blocks[-1]['lineno']
 
         heading_text = line_text
+        section_text = '\n'.join(section_content)
+
+        # Filter out non-English sections
+        if not is_english_text(section_text):
+            print(f"[LANGUAGE FILTER] Skipped section '{heading_text[:50]}...' (non-English)")
+            continue
 
         sections.append({
             'start_line': block['lineno'],
             'end_line': end_line,
             'heading': heading_text,
             'clause_number': clause_number or 'Unknown',
-            'content': '\n'.join(section_content)
+            'content': section_text
         })
 
     # Fallback: If very few sections detected (< 5), split by pages instead
@@ -301,12 +352,20 @@ def _split_by_pages(blocks: List[Dict], lines_per_page: int = 50) -> List[Dict]:
         for i in range(start_idx, end_idx):
             page_content.append(blocks[i]['raw'])
 
+        page_text = '\n'.join(page_content)
+        
+        # Filter out non-English pages
+        if not is_english_text(page_text):
+            print(f"[LANGUAGE FILTER] Skipped page {page_num} (non-English)")
+            page_num += 1
+            continue
+
         sections.append({
             'start_line': blocks[start_idx]['lineno'],
             'end_line': blocks[end_idx - 1]['lineno'],
             'heading': f'Page {page_num}',
             'clause_number': f'Page {page_num}',
-            'content': '\n'.join(page_content)
+            'content': page_text
         })
 
         page_num += 1
