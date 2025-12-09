@@ -8,7 +8,7 @@ import time
 import os
 from datetime import datetime
 from dotenv import load_dotenv
-from consolidate_smart_ai import consolidate_with_smart_ai
+from consolidate_harmonization import consolidate_with_harmonization
 from project_storage import (
     save_project,
     load_project,
@@ -1399,13 +1399,12 @@ def render_consolidation_tab():
 
                 with st.spinner("🤖 Claude is analyzing your requirements by regulatory intent..."):
                     try:
-                        from consolidate_smart_ai import consolidate_with_smart_ai
+                        from consolidate_harmonization import consolidate_with_harmonization
 
-                        result = consolidate_with_smart_ai(
+                        result = consolidate_with_harmonization(
                             df,
                             st.session_state.anthropic_api_key,
-                            min_group_size=min_group_size,
-                            max_group_size=max_group_size
+                            similarity_threshold=0.35
                         )
 
                         # Store results
