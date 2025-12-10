@@ -1,15 +1,13 @@
 """
 Harmonization layer wrapper for Streamlit app.
-Replaces consolidate_smart_ai.py with the TF-IDF + LLM consolidation pipeline.
+Replaces consolidate_smart_ai.py with the TF-IDF clustering pipeline.
 """
 import pandas as pd
 from typing import Dict, List, Callable, Optional
 from dataclasses import dataclass
-import tempfile
-from pathlib import Path
 
-from harmonization.grouping import load_clauses_from_dataframe, group_clauses_by_category_then_similarity
-from harmonization.consolidate import consolidate_groups
+from harmonization.models import Clause
+from harmonization.grouping import group_clauses_by_category_then_similarity
 
 
 @dataclass
@@ -33,11 +31,11 @@ def consolidate_with_harmonization(
     progress_callback: Optional[Callable] = None
 ) -> Dict:
     """
-    Use harmonization layer (TF-IDF clustering + LLM consolidation) to create cross-standard groups.
+    Use harmonization layer (TF-IDF clustering) to create cross-standard groups.
     
     Args:
-        df: DataFrame with requirements (must have Standard/Reg and Description columns)
-        api_key: Anthropic API key (not used - harmonization uses environment variable)
+        df: DataFrame with requirements (must have 'Standard/ Regulation' and 'Requirement (Clause)' columns)
+        api_key: Anthropic API key (stored for future LLM consolidation)
         similarity_threshold: Base threshold for TF-IDF clustering (default 0.35)
         progress_callback: Optional function(message, progress_pct) for UI updates
     
@@ -46,10 +44,22 @@ def consolidate_with_harmonization(
     """
     
     if progress_callback:
-        progress_callback("Loading requirements...", 5)
+        progress_callback("Converting DataFrame to Clause objects...", 5)
     
-    # Step 1: Load clauses from DataFrame
-    all_clauses = load_clauses_from_dataframe(df)
+    # Step 1: Convert DataFrame to Clause objects
+    all_clauses = []
+    for idx, row in df.iterrows():
+        standard = str(row.get('Standard/ Regulation', 'Unknown'))
+        requirement_text = str(row.get('Requirement (Clause)', ''))
+        clause_number = str(row.get('Clause', f'Req_{idx}'))
+        
+        if requirement_text and requirement_text.strip():
+            clause = Clause(
+                clause_number=clause_number,
+                text=requirement_text,
+                standard_name=standard
+            )
+            all_clauses.append(clause)
     
     if not all_clauses:
         return {
@@ -68,110 +78,81 @@ def consolidate_with_harmonization(
     if progress_callback:
         progress_callback("Clustering requirements by similarity...", 20)
     
-    groups = group_clauses_by_category_then_similarity(
-        all_clauses,
-        similarity_threshold=similarity_threshold
-    )
+    try:
+        group_indices, category_map = group_clauses_by_category_then_similarity(
+            all_clauses,
+            similarity_threshold=similarity_threshold
+        )
+    except Exception as e:
+        print(f"[HARMONIZATION] Error during clustering: {e}")
+        return {
+            'groups': [],
+            'ungrouped_indices': list(range(len(df))),
+            'analysis_notes': f'Error during clustering: {str(e)}',
+            'total_requirements': len(all_clauses),
+            'grouped_count': 0,
+            'ungrouped_count': len(all_clauses)
+        }
     
     # Filter for cross-standard groups only
-    cross_standard_groups = [g for g in groups if len(set(c.standard_id for c in g.clauses)) >= 2]
+    cross_standard_groups = []
+    for group_idx_list in group_indices:
+        standards_in_group = set(all_clauses[i].standard_name for i in group_idx_list)
+        if len(standards_in_group) >= 2:
+            cross_standard_groups.append(group_idx_list)
     
     if not cross_standard_groups:
         # Return empty result if no cross-standard groups
-        all_indices = [c.original_index for c in all_clauses]
+        all_indices = list(range(len(df)))
         return {
             'groups': [],
             'ungrouped_indices': all_indices,
-            'analysis_notes': f'Created {len(groups)} groups, but none were cross-standard. Try lowering the similarity threshold.',
+            'analysis_notes': f'Created {len(group_indices)} groups, but none were cross-standard. Try lowering the similarity threshold.',
             'total_requirements': len(all_clauses),
             'grouped_count': 0,
             'ungrouped_count': len(all_clauses)
         }
     
     if progress_callback:
-        progress_callback(f"Found {len(cross_standard_groups)} cross-standard groups", 30)
+        progress_callback(f"Found {len(cross_standard_groups)} cross-standard groups", 50)
     
-    # Step 3: Consolidate each group with LLM
-    if progress_callback:
-        progress_callback("Consolidating groups with Claude...", 40)
-    
-    consolidated_groups = []
-    total_groups = len(cross_standard_groups)
-    
-    # Skip groups that are too large (>100 clauses)
-    MAX_GROUP_SIZE = 100
-    
-    for idx, group in enumerate(cross_standard_groups):
-        if len(group.clauses) > MAX_GROUP_SIZE:
-            print(f"[HARMONIZATION] Skipping group {idx} - too large ({len(group.clauses)} clauses)")
-            continue
-        
-        # Update progress
-        progress_pct = 40 + int((idx / total_groups) * 50)
-        if progress_callback:
-            progress_callback(f"Consolidating group {idx + 1}/{total_groups}...", progress_pct)
-        
-        try:
-            # Consolidate with LLM
-            result = consolidate_groups([group])
-            
-            if result and len(result) > 0:
-                consolidated_groups.append(result[0])
-        except Exception as e:
-            print(f"[HARMONIZATION] Error consolidating group {idx}: {e}")
-            continue
-    
-    if progress_callback:
-        progress_callback("Finalizing results...", 95)
-    
-    # Step 4: Convert to Streamlit-compatible format
+    # Step 3: Convert to Streamlit-compatible format
     streamlit_groups = []
     grouped_indices = set()
     
-    for idx, cons_group in enumerate(consolidated_groups):
-        # Extract requirement indices
-        req_indices = [c.original_index for c in cons_group.clauses]
-        grouped_indices.update(req_indices)
+    for group_idx, group_idx_list in enumerate(cross_standard_groups):
+        # Get clauses in this group
+        group_clauses = [all_clauses[i] for i in group_idx_list]
+        grouped_indices.update(group_idx_list)
         
         # Extract standards
-        standards = list(set(c.standard_id for c in cons_group.clauses))
+        standards = list(set(c.standard_name for c in group_clauses))
         
-        # Build critical differences list
+        # Build core requirement from first clause
+        core_req = group_clauses[0].text if group_clauses else ""
+        
+        # Build critical differences from other clauses
         critical_differences = []
-        for diff in cons_group.differences_across_standards:
-            std_id = diff.standard_id
-            diff_summary = diff.difference_summary
-            clause_labels = ', '.join(diff.clause_labels)
-            critical_differences.append(f"{std_id} ({clause_labels}): {diff_summary}")
-        
-        # Add unique requirements
-        if cons_group.unique_requirements:
-            for unique_req in cons_group.unique_requirements:
-                critical_differences.append(f"UNIQUE: {unique_req}")
-        
-        # Add conflicts
-        if cons_group.conflicts:
-            for conflict in cons_group.conflicts:
-                critical_differences.append(f"CONFLICT: {conflict}")
+        for clause in group_clauses[1:]:
+            critical_differences.append(f"{clause.standard_name} ({clause.clause_number}): {clause.text}")
         
         # Create ConsolidationGroup compatible with Streamlit UI
         streamlit_group = ConsolidationGroup(
-            group_id=idx,
-            topic=cons_group.group_title or f"Group {idx + 1}",
-            regulatory_intent=cons_group.regulatory_intent or "",
-            core_requirement=cons_group.consolidated_requirement or "",
+            group_id=group_idx,
+            topic=f"Group {group_idx + 1} - {', '.join(standards[:2])}",
+            regulatory_intent="Cross-standard requirement cluster",
+            core_requirement=core_req,
             applies_to_standards=standards,
             critical_differences=critical_differences,
-            consolidation_potential=0.85,  # Placeholder - harmonization doesn't compute this
-            requirement_indices=req_indices,
-            reasoning=f"Consolidated from {len(req_indices)} requirements across {len(standards)} standards"
+            consolidation_potential=0.75,
+            requirement_indices=group_idx_list,
+            reasoning=f"TF-IDF similarity cluster with {len(group_idx_list)} requirements from {len(standards)} standards"
         )
         
         streamlit_groups.append(streamlit_group)
     
     # Ungrouped indices
-    all_indices = set(c.original_index for c in all_clauses)
-    ungrouped_indices = list(all_indices - grouped_indices)
+    ungrouped_indices = list(set(range(len(all_clauses))) - grouped_indices)
     
     if progress_callback:
         progress_callback("Complete!", 100)
